@@ -8,8 +8,7 @@ Enterprise application development group project (10 members).
 ## Quick start (local platform stack)
 
 ```bash
-cp .env.example .env          # then edit the passwords
-docker compose up -d          # Postgres, RabbitMQ, Redis, MinIO, Mailpit
+docker compose up -d          # Postgres, RabbitMQ, Redis, MinIO, Mailpit (local dev defaults, no .env needed)
 docker compose ps             # everything should become "healthy"
 ```
 
@@ -51,6 +50,6 @@ docs/          design documents and diagrams
 
 ## Rules
 
-- Never commit `.env` or any secret.
+- Local passwords in docker-compose are dev-only defaults. To override them create a `.env` file (it is git-ignored). Never commit `.env` or any real secret.
 - Every PR needs one review and a green CI run.
 - Minimum 70% test coverage per service.
