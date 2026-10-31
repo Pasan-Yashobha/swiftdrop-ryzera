@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  backend:
+    name: backend (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [gateway, identity, merchant, parcel, pricing, dispatch, courier,
+                  tracking, notification, webhook, reporting, audit, document]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip if the service does not exist yet
+        id: exists
+        run: |
+          if [ -f "services/${{ matrix.service }}/pom.xml" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "services/${{ matrix.service }} not created yet, skipping"
+          fi
+
+      - uses: actions/setup-java@v4
+        if: steps.exists.outputs.found == 'true'
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Build and test (with JaCoCo coverage)
+        if: steps.exists.outputs.found == 'true'
+        working-directory: services/${{ matrix.service }}
+        run: mvn -B verify
+
+      - name: Upload coverage report
+        if: steps.exists.outputs.found == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.service }}
+          path: services/${{ matrix.service }}/target/site/jacoco
+          if-no-files-found: warn
+
+      - name: Build Docker image (no push)
+        if: steps.exists.outputs.found == 'true' && hashFiles(format('services/{0}/Dockerfile', matrix.service)) != ''
+        run: docker build -t swiftdrop/${{ matrix.service }}:ci services/${{ matrix.service }}
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip if no frontend yet
+        id: exists
+        run: |
+          if [ -f "frontend/package.json" ]; then echo "found=true" >> "$GITHUB_OUTPUT"; else echo "found=false" >> "$GITHUB_OUTPUT"; fi
+
+      - uses: actions/setup-node@v4
+        if: steps.exists.outputs.found == 'true'
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install, lint, test, build (Angular)
+        if: steps.exists.outputs.found == 'true'
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run lint --if-present
+          npm test --if-present -- --watch=false --browsers=ChromeHeadless
+          npm run build --if-present
+
+  compose-config:
+    name: validate docker-compose
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate compose file
+        run: |
+          cp .env.example .env
+          docker compose config -q
+          docker compose --profile observability config -q

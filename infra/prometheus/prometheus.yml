@@ -1,0 +1,28 @@
+# Prometheus scrape config. Each Spring Boot service must expose /actuator/prometheus
+# (add spring-boot-starter-actuator + micrometer-registry-prometheus).
+# Targets that are not running yet will simply show as DOWN.
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: swiftdrop-services
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - gateway:8080
+          - identity:8080
+          - merchant:8080
+          - parcel:8080
+          - pricing:8080
+          - dispatch:8080
+          - courier:8080
+          - tracking:8080
+          - notification:8080
+          - webhook:8080
+          - reporting:8080
+          - audit:8080
+          - document:8080
