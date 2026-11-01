@@ -1,0 +1,114 @@
+<div class="page">
+  <div class="page__header">
+    <h1>Dashboard</h1>
+    <div class="cluster">
+      <a class="btn btn-primary" routerLink="/orders/new">Create order</a>
+      <a class="btn" routerLink="/orders/bulk">Bulk upload</a>
+    </div>
+  </div>
+
+  @if (error(); as problem) {
+    <app-error-alert [error]="problem" [retryable]="true" (retry)="load()" />
+  } @else if (loading()) {
+    <div class="stats" aria-hidden="true">
+      @for (placeholder of [1, 2, 3, 4]; track placeholder) {
+        <div class="card stat stat--loading"></div>
+      }
+    </div>
+    <p class="visually-hidden" role="status">Loading your dashboard</p>
+  } @else if (stats(); as totals) {
+    @if (isNewMerchant()) {
+      <section class="card stack" aria-labelledby="getting-started">
+        <h2 id="getting-started">Welcome to SwiftDrop</h2>
+        <p class="muted">You have no live orders yet. Here is how to get started.</p>
+        <ol class="steps">
+          <li>
+            <a routerLink="/developers/keys">Create an API key</a> so your shop can talk to
+            SwiftDrop.
+          </li>
+          <li>
+            <a routerLink="/orders/new" [queryParams]="{ sandbox: true }">Send a test order</a>
+            in sandbox mode. Nothing is delivered and you can see how orders behave.
+          </li>
+          <li>
+            <a routerLink="/orders/new">Create your first live order</a>, and
+            <a routerLink="/developers/webhooks">set up a webhook</a> to get delivery updates.
+          </li>
+        </ol>
+      </section>
+    } @else {
+      <ul class="stats" aria-label="Order totals">
+        <li class="card stat">
+          <span class="stat__label">Total orders</span>
+          <span class="stat__value">{{ totals.total | number }}</span>
+        </li>
+        <li class="card stat">
+          <span class="stat__label">In progress</span>
+          <span class="stat__value">{{ totals.inProgress | number }}</span>
+        </li>
+        <li class="card stat">
+          <span class="stat__label">Delivered</span>
+          <span class="stat__value stat__value--success">{{ totals.delivered | number }}</span>
+        </li>
+        <li class="card stat">
+          <span class="stat__label">Failed</span>
+          <span class="stat__value stat__value--danger">{{ totals.failed | number }}</span>
+        </li>
+      </ul>
+
+      <div class="grid-2">
+        <section class="card stack" aria-labelledby="chart-heading">
+          <h2 id="chart-heading">Last 7 days</h2>
+          <app-orders-chart [days]="totals.last7Days" />
+        </section>
+
+        <section class="card stack" aria-labelledby="breakdown-heading">
+          <h2 id="breakdown-heading">Orders by status</h2>
+          <ul class="breakdown">
+            @for (entry of breakdown(); track entry.status) {
+              <li class="breakdown__item">
+                <a
+                  class="breakdown__link"
+                  routerLink="/orders"
+                  [queryParams]="{ status: entry.status }"
+                >
+                  <app-status-badge [status]="entry.status" />
+                  <span class="breakdown__count">{{ entry.count | number }}</span>
+                </a>
+                <span class="breakdown__track" aria-hidden="true">
+                  <span class="breakdown__bar" [style.width.%]="entry.share"></span>
+                </span>
+              </li>
+            }
+          </ul>
+        </section>
+      </div>
+
+      <section class="card stack" aria-labelledby="recent-heading">
+        <div class="page__header">
+          <h2 id="recent-heading">Recent orders</h2>
+          <a routerLink="/orders">View all orders</a>
+        </div>
+        <ul class="recent">
+          @for (order of recentOrders(); track order.id) {
+            <li class="recent__item">
+              <a class="mono" [routerLink]="['/orders', order.id]">{{
+                order.trackingNo ?? 'Tracking number pending'
+              }}</a>
+              <span class="recent__recipient">{{ order.recipient.name }}</span>
+              <app-status-badge [status]="order.status" />
+              <time class="muted small" [attr.datetime]="order.createdAt">{{
+                order.createdAt | relativeTime
+              }}</time>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    <p class="muted small">
+      These figures cover live orders only.
+      <a routerLink="/orders" [queryParams]="{ sandbox: 'sandbox' }">View your sandbox orders</a>.
+    </p>
+  }
+</div>

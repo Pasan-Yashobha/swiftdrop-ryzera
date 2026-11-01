@@ -1,0 +1,131 @@
+<div class="page">
+  <div class="page__header">
+    <h1>Bulk upload</h1>
+    <a class="btn btn-ghost" routerLink="/orders">Back to orders</a>
+  </div>
+
+  @if (result(); as summary) {
+    <section class="card stack" aria-labelledby="result-heading">
+      <h2 id="result-heading" tabindex="-1" #resultHeading>Upload result</h2>
+      <ul class="counts">
+        <li>
+          <span class="counts__value">{{ summary.totalRows }}</span>
+          <span class="muted small">Rows</span>
+        </li>
+        <li>
+          <span class="counts__value counts__value--success">{{ summary.created }}</span>
+          <span class="muted small">Created</span>
+        </li>
+        <li>
+          <span class="counts__value counts__value--danger">{{ summary.failed }}</span>
+          <span class="muted small">Failed</span>
+        </li>
+      </ul>
+
+      @if (summary.failed === 0) {
+        <p class="alert alert--success" role="status">
+          All {{ summary.created }} orders were created.
+        </p>
+      } @else {
+        <p class="alert alert--warning" role="status">
+          {{ summary.failed }} of {{ summary.totalRows }} rows could not be created. Fix them and
+          upload a file with only those rows, so the orders that were created are not duplicated.
+        </p>
+      }
+
+      <div class="form-actions">
+        @if (summary.failed > 0) {
+          <button type="button" class="btn" (click)="downloadFailedRows()">
+            Download failed rows (CSV)
+          </button>
+        }
+        <button type="button" class="btn" (click)="uploadAnother()">Upload another file</button>
+        <a class="btn btn-ghost" routerLink="/orders">View orders</a>
+      </div>
+
+      <app-bulk-result-table [results]="summary.results" />
+    </section>
+  } @else {
+    <div class="steps">
+      <section class="card stack" aria-labelledby="template-heading">
+        <h2 id="template-heading">1. Get the template</h2>
+        <p class="muted">
+          Start from the CSV template so the columns match. A file can have up to
+          {{ maxRows }} rows and be 1 MiB in size. Orders are created as live orders.
+        </p>
+        <div>
+          <button
+            type="button"
+            class="btn"
+            [disabled]="templateBusy()"
+            (click)="downloadTemplate()"
+          >
+            {{ templateBusy() ? 'Preparing template...' : 'Download template' }}
+          </button>
+        </div>
+        <app-error-alert [error]="templateError()" />
+      </section>
+
+      <section class="card stack" aria-labelledby="upload-heading">
+        <h2 id="upload-heading">2. Upload your file</h2>
+        <input
+          id="bulk-file"
+          class="visually-hidden"
+          type="file"
+          accept=".csv,text/csv"
+          [disabled]="uploading()"
+          (change)="onFilePicked($event)"
+        />
+        <label
+          class="dropzone"
+          for="bulk-file"
+          [class.dropzone--active]="dragging()"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave()"
+          (drop)="onDrop($event)"
+        >
+          <span class="dropzone__title">Drop a CSV file here</span>
+          <span class="muted">or press to choose a file</span>
+        </label>
+
+        @if (fileProblem(); as problem) {
+          <p class="alert alert--danger" role="alert">{{ problem }}</p>
+        }
+        @if (file(); as selected) {
+          <p class="selected">
+            <span role="status"
+              >Selected file: <strong>{{ selected.name }}</strong> ({{ fileSize() }})</span
+            >
+            <button
+              type="button"
+              class="link-button"
+              [disabled]="uploading()"
+              (click)="removeFile()"
+            >
+              Remove
+            </button>
+          </p>
+        }
+
+        <app-error-alert [error]="uploadError()" [showDetails]="true" />
+        @if (uploadHint(); as hint) {
+          <p class="muted small">{{ hint }}</p>
+        }
+
+        <div class="form-actions">
+          <button
+            type="button"
+            class="btn btn-primary"
+            [disabled]="!file() || uploading()"
+            (click)="upload()"
+          >
+            {{ uploading() ? 'Uploading...' : 'Upload and create orders' }}
+          </button>
+        </div>
+        @if (uploading()) {
+          <app-spinner label="Creating your orders. A large file can take a moment." />
+        }
+      </section>
+    </div>
+  }
+</div>

@@ -1,0 +1,132 @@
+<div class="page">
+  <div class="page__header">
+    <div>
+      <h1>Webhook settings</h1>
+      <p class="page__lead">
+        Get an HTTPS call on your server whenever a parcel is created or its status changes.
+      </p>
+    </div>
+  </div>
+
+  <section class="card stack" aria-labelledby="verify-heading">
+    <h2 id="verify-heading">Always verify the signature</h2>
+    <p>
+      Anyone who knows your endpoint URL can send it fake events. Every real event carries an
+      <code>X-SwiftDrop-Signature</code> header: the hex HMAC-SHA256 of
+      <code>timestamp + "." + body</code>, keyed with your signing secret.
+    </p>
+    <ol class="stack small">
+      <li>
+        Compute the HMAC over the <strong>raw request body</strong> (before any JSON parsing) with
+        the secret, and compare it with the header using a constant-time comparison.
+      </li>
+      <li>
+        Reject the event when <code>X-SwiftDrop-Timestamp</code> is more than 5 minutes old, to stop
+        replays.
+      </li>
+      <li>
+        Ignore an <code>X-SwiftDrop-Event-Id</code> you have already processed, and ignore updates
+        whose <code>occurredAt</code> is older than the one you stored.
+      </li>
+      <li>Answer with a 2xx status within 5 seconds, and do slow work afterwards.</li>
+    </ol>
+    <p class="small">
+      Ready-made verification code for Node.js, Python and Java is in the
+      <a routerLink="/developers/docs" fragment="verify-signatures">API documentation</a>.
+    </p>
+  </section>
+
+  <app-developer-error [error]="loadError()" [retryable]="true" (retry)="load()" />
+
+  @if (config(); as current) {
+    <section class="card stack" aria-labelledby="endpoint-heading">
+      <h2 id="endpoint-heading" tabindex="-1" #endpointHeading>Endpoint</h2>
+      <app-webhook-config-form
+        [config]="configured()"
+        [busy]="saving()"
+        [submitError]="saveError()"
+        (submitted)="save($event)"
+      />
+    </section>
+
+    @if (current.configured) {
+      <section class="card stack" aria-labelledby="secret-heading">
+        <h2 id="secret-heading">Signing secret and testing</h2>
+        <app-developer-error [error]="actionError()" />
+        <dl class="details">
+          <dt>Signing secret</dt>
+          <dd>
+            <code>{{ current.secretHint }}</code>
+            <span class="muted small"> (the full secret was shown once when it was created)</span>
+          </dd>
+          <dt>Last test</dt>
+          <dd>
+            @if (current.lastTestAt) {
+              <time
+                [attr.datetime]="current.lastTestAt"
+                [title]="current.lastTestAt | date: 'medium'"
+                >{{ current.lastTestAt | relativeTime }}</time
+              >
+              <span> &middot; {{ current.lastTestStatus ?? 'no status recorded' }}</span>
+            } @else {
+              <span class="muted">Never tested</span>
+            }
+          </dd>
+        </dl>
+        <div class="cluster">
+          <button
+            type="button"
+            class="btn btn-primary"
+            [disabled]="busyAction() !== null"
+            (click)="sendTest()"
+          >
+            {{ busyAction() === 'test' ? 'Sending...' : 'Send test event' }}
+          </button>
+          <button
+            type="button"
+            class="btn btn-ghost"
+            [disabled]="busyAction() !== null"
+            (click)="rotateSecret()"
+          >
+            Rotate secret
+          </button>
+          <button
+            type="button"
+            class="btn btn-ghost"
+            [disabled]="busyAction() !== null"
+            (click)="remove()"
+          >
+            Delete webhook
+          </button>
+        </div>
+        <div aria-live="polite" data-testid="test-result">
+          @if (testResult(); as result) {
+            @if (result.delivered) {
+              <p class="alert alert--success">
+                Delivered: your endpoint answered with HTTP {{ result.httpStatus }} in
+                {{ result.durationMs }} ms.
+              </p>
+            } @else {
+              <p class="alert alert--danger">
+                Not delivered after {{ result.durationMs }} ms.
+                @if (result.httpStatus !== null) {
+                  Your endpoint answered with HTTP {{ result.httpStatus }}.
+                }
+                @if (result.error) {
+                  {{ result.error }}
+                }
+              </p>
+            }
+          }
+        </div>
+      </section>
+
+      <app-webhook-delivery-log />
+    }
+  } @else if (!loadError()) {
+    <app-skeleton label="Loading webhook settings" [lines]="5" />
+  }
+
+  <app-confirm-dialog />
+  <app-secret-once-dialog />
+</div>

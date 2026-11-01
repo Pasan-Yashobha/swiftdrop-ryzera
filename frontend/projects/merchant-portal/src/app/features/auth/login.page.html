@@ -1,0 +1,53 @@
+<div class="page page--narrow">
+  <div>
+    <h1>Sign in</h1>
+    <p class="page__lead">Welcome back. Sign in to manage your orders and API access.</p>
+  </div>
+
+  @if (reason() === 'expired') {
+    <p class="alert alert--info" role="status">Your session expired. Please sign in again.</p>
+  }
+
+  @if (auth.isAuthenticated() && !auth.isMerchant()) {
+    <div class="alert alert--warning stack" role="status">
+      <p>You are signed in with a non-merchant account. This portal is for merchants only.</p>
+      <div>
+        <button type="button" class="btn btn-ghost btn-sm" (click)="signOut()">Sign out</button>
+      </div>
+    </div>
+  }
+
+  <app-error-alert [error]="error()" />
+
+  <form class="card stack" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <app-form-field label="Email" [control]="form.controls.email">
+      <input appFieldControl type="email" formControlName="email" autocomplete="username" />
+    </app-form-field>
+
+    <app-password-field [control]="form.controls.password" />
+
+    <button type="submit" class="btn btn-primary" [disabled]="busy()">
+      {{ busy() ? 'Signing in...' : 'Sign in' }}
+    </button>
+  </form>
+
+  <p class="muted">New to SwiftDrop? <a routerLink="/signup">Create a merchant account</a></p>
+
+  @if (devLoginEnabled) {
+    <section class="card stack" aria-labelledby="dev-login-title">
+      <h2 id="dev-login-title">Developer sign-in</h2>
+      <p class="muted small">
+        Development builds only: signs in through the merchant service's dev token endpoint, without
+        Identity.
+      </p>
+      <app-form-field label="User id" [control]="devSubject">
+        <input appFieldControl [formControl]="devSubject" autocomplete="off" />
+      </app-form-field>
+      <div>
+        <button type="button" class="btn" [disabled]="busy()" (click)="devSignIn()">
+          Sign in as dev merchant
+        </button>
+      </div>
+    </section>
+  }
+</div>

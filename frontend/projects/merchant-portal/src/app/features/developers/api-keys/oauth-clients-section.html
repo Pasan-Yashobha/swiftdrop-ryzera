@@ -1,0 +1,164 @@
+<section class="card stack" aria-labelledby="oauth-clients-heading">
+  <div class="page__header">
+    <div>
+      <h2 id="oauth-clients-heading" tabindex="-1" #heading>OAuth clients</h2>
+      <p class="page__lead small">
+        Exchange a client ID and secret for a one-hour access token (OAuth 2.0 client credentials),
+        then send it as a Bearer token. Prefer this over a long-lived API key when you can.
+      </p>
+    </div>
+    @if (clients()) {
+      <p class="muted small" data-testid="client-limit">
+        {{ activeCount() }} of {{ maxActive }} active clients used
+      </p>
+    }
+  </div>
+
+  <app-developer-error [error]="loadError()" [retryable]="true" (retry)="load()" />
+  <app-developer-error [error]="actionError()" />
+
+  @if (clients(); as list) {
+    @if (list.length === 0) {
+      <app-empty-state
+        heading="No OAuth clients yet"
+        message="Create a client below if you want to authenticate with access tokens instead of an API key."
+      />
+    } @else {
+      <div class="table-wrap">
+        <table class="table table--stacked">
+          <caption class="visually-hidden">
+            OAuth clients
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Label</th>
+              <th scope="col">Environment</th>
+              <th scope="col">Client ID</th>
+              <th scope="col">Scopes</th>
+              <th scope="col">Status</th>
+              <th scope="col">Last used</th>
+              <th scope="col">Created</th>
+              <th scope="col"><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (client of list; track client.id) {
+              <tr>
+                <th scope="row">{{ client.label }}</th>
+                <td data-label="Environment">
+                  <app-environment-badge [environment]="client.environment" />
+                </td>
+                <td data-label="Client ID">
+                  <span class="cluster">
+                    <code>{{ client.clientId }}</code>
+                    <app-copy-button [value]="client.clientId" label="Copy client ID" />
+                  </span>
+                </td>
+                <td data-label="Scopes">
+                  <code>{{ client.scopes.join(' ') }}</code>
+                </td>
+                <td data-label="Status"><app-status-badge [status]="client.status" /></td>
+                <td data-label="Last used">
+                  @if (client.lastUsedAt; as lastUsed) {
+                    <time [attr.datetime]="lastUsed" [title]="lastUsed | date: 'medium'">{{
+                      lastUsed | relativeTime
+                    }}</time>
+                  } @else {
+                    <span class="muted">Never</span>
+                  }
+                </td>
+                <td data-label="Created">
+                  <time [attr.datetime]="client.createdAt">{{
+                    client.createdAt | date: 'mediumDate'
+                  }}</time>
+                </td>
+                <td>
+                  @if (client.status === 'ACTIVE') {
+                    <div class="table__actions">
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-sm"
+                        [disabled]="busyClientId() !== null"
+                        (click)="rotateSecret(client)"
+                      >
+                        Rotate secret<span class="visually-hidden"> of {{ client.label }}</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-sm"
+                        [disabled]="busyClientId() !== null"
+                        (click)="revoke(client)"
+                      >
+                        Revoke<span class="visually-hidden"> {{ client.label }}</span>
+                      </button>
+                    </div>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  } @else if (!loadError()) {
+    <app-skeleton label="Loading OAuth clients" [lines]="4" />
+  }
+
+  <form class="stack" [formGroup]="form" (ngSubmit)="create()" novalidate>
+    <h3>Create an OAuth client</h3>
+    <app-developer-error [error]="createError()" />
+    @if (limitReached()) {
+      <p class="alert alert--warning" role="status">
+        You have reached the limit of {{ maxActive }} active clients. Revoke a client you no longer
+        use to create another one.
+      </p>
+    }
+    <div class="form-grid">
+      <app-form-field
+        label="Label"
+        hint="A name that tells you where the client is used, for example Fulfilment worker."
+        [control]="form.controls.label"
+        [messages]="{ required: 'Give the client a label.' }"
+      >
+        <input appFieldControl formControlName="label" maxlength="100" autocomplete="off" />
+      </app-form-field>
+      <app-form-field
+        label="Environment"
+        [hint]="environmentExplanation()"
+        [control]="form.controls.environment"
+      >
+        <select appFieldControl formControlName="environment">
+          <option value="TEST">Test (sandbox)</option>
+          <option value="LIVE">Live (production)</option>
+        </select>
+      </app-form-field>
+    </div>
+    <fieldset class="scopes">
+      <legend>Scopes</legend>
+      @for (scope of scopeOptions; track scope.value) {
+        <label class="checkbox">
+          <input
+            #box
+            type="checkbox"
+            [checked]="isScopeSelected(scope.value)"
+            (change)="toggleScope(scope.value, box.checked)"
+          />
+          <span
+            ><code>{{ scope.value }}</code> {{ scope.description }}</span
+          >
+        </label>
+      }
+      @if (form.controls.scopes.touched && form.controls.scopes.invalid) {
+        <p class="scopes__error small" role="alert">Select at least one scope.</p>
+      }
+    </fieldset>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary" [disabled]="creating() || limitReached()">
+        {{ creating() ? 'Creating...' : 'Create client' }}
+      </button>
+    </div>
+  </form>
+
+  <app-confirm-dialog />
+  <app-secret-once-dialog />
+</section>

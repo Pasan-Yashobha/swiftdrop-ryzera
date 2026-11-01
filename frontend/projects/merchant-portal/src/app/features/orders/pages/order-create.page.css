@@ -1,0 +1,11 @@
+/* The headline of the success card takes focus after submit; it needs no outline of its own. */
+#created-heading:focus {
+  outline: none;
+}
+
+.details dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}

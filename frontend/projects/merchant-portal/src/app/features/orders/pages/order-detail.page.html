@@ -1,0 +1,148 @@
+<div class="page">
+  <a class="back-link" routerLink="/orders"
+    ><span aria-hidden="true">&larr;</span> Back to orders</a
+  >
+
+  <div class="page__header">
+    <h1>
+      Order
+      @if (order()?.trackingNo; as trackingNo) {
+        <span class="mono">{{ trackingNo }}</span>
+      }
+    </h1>
+    @if (order(); as detail) {
+      <div class="cluster">
+        <app-status-badge [status]="detail.status" />
+        @if (detail.sandbox) {
+          <app-status-badge status="SANDBOX" />
+        }
+      </div>
+    }
+  </div>
+
+  @if (notFound()) {
+    <app-empty-state
+      heading="Order not found"
+      message="This order does not exist, or it belongs to another account."
+    >
+      <a class="btn btn-primary" routerLink="/orders">Go to your orders</a>
+    </app-empty-state>
+  } @else if (error(); as problem) {
+    <app-error-alert [error]="problem" [retryable]="true" (retry)="retry()" />
+  } @else if (order(); as detail) {
+    @if (detail.failureReason) {
+      <div class="alert alert--danger stack">
+        <p><strong>Why this delivery failed</strong></p>
+        <p>{{ detail.failureReason }}</p>
+      </div>
+    }
+
+    <section class="card stack" aria-labelledby="summary-heading">
+      <h2 id="summary-heading">Summary</h2>
+      <dl class="details">
+        <dt>Tracking number</dt>
+        <dd>
+          @if (detail.trackingNo; as trackingNo) {
+            <span class="mono">{{ trackingNo }}</span>
+            <app-copy-button [value]="trackingNo" label="Copy number" />
+          } @else {
+            <span class="muted">Not assigned yet</span>
+          }
+        </dd>
+        @if (detail.trackingUrl; as trackingUrl) {
+          <dt>Tracking link</dt>
+          <dd>
+            <a [href]="trackingUrl" target="_blank" rel="noopener noreferrer"
+              >{{ trackingUrl }}<span class="visually-hidden"> (opens in a new tab)</span></a
+            >
+            <app-copy-button [value]="trackingUrl" label="Copy link" />
+          </dd>
+        }
+        @if (detail.externalRef; as reference) {
+          <dt>Your reference</dt>
+          <dd>
+            <span class="mono">{{ reference }}</span>
+            <app-copy-button [value]="reference" label="Copy reference" />
+          </dd>
+        }
+        <dt>Environment</dt>
+        <dd>{{ detail.sandbox ? 'Sandbox (simulated)' : 'Live' }}</dd>
+        <dt>Created through</dt>
+        <dd>{{ sourceLabels[detail.source] }}</dd>
+        <dt>Delivery fee</dt>
+        <dd>
+          @if (detail.fee) {
+            {{ detail.fee | money }}
+          } @else {
+            <span class="muted">Not priced yet</span>
+          }
+        </dd>
+        <dt>Created</dt>
+        <dd>
+          {{ detail.createdAt | date: 'medium' }}
+          <span class="muted">({{ detail.createdAt | relativeTime }})</span>
+        </dd>
+        <dt>Last updated</dt>
+        <dd>
+          {{ detail.updatedAt | date: 'medium' }}
+          <span class="muted">({{ detail.updatedAt | relativeTime }})</span>
+        </dd>
+      </dl>
+    </section>
+
+    <div class="grid-2">
+      <section class="card stack" aria-labelledby="pickup-heading">
+        <h2 id="pickup-heading">Pickup</h2>
+        <address>
+          {{ detail.pickup.addressLine }}<br />
+          {{ detail.pickup.city }}
+          @if (detail.pickup.postalCode) {
+            {{ detail.pickup.postalCode }}
+          }
+        </address>
+      </section>
+
+      <section class="card stack" aria-labelledby="dropoff-heading">
+        <h2 id="dropoff-heading">Delivery</h2>
+        <address>
+          {{ detail.dropoff.addressLine }}<br />
+          {{ detail.dropoff.city }}
+          @if (detail.dropoff.postalCode) {
+            {{ detail.dropoff.postalCode }}
+          }
+        </address>
+      </section>
+
+      <section class="card stack" aria-labelledby="recipient-heading">
+        <h2 id="recipient-heading">Recipient</h2>
+        <dl class="details">
+          <dt>Name</dt>
+          <dd>{{ detail.recipient.name }}</dd>
+          <dt>Phone</dt>
+          <dd>{{ detail.recipient.phone }}</dd>
+        </dl>
+      </section>
+
+      <section class="card stack" aria-labelledby="parcel-heading">
+        <h2 id="parcel-heading">Parcel</h2>
+        <dl class="details">
+          <dt>Weight</dt>
+          <dd>{{ detail.parcel.weightKg }} kg</dd>
+          <dt>Size</dt>
+          <dd>{{ sizeLabels[detail.parcel.size] }}</dd>
+          <dt>Description</dt>
+          <dd>{{ detail.parcel.description ?? 'Not provided' }}</dd>
+          <dt>Notes</dt>
+          <dd>{{ detail.notes ?? 'None' }}</dd>
+        </dl>
+      </section>
+    </div>
+
+    <section class="card stack" aria-labelledby="history-heading">
+      <h2 id="history-heading">Status history</h2>
+      <app-order-timeline [history]="detail.history" />
+    </section>
+  } @else {
+    <app-skeleton label="Loading order" [lines]="8" />
+  }
+</div>

@@ -1,0 +1,36 @@
+.filter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.filter--search {
+  flex-basis: 16rem;
+}
+
+/* Keeps the area the same height while the first page loads, so the page does not jump. */
+.loading-card {
+  min-height: 22rem;
+}
+
+.table-wrap {
+  transition: opacity 0.15s;
+}
+
+.table-wrap.is-loading {
+  opacity: 0.55;
+}
+
+.order-ref {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+
+/* In a stacked row the cell content is right-aligned, like the other values. */
+@media (max-width: 47.99rem) {
+  .order-ref {
+    justify-content: flex-end;
+  }
+}

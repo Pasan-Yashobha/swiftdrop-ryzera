@@ -1,0 +1,55 @@
+<form class="stack" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+  <app-error-alert [error]="submitError()" />
+  @if (unmatchedErrors().length > 0) {
+    <ul class="alert alert--danger" role="alert">
+      @for (message of unmatchedErrors(); track message) {
+        <li>{{ message }}</li>
+      }
+    </ul>
+  }
+
+  <div class="form-grid">
+    <app-form-field class="span-2" label="Business name" [control]="form.controls.businessName">
+      <input appFieldControl formControlName="businessName" autocomplete="organization" />
+    </app-form-field>
+
+    <app-form-field label="Business registration number" [control]="form.controls.businessRegNo">
+      <input appFieldControl formControlName="businessRegNo" />
+    </app-form-field>
+
+    <app-form-field
+      label="Website"
+      hint="For example https://shop.example.com"
+      [control]="form.controls.website"
+    >
+      <input appFieldControl type="url" formControlName="website" autocomplete="url" />
+    </app-form-field>
+
+    <app-form-field label="Contact email" [control]="form.controls.contactEmail">
+      <input appFieldControl type="email" formControlName="contactEmail" autocomplete="email" />
+    </app-form-field>
+
+    <app-form-field
+      label="Contact phone"
+      hint="Include the country code, for example +94771234567"
+      [control]="form.controls.contactPhone"
+    >
+      <input appFieldControl type="tel" formControlName="contactPhone" autocomplete="tel" />
+    </app-form-field>
+
+    <app-form-field class="span-2" label="Address" [control]="form.controls.addressLine">
+      <input appFieldControl formControlName="addressLine" autocomplete="street-address" />
+    </app-form-field>
+
+    <app-form-field label="City" [control]="form.controls.city">
+      <input appFieldControl formControlName="city" autocomplete="address-level2" />
+    </app-form-field>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary" [disabled]="busy()">
+      {{ busy() ? 'Saving...' : submitLabel() }}
+    </button>
+    <ng-content />
+  </div>
+</form>

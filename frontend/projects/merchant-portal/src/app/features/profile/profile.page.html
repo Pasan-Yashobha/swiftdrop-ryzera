@@ -1,0 +1,57 @@
+<div class="page page--medium">
+  <div class="page__header">
+    <h1>Business profile</h1>
+    @if (store.merchant(); as merchant) {
+      <app-status-badge [status]="merchant.status" />
+    }
+  </div>
+
+  @if (store.error(); as error) {
+    <app-error-alert [error]="error" [retryable]="true" (retry)="reload()" />
+  } @else if (store.merchant(); as merchant) {
+    @if (editing()) {
+      <section class="card" aria-label="Edit business profile">
+        <app-merchant-form
+          submitLabel="Save changes"
+          [merchant]="merchant"
+          [busy]="saving()"
+          [submitError]="saveError()"
+          (submitted)="save($event)"
+        >
+          <button type="button" class="btn btn-ghost" (click)="stopEditing()">Cancel</button>
+        </app-merchant-form>
+      </section>
+    } @else {
+      <section class="card stack" aria-label="Business details">
+        <dl class="details">
+          <dt>Business name</dt>
+          <dd>{{ merchant.businessName }}</dd>
+          <dt>Registration number</dt>
+          <dd>{{ merchant.businessRegNo ?? 'Not provided' }}</dd>
+          <dt>Website</dt>
+          <dd>{{ merchant.website ?? 'Not provided' }}</dd>
+          <dt>Contact email</dt>
+          <dd>{{ merchant.contactEmail }}</dd>
+          <dt>Contact phone</dt>
+          <dd>{{ merchant.contactPhone }}</dd>
+          <dt>Address</dt>
+          <dd>{{ merchant.addressLine }}, {{ merchant.city }}</dd>
+          <dt>API rate limit</dt>
+          <dd>{{ merchant.rateLimitPerMinute }} requests per minute</dd>
+          <dt>Registered</dt>
+          <dd>{{ merchant.createdAt | date: 'mediumDate' }}</dd>
+        </dl>
+        <div class="cluster">
+          <button type="button" class="btn btn-primary" (click)="startEditing()">
+            Edit details
+          </button>
+          @if (merchant.status === 'REJECTED') {
+            <a class="btn" routerLink="/status">Resubmit application</a>
+          }
+        </div>
+      </section>
+    }
+  } @else {
+    <app-skeleton label="Loading your profile" [lines]="5" />
+  }
+</div>
