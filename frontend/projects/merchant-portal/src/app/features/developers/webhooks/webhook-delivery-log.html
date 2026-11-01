@@ -1,0 +1,72 @@
+<section class="card stack" aria-labelledby="deliveries-heading">
+  <div class="page__header">
+    <div>
+      <h2 id="deliveries-heading">Delivery log</h2>
+      <p class="page__lead small">
+        Every event SwiftDrop tried to send to your endpoint, newest first, with its retries.
+      </p>
+    </div>
+    <button type="button" class="btn btn-ghost btn-sm" [disabled]="loading()" (click)="refresh()">
+      {{ loading() ? 'Refreshing...' : 'Refresh' }}
+    </button>
+  </div>
+
+  <app-developer-error [error]="error()" [retryable]="true" (retry)="refresh()" />
+
+  @if (deliveries(); as log) {
+    @if (!log.available) {
+      <p class="alert alert--info" role="status">
+        The delivery log is temporarily unavailable. Your webhooks are still being delivered; try
+        refreshing again in a few minutes.
+      </p>
+    } @else if (log.content.length === 0) {
+      <app-empty-state
+        heading="No deliveries yet"
+        message="Deliveries appear here as soon as SwiftDrop sends an event to your endpoint. Use Send test event to try it."
+      />
+    } @else {
+      <div class="table-wrap">
+        <table class="table stack-table">
+          <caption class="visually-hidden">
+            Webhook deliveries
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Event</th>
+              <th scope="col">Status</th>
+              <th scope="col">Attempts</th>
+              <th scope="col">Last HTTP status</th>
+              <th scope="col">Duration</th>
+              <th scope="col">Created</th>
+              <th scope="col">Error</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (delivery of log.content; track delivery.id) {
+              <tr>
+                <th scope="row">
+                  <code>{{ delivery.eventType }}</code>
+                </th>
+                <td data-label="Status"><app-status-badge [status]="delivery.status" /></td>
+                <td data-label="Attempts">{{ delivery.attempts }}</td>
+                <td data-label="Last HTTP status">{{ delivery.lastHttpStatus ?? 'None' }}</td>
+                <td data-label="Duration">
+                  {{ delivery.durationMs === null ? 'None' : delivery.durationMs + ' ms' }}
+                </td>
+                <td data-label="Created">
+                  <time [attr.datetime]="delivery.createdAt">{{
+                    delivery.createdAt | date: 'medium'
+                  }}</time>
+                </td>
+                <td data-label="Error">{{ delivery.error ?? 'None' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination [info]="log" (pageChange)="load($event)" />
+    }
+  } @else if (!error()) {
+    <app-skeleton label="Loading the delivery log" [lines]="4" />
+  }
+</section>

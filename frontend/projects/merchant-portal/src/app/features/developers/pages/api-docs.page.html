@@ -1,0 +1,518 @@
+<div class="page">
+  <div class="page__header">
+    <div>
+      <h1>API documentation</h1>
+      <p class="page__lead">
+        Create orders from your own systems and follow them through to delivery.
+      </p>
+    </div>
+    <a class="btn btn-ghost" [href]="openApiPath" target="_blank" rel="noopener">
+      OpenAPI document (YAML)
+    </a>
+  </div>
+
+  <div class="docs">
+    <nav class="toc" aria-label="On this page">
+      <button
+        type="button"
+        class="toc__toggle btn btn-ghost btn-sm"
+        aria-controls="docs-toc-list"
+        [attr.aria-expanded]="tocOpen()"
+        (click)="toggleToc()"
+      >
+        Contents
+      </button>
+      <ol id="docs-toc-list" class="toc__list" [class.toc__list--open]="tocOpen()">
+        @for (section of sections; track section.id) {
+          <li>
+            <a [routerLink]="[]" [fragment]="section.id" (click)="tocOpen.set(false)">{{
+              section.title
+            }}</a>
+          </li>
+        }
+      </ol>
+    </nav>
+
+    <article class="docs__content">
+      <section aria-labelledby="overview">
+        <h2 id="overview" tabindex="-1">Overview</h2>
+        <p>
+          The merchant API is a JSON REST API. Every request goes to the base URL below, uses HTTPS
+          in production, and is authenticated with an API key or an OAuth access token.
+        </p>
+        <dl class="details">
+          <dt>Base URL</dt>
+          <dd>
+            <code>{{ baseUrl }}</code>
+          </dd>
+          <dt>Format</dt>
+          <dd>JSON requests and responses, UTF-8, timestamps in ISO 8601 UTC, amounts in LKR.</dd>
+          <dt>OpenAPI</dt>
+          <dd>
+            <a [href]="openApiPath" target="_blank" rel="noopener">{{ openApiPath }}</a> (import it
+            into Postman or generate a client)
+          </dd>
+        </dl>
+        <p>
+          Your merchant account must be approved before credentials work. Create keys and OAuth
+          clients on the <a routerLink="/developers/keys">API keys</a> page.
+        </p>
+      </section>
+
+      <section aria-labelledby="quick-start">
+        <h2 id="quick-start" tabindex="-1">Quick start</h2>
+        <ol class="steps">
+          <li>
+            Create a <strong>test</strong> API key on the
+            <a routerLink="/developers/keys">API keys</a> page and copy it. It is shown only once.
+          </li>
+          <li>Check that it works. A response with your business name means you are connected.</li>
+        </ol>
+        <app-code-block title="cURL: ping" [code]="samples.ping" />
+        <ol class="steps" start="3">
+          <li>Create a sandbox order. No real parcel is created.</li>
+        </ol>
+        <app-code-block title="cURL: create an order" [code]="samples.createOrderCurl" />
+        <ol class="steps" start="4">
+          <li>
+            Move it through its lifecycle with the sandbox
+            <code>advance</code> endpoint and read it back by tracking number.
+          </li>
+        </ol>
+        <app-code-block title="cURL: advance a sandbox order" [code]="samples.advance" />
+        <app-code-block title="cURL: get the order" [code]="samples.getOrder" />
+        <p>
+          When you are ready, create a <strong>live</strong> key and use it instead of the test key.
+        </p>
+      </section>
+
+      <section aria-labelledby="environments">
+        <h2 id="environments" tabindex="-1">Live and test environments</h2>
+        <p>
+          The environment is decided by the credential, not by the URL. The same endpoints serve
+          both.
+        </p>
+        <div class="table-wrap">
+          <table class="table">
+            <caption class="visually-hidden">
+              Live compared with test
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col"></th>
+                <th scope="col">Live</th>
+                <th scope="col">Test (sandbox)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Key prefix</th>
+                <td><code>sd_live_</code></td>
+                <td><code>sd_test_</code></td>
+              </tr>
+              <tr>
+                <th scope="row">Orders</th>
+                <td>Real parcels that couriers collect and deliver.</td>
+                <td>
+                  Simulated. Flagged <code>"sandbox": true</code>, tracking numbers start with
+                  <code>SBX</code>.
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Fee</th>
+                <td>Calculated by SwiftDrop.</td>
+                <td>350.00 LKR plus 100.00 LKR per kilogram.</td>
+              </tr>
+              <tr>
+                <th scope="row">Webhooks</th>
+                <td>Sent for real status changes.</td>
+                <td>Never sent. Poll the order instead.</td>
+              </tr>
+              <tr>
+                <th scope="row">Visibility</th>
+                <td>Sees live orders only.</td>
+                <td>Sees sandbox orders only.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>Advancing a sandbox order</h3>
+        <p>
+          A sandbox order stays in <code>CREATED</code> until you move it. Each call to
+          <code>POST /merchant-api/sandbox/orders/&#123;trackingNo&#125;/advance</code> moves it one
+          step along <code>CREATED</code>, <code>ASSIGNED</code>, <code>PICKED_UP</code>,
+          <code>IN_TRANSIT</code>, <code>OUT_FOR_DELIVERY</code>, <code>DELIVERED</code>. Send the
+          body <code>&#123; "outcome": "FAILED", "reason": "..." &#125;</code> to simulate a failed
+          delivery. Advancing an order that is already finished returns
+          <code>409 INVALID_STATE</code>, and a live key gets <code>403 SANDBOX_ONLY</code>.
+        </p>
+        <app-code-block title="cURL: simulate a failed delivery" [code]="samples.failSandbox" />
+      </section>
+
+      <section aria-labelledby="authentication">
+        <h2 id="authentication" tabindex="-1">Authentication</h2>
+        <p>Use one of two methods. Both are tied to your merchant account and environment.</p>
+
+        <h3>API key</h3>
+        <p>
+          Send the key in the <code>X-API-Key</code> header. Keys look like
+          <code>sd_live_ab12cd34_...</code> and are shown once when created. Rotate a key to get a
+          replacement; the old key keeps working for the grace period you choose (0 to 72 hours).
+        </p>
+        <app-code-block title="cURL: API key" [code]="samples.ping" />
+
+        <h3>OAuth 2.0 client credentials</h3>
+        <p>
+          Exchange a client ID and secret for an access token that is valid for one hour. Send the
+          credentials with HTTP Basic authentication or as the form fields
+          <code>client_id</code> and <code>client_secret</code>. The optional
+          <code>scope</code> must be a subset of the client's scopes (<code>orders:write</code>,
+          <code>orders:read</code>).
+        </p>
+        <app-code-block title="cURL: request a token" [code]="samples.tokenRequest" />
+        <app-code-block title="Response 200" [code]="samples.tokenResponse" />
+        <p>Then send the token as a Bearer token. Request a new one shortly before it expires.</p>
+        <app-code-block title="cURL: use the token" [code]="samples.pingWithToken" />
+        <p>
+          Token errors follow RFC 6749: <code>400</code> with <code>invalid_request</code>,
+          <code>invalid_grant</code>, <code>unsupported_grant_type</code> or
+          <code>invalid_scope</code>, and <code>401 invalid_client</code> when the client ID or
+          secret is wrong or the client or merchant is not allowed to use the API.
+        </p>
+        <app-code-block title="Response 401" [code]="samples.tokenError" />
+      </section>
+
+      <section aria-labelledby="create-order">
+        <h2 id="create-order" tabindex="-1">Creating an order</h2>
+        <p>
+          <code>POST /merchant-api/orders</code> needs the <code>orders:write</code> scope. Strings
+          are trimmed and control characters are rejected.
+        </p>
+        <app-code-block title="Request body" [code]="samples.createOrderBody" />
+        <div class="table-wrap">
+          <table class="table">
+            <caption class="visually-hidden">
+              Order fields
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Field</th>
+                <th scope="col">Type</th>
+                <th scope="col">Required</th>
+                <th scope="col">Rules</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (field of orderFields; track field.name) {
+                <tr>
+                  <th scope="row">
+                    <code>{{ field.name }}</code>
+                  </th>
+                  <td>{{ field.type }}</td>
+                  <td>{{ field.required ? 'Yes' : 'No' }}</td>
+                  <td>{{ field.rules }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <p>
+          A new order returns <code>201</code> with the order, including its
+          <code>trackingNo</code>, a public <code>trackingUrl</code> to share with the recipient and
+          the <code>fee</code>.
+        </p>
+        <app-code-block title="Response 201" [code]="samples.createOrderResponse" />
+
+        <h3>Idempotency</h3>
+        <p>
+          Send an <code>Idempotency-Key</code> header (a UUID works well) with every order so a
+          retry after a timeout never creates a second parcel. Keys are unique per merchant.
+        </p>
+        <ul>
+          <li>
+            Same key and same payload: you get the original order back with <code>200</code> and the
+            header <code>Idempotent-Replayed: true</code>.
+          </li>
+          <li>Same key and a different payload: <code>422 IDEMPOTENCY_KEY_REUSED</code>.</li>
+          <li>
+            Same key while the first request is still running:
+            <code>409 IDEMPOTENCY_KEY_IN_USE</code> with <code>Retry-After: 1</code>.
+          </li>
+          <li>
+            A failed attempt (<code>422 PARCEL_REJECTED</code> or
+            <code>503 PARCEL_SERVICE_UNAVAILABLE</code>) can be retried with the same key.
+          </li>
+        </ul>
+
+        <h3>External reference</h3>
+        <p>
+          <code>externalRef</code> is your own order number. It must be unique per merchant: a
+          second order with the same reference is rejected with
+          <code>409 DUPLICATE_EXTERNAL_REF</code>, so it is also a safety net against double
+          submission. You can look an order up by it.
+        </p>
+      </section>
+
+      <section aria-labelledby="retrieve-orders">
+        <h2 id="retrieve-orders" tabindex="-1">Retrieving orders</h2>
+        <p>Both calls need the <code>orders:read</code> scope and only return your own orders.</p>
+        <h3>One order</h3>
+        <p>
+          <code>GET /merchant-api/orders/&#123;trackingNo&#125;</code> returns the order, or
+          <code>404 NOT_FOUND</code>.
+        </p>
+        <app-code-block title="cURL: get an order" [code]="samples.getOrder" />
+        <h3>List orders</h3>
+        <p>
+          <code>GET /merchant-api/orders</code> accepts <code>externalRef</code>,
+          <code>status</code>, <code>page</code> (from 0) and <code>size</code> (up to 100, default
+          20). A live key lists live orders and a test key lists sandbox orders. The response is
+          <code>content</code> plus <code>page</code>, <code>size</code>,
+          <code>totalElements</code> and <code>totalPages</code>.
+        </p>
+        <app-code-block title="cURL: list orders" [code]="samples.listOrders" />
+      </section>
+
+      <section aria-labelledby="lifecycle">
+        <h2 id="lifecycle" tabindex="-1">Order status lifecycle</h2>
+        <p>An order moves forward through these statuses:</p>
+        <p class="flow" aria-label="Order status flow">
+          <code>CREATED</code> &rarr; <code>ASSIGNED</code> &rarr; <code>PICKED_UP</code> &rarr;
+          <code>IN_TRANSIT</code> &rarr; <code>OUT_FOR_DELIVERY</code> &rarr;
+          <code>DELIVERED</code> or <code>FAILED</code>. After <code>FAILED</code> the parcel is
+          <code>RESCHEDULED</code> or <code>RETURNED</code>. An order can be
+          <code>CANCELLED</code> before it is delivered.
+        </p>
+        <div class="table-wrap">
+          <table class="table">
+            <caption class="visually-hidden">
+              Order statuses
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Status</th>
+                <th scope="col">Meaning</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of orderStatuses; track item.status) {
+                <tr>
+                  <th scope="row">
+                    <app-status-badge [status]="item.status" />
+                    <code class="docs__status-code">{{ item.status }}</code>
+                  </th>
+                  <td>{{ item.meaning }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section aria-labelledby="errors">
+        <h2 id="errors" tabindex="-1">Errors</h2>
+        <p>
+          Failed requests return a non-2xx status and a JSON body. Branch on <code>code</code>, show
+          <code>message</code> to people, and include <code>correlationId</code> when you contact
+          support. <code>details</code> appears for validation errors. The only exception is the
+          token endpoint, which uses the OAuth error format above.
+        </p>
+        <app-code-block title="Error response" [code]="samples.error" />
+        <div class="table-wrap">
+          <table class="table">
+            <caption class="visually-hidden">
+              Error codes
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Code</th>
+                <th scope="col">HTTP status</th>
+                <th scope="col">Meaning</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of errorCodes; track item.code) {
+                <tr>
+                  <th scope="row">
+                    <code>{{ item.code }}</code>
+                  </th>
+                  <td>{{ item.status }}</td>
+                  <td>{{ item.meaning }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section aria-labelledby="rate-limits">
+        <h2 id="rate-limits" tabindex="-1">Rate limits</h2>
+        <p>
+          Each merchant account has a limit of requests per minute, shared by all its keys and
+          clients (60 per minute unless SwiftDrop agreed another value with you; it is shown on your
+          profile). The token endpoint is not counted. Over the limit you get
+          <code>429 RATE_LIMITED</code>: wait for <code>Retry-After</code> seconds, then retry.
+        </p>
+        <div class="table-wrap">
+          <table class="table">
+            <caption class="visually-hidden">
+              Rate limit headers
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Header</th>
+                <th scope="col">Meaning</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of rateLimitHeaders; track item.header) {
+                <tr>
+                  <th scope="row">
+                    <code>{{ item.header }}</code>
+                  </th>
+                  <td>{{ item.meaning }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section aria-labelledby="webhooks">
+        <h2 id="webhooks" tabindex="-1">Webhooks</h2>
+        <p>
+          Instead of polling, let SwiftDrop call your server when a live order changes. Set the
+          endpoint URL and the events you want on the
+          <a routerLink="/developers/webhooks">Webhook settings</a> page; the signing secret is
+          shown once when you save it. Test orders never trigger webhooks.
+        </p>
+        <h3>Events</h3>
+        <div class="table-wrap">
+          <table class="table">
+            <caption class="visually-hidden">
+              Webhook event types
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Event type</th>
+                <th scope="col">Sent when</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (event of webhookEvents; track event.type) {
+                <tr>
+                  <th scope="row">
+                    <code>{{ event.type }}</code>
+                  </th>
+                  <td>{{ event.description }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <p>
+          The <strong>Send test event</strong> button delivers a signed <code>webhook.test</code>
+          event so you can check your endpoint.
+        </p>
+
+        <h3>Request</h3>
+        <p>
+          SwiftDrop sends a <code>POST</code> with a JSON body (the envelope below) and four
+          headers.
+        </p>
+        <app-code-block title="Delivery request" [code]="samples.webhookRequest" />
+        <app-code-block title="Body" [code]="samples.webhookPayload" />
+        <div class="table-wrap">
+          <table class="table">
+            <caption class="visually-hidden">
+              Webhook headers
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Header</th>
+                <th scope="col">Meaning</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of webhookHeaders; track item.header) {
+                <tr>
+                  <th scope="row">
+                    <code>{{ item.header }}</code>
+                  </th>
+                  <td>{{ item.meaning }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <p>
+          <code>data</code> always has the <code>merchantId</code> and the
+          <code>trackingNo</code> of the order, and <code>failureReason</code> for failed
+          deliveries. Use <code>occurredAt</code> to order events: they can arrive out of order.
+        </p>
+
+        <h3>Delivery and retries</h3>
+        <ul>
+          <li>
+            Answer with any <strong>2xx</strong> status within <strong>5 seconds</strong>. That
+            marks the delivery as successful. Do slow work after you have answered.
+          </li>
+          <li>
+            A timeout, a <code>5xx</code> or a <code>429</code> is retried after
+            @for (delay of retryDelays; track delay; let last = $last) {
+              {{ delay }}{{ last ? '' : ', ' }}
+            }
+            (five retries), always with the same event ID.
+          </li>
+          <li>
+            Any other <code>4xx</code> status fails the delivery immediately, with no retries. Do
+            not answer with 4xx for events you simply do not care about.
+          </li>
+          <li>
+            Every attempt, with its result, is listed in the delivery log on the webhook page.
+          </li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="verify-signatures">
+        <h2 id="verify-signatures" tabindex="-1">Verifying webhook signatures</h2>
+        <p>
+          Your endpoint is a public URL, so anyone can post to it. Treat an event as genuine only
+          when all of these checks pass:
+        </p>
+        <ol class="steps">
+          <li>
+            <strong>Signature.</strong> Compute the hex HMAC-SHA256 of
+            <code>timestamp + "." + body</code> with your signing secret, where
+            <code>timestamp</code> is the <code>X-SwiftDrop-Timestamp</code> header and
+            <code>body</code> is the raw request body, byte for byte. Compare it with
+            <code>X-SwiftDrop-Signature</code> using a constant-time comparison. Parsing and
+            re-serialising the JSON changes the bytes and breaks the signature.
+          </li>
+          <li>
+            <strong>Freshness.</strong> Reject the event when the timestamp is more than 5 minutes
+            away from your clock. This stops someone replaying a captured request.
+          </li>
+          <li>
+            <strong>Duplicates.</strong> Delivery is at least once. Remember the
+            <code>X-SwiftDrop-Event-Id</code> of processed events and answer 200 without doing the
+            work again.
+          </li>
+          <li>
+            <strong>Order.</strong> Events can arrive out of order. Keep the
+            <code>occurredAt</code> of the last update per order and ignore older ones.
+          </li>
+        </ol>
+        <app-code-tabs
+          label="Language of the verification example"
+          [samples]="verificationSamples"
+        />
+        <p class="small muted">
+          The examples keep processed event IDs in memory to stay short. Store them in a database or
+          cache with an expiry (an hour is plenty) so duplicates are caught across restarts and
+          servers.
+        </p>
+      </section>
+    </article>
+  </div>
+</div>
