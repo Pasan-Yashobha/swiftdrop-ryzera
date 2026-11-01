@@ -1,0 +1,68 @@
+<figure class="chart">
+  <svg
+    class="chart__svg"
+    role="img"
+    focusable="false"
+    [attr.viewBox]="'0 0 ' + width + ' ' + height"
+    [attr.aria-labelledby]="titleId + ' ' + descriptionId"
+  >
+    <title [attr.id]="titleId">Orders created per day, last 7 days</title>
+    <desc [attr.id]="descriptionId">{{ summary() }}</desc>
+
+    @for (line of gridLines(); track line.value) {
+      <line
+        class="chart__grid"
+        [attr.x1]="left"
+        [attr.x2]="right"
+        [attr.y1]="line.y"
+        [attr.y2]="line.y"
+      />
+      <text class="chart__tick" text-anchor="end" [attr.x]="left - 8" [attr.y]="line.y + 4">
+        {{ line.value }}
+      </text>
+    }
+
+    @for (bar of bars(); track bar.date) {
+      <rect
+        class="chart__bar"
+        rx="3"
+        [attr.x]="bar.x"
+        [attr.y]="bar.y"
+        [attr.width]="bar.width"
+        [attr.height]="bar.height"
+      >
+        <title>{{ bar.description }}: {{ bar.count }}</title>
+      </rect>
+      <text class="chart__value" text-anchor="middle" [attr.x]="bar.centre" [attr.y]="bar.y - 6">
+        {{ bar.count }}
+      </text>
+      <text class="chart__tick" text-anchor="middle" [attr.x]="bar.centre" [attr.y]="baseline + 20">
+        {{ bar.label }}
+      </text>
+    }
+  </svg>
+
+  <table class="visually-hidden">
+    <caption>
+      Orders created per day in the last 7 days
+    </caption>
+    <thead>
+      <tr>
+        <th scope="col">Day</th>
+        <th scope="col">Orders</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (bar of bars(); track bar.date) {
+        <tr>
+          <th scope="row">{{ bar.description }}</th>
+          <td>{{ bar.count }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+
+  @if (total() === 0) {
+    <figcaption class="muted small">No orders were created in the last 7 days.</figcaption>
+  }
+</figure>

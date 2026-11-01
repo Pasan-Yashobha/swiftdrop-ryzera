@@ -1,0 +1,50 @@
+<div class="stack">
+  @if (failedCount() > 0) {
+    <label class="checkbox">
+      <input type="checkbox" [checked]="failedOnly()" (change)="setFailedOnly($event)" />
+      Show failed rows only ({{ failedCount() }})
+    </label>
+  }
+
+  <div class="table-wrap">
+    <table class="table">
+      <caption class="visually-hidden">
+        Result for each row of the uploaded file
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col">Row</th>
+          <th scope="col">Result</th>
+          <th scope="col">Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (result of visibleRows(); track result.row) {
+          <tr>
+            <td>{{ result.row }}</td>
+            <td><app-status-badge [status]="result.status" /></td>
+            <td>
+              @if (result.status === 'CREATED') {
+                @if (result.orderId) {
+                  <a class="mono" [routerLink]="['/orders', result.orderId]">{{
+                    result.trackingNo ?? 'View order'
+                  }}</a>
+                } @else {
+                  <span class="mono">{{ result.trackingNo }}</span>
+                }
+              } @else if (result.errors?.length) {
+                <ul class="errors">
+                  @for (message of result.errors; track $index) {
+                    <li>{{ message }}</li>
+                  }
+                </ul>
+              } @else {
+                <span class="muted">This row could not be processed.</span>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</div>

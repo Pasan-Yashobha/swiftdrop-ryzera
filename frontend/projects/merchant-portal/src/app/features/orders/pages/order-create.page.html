@@ -1,0 +1,226 @@
+<div class="page page--medium">
+  <div class="page__header">
+    <h1>New order</h1>
+    <a class="btn btn-ghost" routerLink="/orders">Back to orders</a>
+  </div>
+
+  @if (created(); as order) {
+    <section class="card stack" aria-labelledby="created-heading">
+      <h2 id="created-heading" tabindex="-1" #createdHeading>Order created</h2>
+      @if (order.sandbox) {
+        <p class="alert alert--info">
+          This is a sandbox order. It is simulated, so no courier will be sent.
+        </p>
+      }
+      <dl class="details">
+        <dt>Tracking number</dt>
+        <dd>
+          @if (order.trackingNo; as trackingNo) {
+            <span class="mono">{{ trackingNo }}</span>
+            <app-copy-button [value]="trackingNo" label="Copy number" />
+          } @else {
+            <span class="muted">Not assigned yet</span>
+          }
+        </dd>
+        @if (order.trackingUrl; as trackingUrl) {
+          <dt>Tracking link</dt>
+          <dd>
+            <a [href]="trackingUrl" target="_blank" rel="noopener noreferrer">{{ trackingUrl }}</a>
+            <app-copy-button [value]="trackingUrl" label="Copy link" />
+          </dd>
+        }
+        <dt>Status</dt>
+        <dd><app-status-badge [status]="order.status" /></dd>
+        @if (order.fee) {
+          <dt>Delivery fee</dt>
+          <dd>{{ order.fee | money }}</dd>
+        }
+      </dl>
+      <div class="form-actions">
+        <a class="btn btn-primary" [routerLink]="['/orders', order.id]">View order</a>
+        <button type="button" class="btn" (click)="createAnother()">Create another order</button>
+      </div>
+    </section>
+  } @else {
+    <form class="stack" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <section class="card stack" formGroupName="recipient" aria-labelledby="recipient-heading">
+        <h2 id="recipient-heading">Recipient</h2>
+        <div class="form-grid">
+          <app-form-field
+            label="Recipient name"
+            hint="The person who will receive the parcel."
+            [control]="form.controls.recipient.controls.name"
+          >
+            <input appFieldControl formControlName="name" autocomplete="off" />
+          </app-form-field>
+          <app-form-field
+            label="Recipient phone"
+            hint="Include the country code, for example +94771234567."
+            [control]="form.controls.recipient.controls.phone"
+          >
+            <input appFieldControl type="tel" formControlName="phone" autocomplete="off" />
+          </app-form-field>
+        </div>
+      </section>
+
+      <section class="card stack" formGroupName="pickup" aria-labelledby="pickup-heading">
+        <h2 id="pickup-heading">Pickup address</h2>
+        <p class="muted small">
+          Starts as your business address. Change it if this parcel is collected somewhere else.
+        </p>
+        <div class="form-grid">
+          <app-form-field
+            class="span-2"
+            label="Pickup address"
+            [control]="form.controls.pickup.controls.addressLine"
+          >
+            <input appFieldControl formControlName="addressLine" autocomplete="off" />
+          </app-form-field>
+          <app-form-field label="Pickup city" [control]="form.controls.pickup.controls.city">
+            <input appFieldControl formControlName="city" autocomplete="off" />
+          </app-form-field>
+          <app-form-field
+            label="Pickup postal code"
+            [control]="form.controls.pickup.controls.postalCode"
+          >
+            <input appFieldControl formControlName="postalCode" autocomplete="off" />
+          </app-form-field>
+        </div>
+      </section>
+
+      <section class="card stack" formGroupName="dropoff" aria-labelledby="dropoff-heading">
+        <h2 id="dropoff-heading">Delivery address</h2>
+        <div class="form-grid">
+          <app-form-field
+            class="span-2"
+            label="Delivery address"
+            [control]="form.controls.dropoff.controls.addressLine"
+          >
+            <input appFieldControl formControlName="addressLine" autocomplete="off" />
+          </app-form-field>
+          <app-form-field label="Delivery city" [control]="form.controls.dropoff.controls.city">
+            <input appFieldControl formControlName="city" autocomplete="off" />
+          </app-form-field>
+          <app-form-field
+            label="Delivery postal code"
+            [control]="form.controls.dropoff.controls.postalCode"
+          >
+            <input appFieldControl formControlName="postalCode" autocomplete="off" />
+          </app-form-field>
+        </div>
+      </section>
+
+      <section class="card stack" formGroupName="parcel" aria-labelledby="parcel-heading">
+        <h2 id="parcel-heading">Parcel</h2>
+        <div class="form-grid">
+          <app-form-field
+            label="Weight (kg)"
+            hint="Between 0.01 and 50 kg."
+            [control]="form.controls.parcel.controls.weightKg"
+            [messages]="weightMessages"
+          >
+            <input
+              appFieldControl
+              type="number"
+              inputmode="decimal"
+              step="0.01"
+              formControlName="weightKg"
+            />
+          </app-form-field>
+          <app-form-field
+            label="Parcel size"
+            hint="Choose the closest match."
+            [control]="form.controls.parcel.controls.size"
+            [messages]="{ required: 'Choose a parcel size.' }"
+          >
+            <select appFieldControl formControlName="size">
+              <option value="">Select a size</option>
+              @for (option of sizeOptions; track option.value) {
+                <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select>
+          </app-form-field>
+          <app-form-field
+            class="span-2"
+            label="Parcel description"
+            [hint]="'What is inside. Up to ' + limits.description + ' characters.'"
+            [control]="form.controls.parcel.controls.description"
+          >
+            <input appFieldControl formControlName="description" autocomplete="off" />
+          </app-form-field>
+        </div>
+      </section>
+
+      <section class="card stack" aria-labelledby="details-heading">
+        <h2 id="details-heading">Order details</h2>
+        <div class="form-grid">
+          <app-form-field
+            label="Your reference"
+            hint="Your own order number. Each reference can be used once."
+            [control]="form.controls.externalRef"
+            [messages]="referenceMessages"
+          >
+            <input
+              appFieldControl
+              formControlName="externalRef"
+              autocomplete="off"
+              #externalRefInput
+            />
+          </app-form-field>
+          <app-form-field
+            label="Notes for the courier"
+            [hint]="'One line, up to ' + limits.notes + ' characters.'"
+            [control]="form.controls.notes"
+          >
+            <input appFieldControl formControlName="notes" autocomplete="off" />
+          </app-form-field>
+        </div>
+      </section>
+
+      <section class="card stack" aria-labelledby="environment-heading">
+        <h2 id="environment-heading">Environment</h2>
+        <label class="checkbox">
+          <input type="checkbox" formControlName="sandbox" aria-describedby="sandbox-hint" />
+          <span>Create as a sandbox (test) order</span>
+        </label>
+        <p id="sandbox-hint" class="muted small">
+          Sandbox orders are simulated: no real parcel is created and no courier is sent. Use them
+          to try things out. They are listed under the Sandbox filter and are not counted in your
+          dashboard figures.
+        </p>
+      </section>
+
+      @if (problem(); as failure) {
+        <div class="alert alert--danger stack" role="alert">
+          <p>{{ failure.message }}</p>
+          @if (unmatchedErrors().length > 0) {
+            <ul>
+              @for (message of unmatchedErrors(); track message) {
+                <li>{{ message }}</li>
+              }
+            </ul>
+          }
+          @if (error()?.correlationId; as reference) {
+            <p class="small">
+              Reference: <span class="mono">{{ reference }}</span>
+            </p>
+          }
+          @if (failure.retryable) {
+            <div>
+              <button type="button" class="btn btn-ghost btn-sm" (click)="submit()">
+                Try again
+              </button>
+            </div>
+          }
+        </div>
+      }
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" [disabled]="submitting()">
+          {{ submitting() ? 'Creating order...' : 'Create order' }}
+        </button>
+        <a class="btn btn-ghost" routerLink="/orders">Cancel</a>
+      </div>
+    </form>
+  }
+</div>

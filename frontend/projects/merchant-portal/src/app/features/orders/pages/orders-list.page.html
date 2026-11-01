@@ -1,0 +1,152 @@
+<div class="page">
+  <div class="page__header">
+    <h1>Orders</h1>
+    <div class="cluster">
+      <a class="btn btn-primary" routerLink="/orders/new">Create order</a>
+      <a class="btn" routerLink="/orders/bulk">Bulk upload</a>
+    </div>
+  </div>
+
+  <form
+    class="card toolbar"
+    role="search"
+    aria-label="Filter orders"
+    [formGroup]="filterForm"
+    (ngSubmit)="applyFilters()"
+  >
+    <div class="filter filter--search">
+      <label for="filter-search">Search</label>
+      <input
+        id="filter-search"
+        type="search"
+        formControlName="search"
+        autocomplete="off"
+        placeholder="Tracking number, reference or recipient"
+      />
+    </div>
+    <div class="filter">
+      <label for="filter-status">Status</label>
+      <select id="filter-status" formControlName="status">
+        <option value="">All statuses</option>
+        @for (option of statusOptions; track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+        }
+      </select>
+    </div>
+    <div class="filter">
+      <label for="filter-sandbox">Environment</label>
+      <select id="filter-sandbox" formControlName="sandbox">
+        @for (option of sandboxOptions; track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+        }
+      </select>
+    </div>
+    <div class="filter">
+      <label for="filter-from">Created from</label>
+      <input
+        id="filter-from"
+        type="date"
+        formControlName="from"
+        [attr.max]="filterForm.controls.to.value || null"
+      />
+    </div>
+    <div class="filter">
+      <label for="filter-to">Created until</label>
+      <input
+        id="filter-to"
+        type="date"
+        formControlName="to"
+        [attr.min]="filterForm.controls.from.value || null"
+      />
+    </div>
+    @if (filtered()) {
+      <div class="toolbar__actions">
+        <button type="button" class="btn btn-ghost" (click)="clearFilters()">Clear filters</button>
+      </div>
+    }
+  </form>
+
+  <section aria-label="Order list" [attr.aria-busy]="loading()">
+    @if (error(); as problem) {
+      <app-error-alert [error]="problem" [retryable]="true" (retry)="retry()" />
+    } @else if (results(); as page) {
+      @if (page.content.length === 0) {
+        @if (filtered()) {
+          <app-empty-state
+            heading="No orders match these filters"
+            message="Try a different search, status or date range."
+          >
+            <button type="button" class="btn" (click)="clearFilters()">Clear filters</button>
+          </app-empty-state>
+        } @else {
+          <app-empty-state
+            heading="No orders yet"
+            message="Orders you create here or through the API will show up in this list."
+          >
+            <a class="btn btn-primary" routerLink="/orders/new">Create your first order</a>
+          </app-empty-state>
+        }
+      } @else {
+        <div class="stack">
+          <p class="visually-hidden" role="status">{{ page.totalElements }} orders found</p>
+          <div class="table-wrap" [class.is-loading]="loading()">
+            <table class="table orders-table">
+              <caption class="visually-hidden">
+                Orders, newest first
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Tracking number</th>
+                  <th scope="col">Recipient</th>
+                  <th scope="col">Destination</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Fee</th>
+                  <th scope="col">Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (order of page.content; track order.id) {
+                  <tr>
+                    <td data-label="Tracking number">
+                      <div class="order-ref">
+                        <a class="mono" [routerLink]="['/orders', order.id]">{{
+                          order.trackingNo ?? 'Not assigned yet'
+                        }}</a>
+                        @if (order.externalRef) {
+                          <span class="muted small mono">Ref {{ order.externalRef }}</span>
+                        }
+                        @if (order.sandbox) {
+                          <app-status-badge status="SANDBOX" />
+                        }
+                      </div>
+                    </td>
+                    <td data-label="Recipient">{{ order.recipient.name }}</td>
+                    <td data-label="Destination">{{ order.dropoff.city }}</td>
+                    <td data-label="Status"><app-status-badge [status]="order.status" /></td>
+                    <td data-label="Fee">
+                      @if (order.fee) {
+                        {{ order.fee | money }}
+                      } @else {
+                        <span class="muted">Not priced</span>
+                      }
+                    </td>
+                    <td data-label="Created">
+                      <time
+                        [attr.datetime]="order.createdAt"
+                        [title]="order.createdAt | date: 'medium'"
+                        >{{ order.createdAt | relativeTime }}</time
+                      >
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <app-pagination [info]="page" (pageChange)="goToPage($event)" />
+        </div>
+      }
+    } @else {
+      <div class="card loading-card"><app-skeleton label="Loading orders" [lines]="8" /></div>
+    }
+  </section>
+</div>

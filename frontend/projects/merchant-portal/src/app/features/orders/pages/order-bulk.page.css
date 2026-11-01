@@ -1,0 +1,75 @@
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 46rem;
+}
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-6) var(--space-4);
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  text-align: center;
+  cursor: pointer;
+}
+
+.dropzone--active,
+.dropzone:hover {
+  border-color: var(--color-primary);
+  background: var(--tone-info-bg);
+}
+
+/* The real file input is visually hidden, so its focus ring is shown on the drop area. */
+#bulk-file:focus-visible + .dropzone {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+#bulk-file:disabled + .dropzone {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.dropzone__title {
+  font-weight: 600;
+}
+
+.selected {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.counts {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-width: 28rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.counts li {
+  display: flex;
+  flex-direction: column;
+}
+
+.counts__value {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.counts__value--success {
+  color: var(--tone-success-fg);
+}
+
+.counts__value--danger {
+  color: var(--tone-danger-fg);
+}
