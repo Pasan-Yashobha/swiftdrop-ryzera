@@ -40,7 +40,7 @@
 
   @if (config(); as current) {
     <section class="card stack" aria-labelledby="endpoint-heading">
-      <h2 id="endpoint-heading">Endpoint</h2>
+      <h2 id="endpoint-heading" tabindex="-1" #endpointHeading>Endpoint</h2>
       <app-webhook-config-form
         [config]="configured()"
         [busy]="saving()"

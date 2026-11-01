@@ -5,6 +5,7 @@ import {
   computed,
   ElementRef,
   inject,
+  Injector,
   signal,
   viewChild,
 } from '@angular/core';
@@ -24,6 +25,7 @@ import { SecretOnceDialog } from '../../../shared/ui/secret-once-dialog/secret-o
 import { Skeleton } from '../../../shared/ui/spinner/skeleton';
 import { StatusBadge } from '../../../shared/ui/status-badge/status-badge';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
+import { focusAfterRender } from '../../../shared/util/focus';
 import { DeveloperError } from '../shared/developer-error';
 import { countActive, describeExpiry, MAX_ACTIVE_CREDENTIALS } from './credential-format';
 import { EnvironmentBadge } from './environment-badge';
@@ -62,7 +64,6 @@ interface KeyRow {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './api-keys-section.html',
-  styleUrl: '../shared/responsive-table.css',
 })
 export class ApiKeysSection {
   protected readonly maxActive = MAX_ACTIVE_CREDENTIALS;
@@ -102,6 +103,8 @@ export class ApiKeysSection {
   private readonly api = inject(CredentialApi);
   private readonly toasts = inject(ToastService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+  private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
   private readonly secretDialog = viewChild.required(SecretOnceDialog);
   private readonly confirmDialog = viewChild.required(ConfirmDialog);
   private readonly rotateDialog = viewChild.required(RotateKeyDialog);
@@ -192,6 +195,8 @@ export class ApiKeysSection {
         this.busyKeyId.set(null);
         this.toasts.success(`Key "${key.label}" revoked.`);
         this.load();
+        // The row's buttons are gone, so keyboard users continue from the section heading.
+        focusAfterRender(this.injector, () => this.heading()?.nativeElement);
       },
       error: (error: unknown) => {
         this.busyKeyId.set(null);

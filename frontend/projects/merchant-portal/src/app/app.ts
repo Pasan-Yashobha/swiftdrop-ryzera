@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, inject, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
-import { filter, skip } from 'rxjs';
+import { distinctUntilChanged, filter, map, skip } from 'rxjs';
 import { AppHeader } from './layout/app-header';
 import { ToastOutlet } from './shared/ui/toast/toast-outlet';
 
@@ -19,10 +19,13 @@ export class App {
   private readonly main = viewChild.required<ElementRef<HTMLElement>>('main');
 
   constructor() {
-    // After each in-app navigation, move focus to the page so keyboard and screen reader users start at the top.
+    // After each in-app page change, move focus to the page so keyboard and screen reader users start at the top.
+    // Query and fragment changes stay on the same page (list filters, table of contents), so they keep focus.
     inject(Router)
       .events.pipe(
         filter((event) => event instanceof NavigationEnd),
+        map((event) => event.urlAfterRedirects.split(/[?#]/)[0]),
+        distinctUntilChanged(),
         skip(1),
         takeUntilDestroyed(),
       )

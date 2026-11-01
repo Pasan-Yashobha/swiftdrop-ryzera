@@ -1,7 +1,7 @@
 <section class="card stack" aria-labelledby="api-keys-heading">
   <div class="page__header">
     <div>
-      <h2 id="api-keys-heading">API keys</h2>
+      <h2 id="api-keys-heading" tabindex="-1" #heading>API keys</h2>
       <p class="page__lead small">
         Send a key in the <code>X-API-Key</code> header to call the merchant API from your server.
       </p>
@@ -24,7 +24,7 @@
       />
     } @else {
       <div class="table-wrap">
-        <table class="table stack-table">
+        <table class="table table--stacked">
           <caption class="visually-hidden">
             API keys
           </caption>
@@ -76,7 +76,7 @@
                 </td>
                 <td>
                   @if (row.key.status === 'ACTIVE') {
-                    <div class="stack-table__actions">
+                    <div class="table__actions">
                       @if (row.canRotate) {
                         <button
                           type="button"

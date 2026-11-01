@@ -94,7 +94,7 @@ export class ApiDocsPage {
   private readonly fragment = toSignal(inject(ActivatedRoute).fragment);
 
   constructor() {
-    // Deep links such as /developers/docs#verify-signatures scroll to (and focus) the section heading.
+    // The router scrolls to the section named in the address (anchorScrolling); this moves focus there too.
     effect(() => {
       const id = this.fragment();
       if (id) {
@@ -108,8 +108,6 @@ export class ApiDocsPage {
   }
 
   private reveal(id: string): void {
-    const heading = this.document.getElementById(id);
-    heading?.scrollIntoView();
-    heading?.focus({ preventScroll: true });
+    this.document.getElementById(id)?.focus({ preventScroll: true });
   }
 }

@@ -359,6 +359,7 @@ describe('OAuthClientsSection', () => {
 
       expect(toasts.success).toHaveBeenCalledWith('Client "Fulfilment worker" revoked.');
       expect(query(fixture, 'tbody tr').textContent).toContain('Revoked');
+      expect(document.activeElement).toBe(query(fixture, '#oauth-clients-heading'));
     });
 
     it('keeps the client when the question is cancelled', async () => {

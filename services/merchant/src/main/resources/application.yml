@@ -26,6 +26,11 @@ spring:
     deserialization:
       # Event envelopes from other services may grow new fields; ignore what we do not know.
       fail-on-unknown-properties: false
+  servlet:
+    multipart:
+      # Slightly above swiftdrop.bulk.max-bytes so the importer's own size check produces the friendly error.
+      max-file-size: 2MB
+      max-request-size: 3MB
   mvc:
     throw-exception-if-no-handler-found: true
   web:

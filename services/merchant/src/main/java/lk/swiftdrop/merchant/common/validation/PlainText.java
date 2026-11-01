@@ -2,6 +2,7 @@ package lk.swiftdrop.merchant.common.validation;
 
 import jakarta.validation.Constraint;
 import jakarta.validation.Payload;
+import jakarta.validation.ReportAsSingleViolation;
 import jakarta.validation.constraints.Pattern;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -14,6 +15,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER})
 @Constraint(validatedBy = {})
+@ReportAsSingleViolation
 @Pattern(regexp = "^[^\\p{Cc}]*$")
 public @interface PlainText {
 

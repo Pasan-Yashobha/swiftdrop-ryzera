@@ -27,6 +27,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
@@ -86,6 +88,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(AuthenticationException.class)
     ResponseEntity<Object> handleAuthentication(AuthenticationException ex, WebRequest request) {
         return respond(HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHENTICATED, "Authentication is required", request);
+    }
+
+    /** Reached when an upload endpoint receives a request that is not multipart; oversize uploads keep their 413. */
+    @ExceptionHandler(MultipartException.class)
+    ResponseEntity<Object> handleMultipart(MultipartException ex, WebRequest request) {
+        if (ex instanceof MaxUploadSizeExceededException) {
+            return respond(HttpStatus.PAYLOAD_TOO_LARGE, ErrorCode.PAYLOAD_TOO_LARGE, "The request is too large", request);
+        }
+        return respond(HttpStatus.BAD_REQUEST, ErrorCode.MALFORMED_REQUEST, "A multipart file upload is expected", request);
     }
 
     @ExceptionHandler(Exception.class)

@@ -430,6 +430,7 @@ describe('WebhookSettingsPage', () => {
       fixture.detectChanges();
 
       expect(toasts.success).toHaveBeenCalledWith('Webhook deleted.');
+      expect(document.activeElement).toBe(query(fixture, '#endpoint-heading'));
       expect(inputByLabel(fixture, 'Endpoint URL').value).toBe('');
       expect(element(fixture).textContent).not.toContain('Send test event');
       expect(element(fixture).textContent).not.toContain('Delivery log');

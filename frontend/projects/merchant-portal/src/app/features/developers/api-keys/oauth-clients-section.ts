@@ -5,6 +5,7 @@ import {
   computed,
   ElementRef,
   inject,
+  Injector,
   signal,
   viewChild,
 } from '@angular/core';
@@ -29,6 +30,7 @@ import { SecretOnceDialog } from '../../../shared/ui/secret-once-dialog/secret-o
 import { Skeleton } from '../../../shared/ui/spinner/skeleton';
 import { StatusBadge } from '../../../shared/ui/status-badge/status-badge';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
+import { focusAfterRender } from '../../../shared/util/focus';
 import { DeveloperError } from '../shared/developer-error';
 import { countActive, MAX_ACTIVE_CREDENTIALS } from './credential-format';
 import { EnvironmentBadge } from './environment-badge';
@@ -63,7 +65,6 @@ const SCOPE_DESCRIPTIONS: Readonly<Record<OAuthScope, string>> = {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './oauth-clients-section.html',
-  styleUrl: '../shared/responsive-table.css',
   styles: `
     .scopes {
       display: flex;
@@ -124,6 +125,8 @@ export class OAuthClientsSection {
   private readonly api = inject(CredentialApi);
   private readonly toasts = inject(ToastService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+  private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
   private readonly secretDialog = viewChild.required(SecretOnceDialog);
   private readonly confirmDialog = viewChild.required(ConfirmDialog);
 
@@ -229,6 +232,8 @@ export class OAuthClientsSection {
         this.busyClientId.set(null);
         this.toasts.success(`Client "${client.label}" revoked.`);
         this.load();
+        // The row's buttons are gone, so keyboard users continue from the section heading.
+        focusAfterRender(this.injector, () => this.heading()?.nativeElement);
       },
       error: (error: unknown) => {
         this.busyClientId.set(null);

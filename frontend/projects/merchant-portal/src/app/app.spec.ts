@@ -1,5 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { App } from './app';
@@ -8,6 +9,9 @@ import { MerchantStore } from './core/merchant/merchant.store';
 import { buttonByText, element, query } from './core/testing/dom';
 import { aMerchant, aSession } from './core/testing/test-data';
 
+@Component({ template: '<input id="page-input" />' })
+class BlankPage {}
+
 describe('App shell', () => {
   let http: HttpTestingController;
   let fixture: ComponentFixture<App>;
@@ -15,7 +19,14 @@ describe('App shell', () => {
   beforeEach(() => {
     sessionStorage.clear();
     TestBed.configureTestingModule({
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideRouter([
+          { path: 'first', component: BlankPage },
+          { path: 'second', component: BlankPage },
+        ]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     });
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(App);
@@ -55,6 +66,36 @@ describe('App shell', () => {
 
     expect(event.defaultPrevented).toBeTrue();
     expect(document.activeElement).toBe(query(fixture, 'main'));
+  });
+
+  describe('focus after navigation', () => {
+    let router: Router;
+
+    beforeEach(async () => {
+      router = TestBed.inject(Router);
+      await router.navigateByUrl('/first');
+    });
+
+    it('stays where it is on the first navigation', () => {
+      expect(document.activeElement).not.toBe(query(fixture, 'main'));
+    });
+
+    it('moves to the main area when the page changes', async () => {
+      await router.navigateByUrl('/second');
+
+      expect(document.activeElement).toBe(query(fixture, 'main'));
+    });
+
+    it('keeps focus when only the query string or fragment changes', async () => {
+      fixture.detectChanges();
+      const input = query<HTMLInputElement>(fixture, '#page-input');
+      input.focus();
+
+      await router.navigateByUrl('/first?search=ab');
+      await router.navigateByUrl('/first?search=ab#section');
+
+      expect(document.activeElement).toBe(input);
+    });
   });
 
   it('offers sign in and sign up to visitors', () => {

@@ -436,6 +436,7 @@ describe('ApiKeysSection', () => {
 
       expect(toasts.success).toHaveBeenCalledWith('Key "Shop backend" revoked.');
       expect(query(fixture, 'tbody tr').textContent).toContain('Revoked');
+      expect(document.activeElement).toBe(query(fixture, '#api-keys-heading'));
     });
 
     it('keeps the key when the question is cancelled', async () => {

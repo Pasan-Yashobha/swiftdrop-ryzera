@@ -222,6 +222,12 @@ describe('OrderBulkPage', () => {
       );
     });
 
+    it('moves focus to the result so screen readers announce it', () => {
+      uploadWithResponse(MIXED_RESULT);
+
+      expect(document.activeElement).toBe(query(fixture, '#result-heading'));
+    });
+
     it('lists every row in a table with its tracking number or errors', () => {
       uploadWithResponse(MIXED_RESULT);
 

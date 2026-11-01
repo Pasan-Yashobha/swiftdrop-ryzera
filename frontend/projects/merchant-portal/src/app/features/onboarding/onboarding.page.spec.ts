@@ -118,16 +118,14 @@ describe('OnboardingPage', () => {
     fillValid();
     submit();
 
-    http
-      .expectOne('/api/v1/merchants/register')
-      .flush(
-        {
-          code: 'VALIDATION_FAILED',
-          message: 'Validation failed',
-          details: [{ field: 'contactPhone', message: 'is not a supported number' }],
-        },
-        { status: 400, statusText: 'Bad Request' },
-      );
+    http.expectOne('/api/v1/merchants/register').flush(
+      {
+        code: 'VALIDATION_FAILED',
+        message: 'Validation failed',
+        details: [{ field: 'contactPhone', message: 'is not a supported number' }],
+      },
+      { status: 400, statusText: 'Bad Request' },
+    );
     fixture.detectChanges();
 
     expect(element(fixture).textContent).toContain('is not a supported number');

@@ -1,7 +1,7 @@
 <form class="stack" [formGroup]="form" (ngSubmit)="submit()" novalidate>
   <app-error-alert [error]="submitError()" />
   @if (unmatchedErrors().length > 0) {
-    <ul class="alert alert--danger">
+    <ul class="alert alert--danger" role="alert">
       @for (message of unmatchedErrors(); track message) {
         <li>{{ message }}</li>
       }

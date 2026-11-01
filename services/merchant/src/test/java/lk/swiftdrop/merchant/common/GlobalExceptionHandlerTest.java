@@ -44,6 +44,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.MultipartFile;
 
 class GlobalExceptionHandlerTest {
@@ -168,6 +169,14 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void nonMultipartRequestToAnUploadEndpointIsABadRequestNotAServerError() throws Exception {
+        mockMvc.perform(get("/fail/not-multipart"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"))
+                .andExpect(jsonPath("$.message").value("A multipart file upload is expected"));
+    }
+
+    @Test
     void unsupportedContentTypeAndMethodUseSpecificCodes() throws Exception {
         mockMvc.perform(post("/fail/body").contentType(MediaType.TEXT_PLAIN).content("x"))
                 .andExpect(status().isUnsupportedMediaType())
@@ -263,6 +272,11 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/fail/too-large")
         void tooLarge() {
             throw new MaxUploadSizeExceededException(1024);
+        }
+
+        @GetMapping("/fail/not-multipart")
+        void notMultipart() {
+            throw new MultipartException("Current request is not a multipart request");
         }
 
         @GetMapping("/fail/optimistic-lock")

@@ -2,6 +2,7 @@ package lk.swiftdrop.merchant.common.validation;
 
 import jakarta.validation.Constraint;
 import jakarta.validation.Payload;
+import jakarta.validation.ReportAsSingleViolation;
 import jakarta.validation.constraints.Pattern;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -15,6 +16,7 @@ import lk.swiftdrop.merchant.common.Inputs;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER})
 @Constraint(validatedBy = {})
+@ReportAsSingleViolation
 @Pattern(regexp = Inputs.PHONE_REGEX)
 public @interface Phone {
 

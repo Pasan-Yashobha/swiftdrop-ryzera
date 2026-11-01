@@ -15,7 +15,6 @@ import { DeveloperError } from '../shared/developer-error';
   imports: [DatePipe, EmptyState, Pagination, Skeleton, StatusBadge, DeveloperError],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './webhook-delivery-log.html',
-  styleUrl: '../shared/responsive-table.css',
 })
 export class WebhookDeliveryLog {
   protected readonly deliveries = signal<WebhookDeliveryPage | null>(null);

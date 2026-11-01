@@ -25,7 +25,9 @@
         @if (order.trackingUrl; as trackingUrl) {
           <dt>Tracking link</dt>
           <dd>
-            <a [href]="trackingUrl" target="_blank" rel="noopener noreferrer">{{ trackingUrl }}</a>
+            <a [href]="trackingUrl" target="_blank" rel="noopener noreferrer"
+              >{{ trackingUrl }}<span class="visually-hidden"> (opens in a new tab)</span></a
+            >
             <app-copy-button [value]="trackingUrl" label="Copy link" />
           </dd>
         }

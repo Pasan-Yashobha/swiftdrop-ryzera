@@ -3,7 +3,9 @@
 # The official nginx image runs envsubst over /etc/nginx/templates/*.template at start-up and writes the
 # result to /etc/nginx/conf.d/. NGINX_ENVSUBST_FILTER (set in the Dockerfile) limits substitution to the two
 # variables below, so nginx's own $variables are left alone.
-#   API_UPSTREAM  base URL of the API, without a path, e.g. http://merchant:8080
+#   API_UPSTREAM  base URL of the API, without a path or trailing slash, e.g. http://merchant:8080. Only then does
+#                 proxy_pass (which uses a variable) forward the request URI unchanged: /api/v1/merchants/me
+#                 reaches the API as /api/v1/merchants/me.
 #   DNS_RESOLVER  DNS server nginx uses to look the upstream up at request time (Docker's is 127.0.0.11)
 
 server {
@@ -21,7 +23,8 @@ server {
     gzip_comp_level 5;
     gzip_min_length 1024;
     gzip_vary on;
-    gzip_types text/plain text/css text/csv application/javascript application/json image/svg+xml;
+    # Recent nginx versions map .js to text/javascript, older ones to application/javascript; list both.
+    gzip_types text/plain text/css text/csv text/javascript application/javascript application/json image/svg+xml;
 
     # Security headers. Set at server level only: an add_header inside a location would drop these.
     add_header X-Content-Type-Options "nosniff" always;

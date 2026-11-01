@@ -7,7 +7,7 @@
       </p>
     </div>
     <a class="btn btn-ghost" [href]="openApiPath" target="_blank" rel="noopener">
-      OpenAPI document (YAML)
+      OpenAPI document (YAML)<span class="visually-hidden"> (opens in a new tab)</span>
     </a>
   </div>
 
@@ -49,8 +49,10 @@
           <dd>JSON requests and responses, UTF-8, timestamps in ISO 8601 UTC, amounts in LKR.</dd>
           <dt>OpenAPI</dt>
           <dd>
-            <a [href]="openApiPath" target="_blank" rel="noopener">{{ openApiPath }}</a> (import it
-            into Postman or generate a client)
+            <a [href]="openApiPath" target="_blank" rel="noopener"
+              >{{ openApiPath }}<span class="visually-hidden"> (opens in a new tab)</span></a
+            >
+            (import it into Postman or generate a client)
           </dd>
         </dl>
         <p>

@@ -53,11 +53,6 @@
   gap: var(--space-2);
 }
 
-.docs__content .table th[scope='row'] {
-  background: transparent;
-  white-space: normal;
-}
-
 .docs__status-code {
   display: block;
   margin-top: var(--space-1);

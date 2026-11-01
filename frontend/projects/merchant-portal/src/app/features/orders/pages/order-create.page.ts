@@ -1,5 +1,4 @@
 import {
-  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
@@ -25,6 +24,7 @@ import { MoneyPipe } from '../../../shared/pipes/money.pipe';
 import { CopyButton } from '../../../shared/ui/copy-button/copy-button';
 import { FieldControl, FormField } from '../../../shared/ui/form-field/form-field';
 import { StatusBadge } from '../../../shared/ui/status-badge/status-badge';
+import { focusAfterRender } from '../../../shared/util/focus';
 import { createOrderForm, ORDER_LIMITS, toCreateOrderRequest } from '../util/order-form';
 import { PARCEL_SIZE_LABELS } from '../util/order-labels';
 import { DUPLICATE_REF_MESSAGE, describeSubmitError } from '../util/order-submit-problem';
@@ -135,9 +135,7 @@ export class OrderCreatePage implements OnInit {
     this.attempt = null;
     this.submitting.set(false);
     this.created.set(order);
-    afterNextRender(() => this.createdHeading()?.nativeElement.focus(), {
-      injector: this.injector,
-    });
+    focusAfterRender(this.injector, () => this.createdHeading()?.nativeElement);
   }
 
   private fail(error: AppError): void {

@@ -3,8 +3,11 @@ import {
   Component,
   computed,
   DestroyRef,
+  ElementRef,
   inject,
+  Injector,
   signal,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
@@ -13,10 +16,11 @@ import { AppError, toAppError } from '../../../core/http/app-error';
 import { BulkResult } from '../../../core/models/order.model';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
 import { Spinner } from '../../../shared/ui/spinner/spinner';
+import { downloadBlob } from '../../../shared/util/download-file';
+import { focusAfterRender } from '../../../shared/util/focus';
 import { BulkResultTable } from '../components/bulk-result-table';
 import { bulkFileProblem, formatBytes, MAX_BULK_ROWS } from '../util/bulk-file';
 import { failedRowsCsv } from '../util/bulk-report';
-import { downloadBlob } from '../util/download-file';
 
 const TEMPLATE_FILE_NAME = 'swiftdrop-bulk-orders-template.csv';
 const FAILED_ROWS_FILE_NAME = 'swiftdrop-bulk-failed-rows.csv';
@@ -56,6 +60,8 @@ export class OrderBulkPage {
 
   private readonly api = inject(OrderApi);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
+  private readonly resultHeading = viewChild<ElementRef<HTMLElement>>('resultHeading');
 
   protected downloadTemplate(): void {
     this.templateBusy.set(true);
@@ -119,6 +125,7 @@ export class OrderBulkPage {
         next: (result) => {
           this.uploading.set(false);
           this.result.set(result);
+          focusAfterRender(this.injector, () => this.resultHeading()?.nativeElement);
         },
         error: (error: unknown) => {
           this.uploading.set(false);

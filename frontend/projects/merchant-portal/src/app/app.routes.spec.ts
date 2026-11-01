@@ -29,6 +29,8 @@ describe('app routes', () => {
   });
 
   afterEach(() => {
+    // These specs only check routing; the pages they open request their own data.
+    http.match(() => true);
     http.verify();
     sessionStorage.clear();
   });

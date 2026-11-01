@@ -3,7 +3,9 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  ElementRef,
   inject,
+  Injector,
   signal,
   viewChild,
 } from '@angular/core';
@@ -20,6 +22,7 @@ import { ConfirmDialog } from '../../../shared/ui/confirm-dialog/confirm-dialog'
 import { SecretOnceDialog } from '../../../shared/ui/secret-once-dialog/secret-once-dialog';
 import { Skeleton } from '../../../shared/ui/spinner/skeleton';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
+import { focusAfterRender } from '../../../shared/util/focus';
 import { DeveloperError } from '../shared/developer-error';
 import { WebhookConfigForm } from '../webhooks/webhook-config-form';
 import { WebhookDeliveryLog } from '../webhooks/webhook-delivery-log';
@@ -59,6 +62,8 @@ export class WebhookSettingsPage {
 
   private readonly api = inject(WebhookApi);
   private readonly toasts = inject(ToastService);
+  private readonly injector = inject(Injector);
+  private readonly endpointHeading = viewChild<ElementRef<HTMLElement>>('endpointHeading');
   private readonly secretDialog = viewChild.required(SecretOnceDialog);
   private readonly confirmDialog = viewChild.required(ConfirmDialog);
 
@@ -158,6 +163,8 @@ export class WebhookSettingsPage {
         this.config.set({ configured: false });
         this.testResult.set(null);
         this.toasts.success('Webhook deleted.');
+        // The delete button is gone, so keyboard users continue from the endpoint form.
+        focusAfterRender(this.injector, () => this.endpointHeading()?.nativeElement);
       },
       error: (error: unknown) => this.failAction(error),
     });

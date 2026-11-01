@@ -22,7 +22,8 @@ export const appConfig: ApplicationConfig = {
     provideRouter(
       routes,
       withComponentInputBinding(),
-      withInMemoryScrolling({ scrollPositionRestoration: 'enabled' }),
+      // anchorScrolling makes deep links such as /developers/docs#verify-signatures scroll to their section.
+      withInMemoryScrolling({ scrollPositionRestoration: 'enabled', anchorScrolling: 'enabled' }),
     ),
     // errorInterceptor wraps authInterceptor, so it sees the outcome after a token refresh was attempted.
     provideHttpClient(withInterceptors([errorInterceptor, authInterceptor])),

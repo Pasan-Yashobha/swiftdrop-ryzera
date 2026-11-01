@@ -40,7 +40,8 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 class MerchantApiAuthTest extends AbstractCredentialTest {
 
     private static final String PING = "/api/v1/merchant-api/ping";
-    private static final String ORDERS = "/api/v1/merchant-api/orders";
+    /** A path no controller maps, so these tests see only what the path-based security rules decide. */
+    private static final String ORDERS = "/api/v1/merchant-api/unmapped";
     private static final String API_KEY_HEADER = "X-API-Key";
 
     @Autowired

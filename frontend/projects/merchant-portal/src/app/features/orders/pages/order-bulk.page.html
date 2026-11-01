@@ -6,7 +6,7 @@
 
   @if (result(); as summary) {
     <section class="card stack" aria-labelledby="result-heading">
-      <h2 id="result-heading">Upload result</h2>
+      <h2 id="result-heading" tabindex="-1" #resultHeading>Upload result</h2>
       <ul class="counts">
         <li>
           <span class="counts__value">{{ summary.totalRows }}</span>

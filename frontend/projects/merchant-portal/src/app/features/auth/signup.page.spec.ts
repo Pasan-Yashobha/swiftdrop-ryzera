@@ -144,16 +144,14 @@ describe('SignupPage', () => {
     fill();
     submit();
 
-    http
-      .expectOne('/api/v1/auth/signup')
-      .flush(
-        {
-          code: 'VALIDATION_FAILED',
-          message: 'Validation failed',
-          details: [{ field: 'email', message: 'is not allowed' }],
-        },
-        { status: 400, statusText: 'Bad Request' },
-      );
+    http.expectOne('/api/v1/auth/signup').flush(
+      {
+        code: 'VALIDATION_FAILED',
+        message: 'Validation failed',
+        details: [{ field: 'email', message: 'is not allowed' }],
+      },
+      { status: 400, statusText: 'Bad Request' },
+    );
     fixture.detectChanges();
 
     expect(element(fixture).textContent).toContain('is not allowed');

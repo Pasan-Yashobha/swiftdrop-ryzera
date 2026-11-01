@@ -5,7 +5,8 @@
     >
 
     @if (auth.user(); as user) {
-      <p class="header__chip" aria-label="Signed in account">
+      <p class="header__chip">
+        <span class="visually-hidden">Signed in as</span>
         <span class="header__role">{{ user.role === 'MERCHANT' ? 'Merchant' : user.role }}</span>
         @if (store.status(); as status) {
           <app-status-badge [status]="status" />
@@ -35,6 +36,7 @@
             <a
               [routerLink]="link.path"
               routerLinkActive="header__link--active"
+              ariaCurrentWhenActive="page"
               class="header__link"
               >{{ link.label }}</a
             >
