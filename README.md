@@ -8,7 +8,7 @@ Enterprise application development group project (10 members).
 ## Quick start (local platform stack)
 
 ```bash
-docker compose up -d          # Postgres, RabbitMQ, Redis, MinIO, Mailpit (local dev defaults, no .env needed)
+docker compose up -d          # Postgres, RabbitMQ, Redis, Mailpit (local dev defaults, no .env needed)
 docker compose ps             # everything should become "healthy"
 ```
 
@@ -23,7 +23,6 @@ docker compose --profile observability up -d   # Prometheus + Grafana
 | Tool | URL | Notes |
 |---|---|---|
 | RabbitMQ UI | http://localhost:15672 | user/pass from `.env` |
-| MinIO console | http://localhost:9001 | buckets `proof-photos`, `receipts` are auto-created |
 | Mailpit inbox | http://localhost:8025 | services send SMTP to `mailpit:1025` |
 | Prometheus | http://localhost:9090 | `observability` profile |
 | Grafana | http://localhost:3001 | `observability` profile |
