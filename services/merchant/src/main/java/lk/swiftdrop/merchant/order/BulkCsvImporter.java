@@ -12,6 +12,7 @@ import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -79,6 +80,11 @@ public class BulkCsvImporter {
     private static final Set<String> CSV_CONTENT_TYPES = Set.of("text/csv", "application/csv", "application/vnd.ms-excel");
     private static final char BYTE_ORDER_MARK = '﻿';
     private static final int FILE_FINGERPRINT_LENGTH = 16;
+    private static final int MAX_CELL_LENGTH = 2000;
+    private static final int MAX_WEIGHT_LENGTH = 20;
+    private static final String PARCEL_UNAVAILABLE = "The parcel service is unavailable. Please try again shortly";
+    private static final String NOT_PROCESSED =
+            "Not processed because the parcel service is unavailable. Upload the file again shortly";
     private static final CSVFormat FORMAT = CSVFormat.RFC4180.builder().setIgnoreEmptyLines(true).get();
 
     /** A field level problem of one row. */
@@ -116,7 +122,7 @@ public class BulkCsvImporter {
                     "The file is larger than the limit of " + limits.maxBytes() + " bytes");
         }
         byte[] content = read(file);
-        List<CSVRecord> records = parse(decode(content));
+        List<CSVRecord> records = parse(decode(content), limits.maxRows());
         if (records.isEmpty()) {
             throw invalid("The file is empty");
         }
@@ -127,11 +133,20 @@ public class BulkCsvImporter {
         if (rows.isEmpty()) {
             throw invalid("The file contains a header but no orders");
         }
-        if (rows.size() > limits.maxRows()) {
-            throw invalid("The file has " + rows.size() + " orders but at most " + limits.maxRows() + " are allowed");
-        }
         String keyPrefix = "bulk:" + Sha256.hex(content).substring(0, FILE_FINGERPRINT_LENGTH) + ":";
-        return BulkResult.of(rows.stream().map(row -> importRow(merchantId, keyPrefix, row)).toList());
+        List<BulkRowResult> results = new ArrayList<>(rows.size());
+        boolean parcelServiceDown = false;
+        for (CSVRecord row : rows) {
+            if (parcelServiceDown) {
+                // One unreachable parcel service would otherwise cost a timeout per row, longer than the proxy waits.
+                results.add(BulkRowResult.failed((int) row.getRecordNumber(), List.of(NOT_PROCESSED)));
+                continue;
+            }
+            BulkRowResult result = importRow(merchantId, keyPrefix, row);
+            parcelServiceDown = result.errors() != null && result.errors().contains(PARCEL_UNAVAILABLE);
+            results.add(result);
+        }
+        return BulkResult.of(results);
     }
 
     private static void requireCsv(MultipartFile file) {
@@ -166,9 +181,19 @@ public class BulkCsvImporter {
         }
     }
 
-    private static List<CSVRecord> parse(String text) {
+    /** Reads the header and the rows, giving up as soon as there are more rows than allowed. */
+    private static List<CSVRecord> parse(String text, int maxRows) {
         try (CSVParser parser = FORMAT.parse(new StringReader(text))) {
-            return parser.getRecords();
+            List<CSVRecord> records = new ArrayList<>();
+            Iterator<CSVRecord> iterator = parser.iterator();
+            while (iterator.hasNext()) {
+                records.add(iterator.next());
+                if (records.size() > maxRows + 1) {
+                    String count = iterator.hasNext() ? "more than " + maxRows : String.valueOf(maxRows + 1);
+                    throw invalid("The file has " + count + " orders but at most " + maxRows + " are allowed");
+                }
+            }
+            return records;
         } catch (IOException | UncheckedIOException e) {
             throw invalid("The file is not a valid CSV file");
         }
@@ -179,6 +204,9 @@ public class BulkCsvImporter {
         if (record.size() != HEADER.size()) {
             return BulkRowResult.failed(row,
                     List.of("The row has " + record.size() + " columns but " + HEADER.size() + " are expected"));
+        }
+        if (record.stream().anyMatch(cell -> cell.length() > MAX_CELL_LENGTH)) {
+            return BulkRowResult.failed(row, List.of("A value is longer than " + MAX_CELL_LENGTH + " characters"));
         }
         List<RowProblem> problems = new ArrayList<>();
         CreateOrderRequest request = toRequest(record, problems);
@@ -204,6 +232,7 @@ public class BulkCsvImporter {
         return switch (e.getCode()) {
             case DUPLICATE_EXTERNAL_REF -> "externalRef: already used by another order";
             case PARCEL_REJECTED -> "The parcel service rejected this order";
+            case PARCEL_SERVICE_UNAVAILABLE -> PARCEL_UNAVAILABLE;
             default -> e.getMessage();
         };
     }
@@ -242,6 +271,11 @@ public class BulkCsvImporter {
     private static BigDecimal weight(String cell, List<RowProblem> problems) {
         if (cell.isBlank()) {
             problems.add(new RowProblem("weightKg", "must not be blank"));
+            return null;
+        }
+        // new BigDecimal(String) is quadratic in the length of the text: refuse absurd lengths before parsing.
+        if (cell.trim().length() > MAX_WEIGHT_LENGTH) {
+            problems.add(new RowProblem("weightKg", "must be a number"));
             return null;
         }
         try {

@@ -23,6 +23,10 @@ public final class PageRequests {
         if (size < 1 || size > MAX_SIZE) {
             problems.add(new ApiError.Detail("size", "must be between 1 and " + MAX_SIZE));
         }
+        // The offset (page * size) is an int in Spring Data; a larger one would surface as an internal error.
+        if (page >= 0 && size >= 1 && (long) page * size > Integer.MAX_VALUE) {
+            problems.add(new ApiError.Detail("page", "is too large"));
+        }
         if (!problems.isEmpty()) {
             throw new BadRequestException("Invalid pagination parameters", problems);
         }

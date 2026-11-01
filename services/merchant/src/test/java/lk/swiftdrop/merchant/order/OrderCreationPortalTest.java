@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Instant;
 import java.util.Map;
 import lk.swiftdrop.merchant.testsupport.TestAuth;
 import org.junit.jupiter.api.Test;
@@ -106,7 +107,8 @@ class OrderCreationPortalTest extends AbstractOrderTest {
     @Test
     void inFlightKeyIsInUseAndAsksForARetry() throws Exception {
         String hash = RequestFingerprint.of(OrderFixtures.request("ORDER-1"), false);
-        orderFixtures.order(merchant).idempotencyKey("key-1", hash).externalRef("ORDER-1").savePlaceholder();
+        orderFixtures.order(merchant).idempotencyKey("key-1", hash).externalRef("ORDER-1")
+                .createdAt(Instant.now()).savePlaceholder();
 
         createViaPortal(OWNER, OrderFixtures.payload("ORDER-1"), false, "key-1")
                 .andExpect(status().isConflict())

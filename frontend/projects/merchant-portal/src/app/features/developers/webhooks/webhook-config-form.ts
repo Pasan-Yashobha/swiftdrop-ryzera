@@ -28,7 +28,8 @@ import { applyServerErrors } from '../../../shared/forms/server-errors';
 import { notBlank } from '../../../shared/forms/validators';
 import { FieldControl, FormField } from '../../../shared/ui/form-field/form-field';
 import { DeveloperError } from '../shared/developer-error';
-import { httpsUrl, MAX_WEBHOOK_URL_LENGTH } from './https-url';
+import { environment } from '../../../../environments/environment';
+import { MAX_WEBHOOK_URL_LENGTH, webhookUrl } from './https-url';
 
 /** Either "all events" or at least one specific event must be chosen. */
 function eventsChosen(group: AbstractControl): ValidationErrors | null {
@@ -87,7 +88,11 @@ export class WebhookConfigForm {
     {
       url: new FormControl('', {
         nonNullable: true,
-        validators: [notBlank, httpsUrl, Validators.maxLength(MAX_WEBHOOK_URL_LENGTH)],
+        validators: [
+          notBlank,
+          webhookUrl(environment.devLogin),
+          Validators.maxLength(MAX_WEBHOOK_URL_LENGTH),
+        ],
       }),
       active: new FormControl(true, { nonNullable: true }),
       allEvents: new FormControl(true, { nonNullable: true }),

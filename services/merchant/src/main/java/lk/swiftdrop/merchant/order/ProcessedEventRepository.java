@@ -24,4 +24,9 @@ public interface ProcessedEventRepository extends JpaRepository<ProcessedEvent, 
             """, nativeQuery = true)
     int insertIfAbsent(@Param("eventId") String eventId, @Param("eventType") String eventType,
                        @Param("processedAt") Instant processedAt);
+
+    /** @return the number of deleted records */
+    @Modifying
+    @Query("delete from ProcessedEvent e where e.processedAt < :cutoff")
+    int deleteProcessedBefore(@Param("cutoff") Instant cutoff);
 }

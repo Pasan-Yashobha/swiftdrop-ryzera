@@ -8,6 +8,7 @@ import java.util.Objects;
 import lk.swiftdrop.merchant.credential.dto.OAuthErrorResponse;
 import lk.swiftdrop.merchant.credential.dto.TokenResponse;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -33,7 +34,8 @@ public class OAuthTokenController {
         this.tokenService = tokenService;
     }
 
-    @PostMapping(path = MerchantApiPaths.TOKEN, consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+    // No "consumes": a wrong content type must get the RFC 6749 error body, not the service's usual 415 body.
+    @PostMapping(path = MerchantApiPaths.TOKEN)
     public ResponseEntity<TokenResponse> token(
             HttpServletRequest request,
             @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
@@ -41,6 +43,9 @@ public class OAuthTokenController {
             @RequestParam(name = "client_id", required = false) String clientId,
             @RequestParam(name = "client_secret", required = false) String clientSecret,
             @RequestParam(name = "scope", required = false) String scope) {
+        if (!isFormEncoded(request.getContentType())) {
+            throw OAuthException.invalidRequest("The request body must be application/x-www-form-urlencoded");
+        }
         if (request.getQueryString() != null) {
             // A secret in the URL would end up in access logs; RFC 6749 section 3.2 wants the parameters in the body.
             throw OAuthException.invalidRequest("Send the parameters in the request body, not in the URL");
@@ -89,6 +94,17 @@ public class OAuthTokenController {
                     URLDecoder.decode(decoded.substring(separator + 1), StandardCharsets.UTF_8), true);
         } catch (IllegalArgumentException notBase64OrBadEscape) {
             throw OAuthException.invalidClient(true);
+        }
+    }
+
+    private static boolean isFormEncoded(String contentType) {
+        if (contentType == null) {
+            return false;
+        }
+        try {
+            return MediaType.APPLICATION_FORM_URLENCODED.isCompatibleWith(MediaType.parseMediaType(contentType));
+        } catch (InvalidMediaTypeException malformed) {
+            return false;
         }
     }
 

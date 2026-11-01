@@ -61,18 +61,15 @@ public class ParcelEventHandler {
      */
     public void handle(byte[] body) {
         ParcelEvent event = parse(body);
-        Optional<UUID> merchantId = merchantIdOf(event.data());
-        if (merchantId.isEmpty()) {
-            log.debug("Event {} ({}) names no merchant, ignored", event.eventId(), event.eventType());
-            return;
-        }
-        if (processedEvents.insertIfAbsent(event.eventId(), event.eventType(), clock.instant()) == 0) {
-            log.debug("Event {} was handled before, ignored", event.eventId());
-            return;
-        }
-        Optional<MerchantOrder> order = findOrder(merchantId.get(), event.data()).filter(o -> !o.isSandbox());
+        Optional<MerchantOrder> order = findOrder(event.data()).filter(o -> !o.isSandbox());
         if (order.isEmpty()) {
             log.debug("Event {} ({}) matches no live order, ignored", event.eventId(), event.eventType());
+            return;
+        }
+        // Only events that concern an order are recorded: the table would otherwise grow with every parcel event
+        // of every merchant on the platform.
+        if (processedEvents.insertIfAbsent(event.eventId(), event.eventType(), clock.instant()) == 0) {
+            log.debug("Event {} was handled before, ignored", event.eventId());
             return;
         }
         apply(order.get(), event);
@@ -114,13 +111,22 @@ public class ParcelEventHandler {
         }
     }
 
-    private Optional<MerchantOrder> findOrder(UUID merchantId, JsonNode data) {
+    /**
+     * Finds the order an event is about. Events that name the merchant are looked up within that merchant. The
+     * dispatch events ({@code parcel.assigned}, {@code parcel.cancelled}) carry only the parcel id, which the
+     * parcel service assigned and which belongs to one order.
+     */
+    private Optional<MerchantOrder> findOrder(JsonNode data) {
         String trackingNo = text(data, "trackingNo");
         String parcelId = text(data, "parcelId");
+        Optional<UUID> merchantId = merchantIdOf(data);
+        if (merchantId.isEmpty()) {
+            return parcelId == null ? Optional.empty() : orders.findFirstByParcelId(parcelId);
+        }
         Optional<MerchantOrder> byTrackingNo = trackingNo == null ? Optional.empty()
-                : orders.findByMerchantIdAndTrackingNo(merchantId, trackingNo);
+                : orders.findByMerchantIdAndTrackingNo(merchantId.get(), trackingNo);
         return byTrackingNo.or(() -> parcelId == null ? Optional.empty()
-                : orders.findByMerchantIdAndParcelId(merchantId, parcelId));
+                : orders.findByMerchantIdAndParcelId(merchantId.get(), parcelId));
     }
 
     private void apply(MerchantOrder order, ParcelEvent event) {

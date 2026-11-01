@@ -28,7 +28,7 @@ public final class TestProperties {
                 new AppProperties.Webhook(WEBHOOK_KEY, "http://webhook:8080", false, false, 5000, 3000),
                 new AppProperties.Tracking("http://localhost:4200/track"),
                 new AppProperties.Bulk(500, 1_048_576),
-                new AppProperties.Orders(300, 60_000));
+                new AppProperties.Orders(300, 60_000, 15));
     }
 
     public static AppProperties.Security security(String identityJwksUri, String jwtIssuer) {

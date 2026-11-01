@@ -190,11 +190,17 @@ public record AppProperties(
     /**
      * Housekeeping of the order module.
      *
-     * @param pendingPlaceholderMaxAgeSeconds age after which a PENDING placeholder order is considered stuck
+     * @param pendingPlaceholderMaxAgeSeconds age after which a PENDING placeholder order is deleted. A placeholder is
+     *                                        kept when the outcome of the parcel booking is unknown, because the parcel
+     *                                        service may have booked it; the default is a day.
      * @param cleanupIntervalMs               pause between two clean-up runs
+     * @param resumeAfterSeconds              age after which a retry with the same key or external reference completes
+     *                                        a PENDING placeholder itself, instead of waiting for the first request;
+     *                                        it must exceed the parcel call timeouts
      */
     public record Orders(
-            @DefaultValue("300") @Min(1) long pendingPlaceholderMaxAgeSeconds,
-            @DefaultValue("60000") @Min(1000) long cleanupIntervalMs) {
+            @DefaultValue("86400") @Min(1) long pendingPlaceholderMaxAgeSeconds,
+            @DefaultValue("60000") @Min(1000) long cleanupIntervalMs,
+            @DefaultValue("15") @Min(1) long resumeAfterSeconds) {
     }
 }

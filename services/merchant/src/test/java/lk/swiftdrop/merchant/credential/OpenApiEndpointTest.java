@@ -28,7 +28,7 @@ class OpenApiEndpointTest extends AbstractCredentialTest {
                 .andExpect(header().string("Content-Type", startsWith("application/yaml")))
                 .andExpect(header().string("Cache-Control", containsString("max-age=300")))
                 .andExpect(header().doesNotExist("X-RateLimit-Limit"))
-                .andExpect(content().string(startsWith("openapi: 3.0")));
+                .andExpect(content().string(startsWith("openapi: 3.1")));
     }
 
     @Test
@@ -44,17 +44,18 @@ class OpenApiEndpointTest extends AbstractCredentialTest {
     }
 
     @Test
-    void theDocumentIsValidOpenApiThatDescribesPingAndTheTokenEndpoint() throws Exception {
+    void theDocumentIsValidOpenApiThatDescribesTheMerchantApi() throws Exception {
         MvcResult result = mockMvc.perform(get(PATH)).andExpect(status().isOk()).andReturn();
 
         Map<String, Object> document = new Yaml().load(new String(result.getResponse().getContentAsByteArray(),
                 StandardCharsets.UTF_8));
 
-        assertThat(document.get("openapi").toString()).startsWith("3.0");
+        assertThat(document.get("openapi").toString()).startsWith("3.1");
         assertThat(document).containsKeys("info", "paths", "components");
         @SuppressWarnings("unchecked")
         Map<String, Object> paths = (Map<String, Object>) document.get("paths");
-        assertThat(paths).containsOnlyKeys("/merchant-api/ping", "/oauth/token");
+        assertThat(paths).containsKeys("/merchant-api/ping", "/oauth/token", "/merchant-api/openapi.yaml");
+        assertThat(paths.keySet()).anyMatch(path -> path.startsWith("/merchant-api/orders"));
         @SuppressWarnings("unchecked")
         Map<String, Object> ping = (Map<String, Object>) paths.get("/merchant-api/ping");
         assertThat(ping).containsKey("get");

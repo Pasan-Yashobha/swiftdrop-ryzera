@@ -42,7 +42,7 @@ class OrderServiceTest {
     private final ParcelClient parcelClient = mock(ParcelClient.class);
     private final SandboxSimulator simulator = mock(SandboxSimulator.class);
     private final OrderService service = new OrderService(merchants, orders, writer, parcelClient, simulator,
-            new OrderMapper(TestProperties.defaults()), Clock.fixed(NOW, ZoneOffset.UTC));
+            new OrderMapper(TestProperties.defaults()), Clock.fixed(NOW, ZoneOffset.UTC), TestProperties.defaults());
 
     private UUID merchantId;
 

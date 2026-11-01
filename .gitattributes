@@ -1,0 +1,4 @@
+# Shell scripts run inside Linux containers: keep LF even when a Windows checkout converts other files.
+*.sh text eol=lf
+*.template text eol=lf
+Dockerfile* text eol=lf

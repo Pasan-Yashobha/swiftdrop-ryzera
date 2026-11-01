@@ -30,6 +30,8 @@ management:
 swiftdrop:
   scheduling:
     enabled: false
+  orders:
+    pending-placeholder-max-age-seconds: 300
   security:
     dev-hmac-secret: test-only-hmac-secret-0123456789abcdef
     internal-token: test-internal-token

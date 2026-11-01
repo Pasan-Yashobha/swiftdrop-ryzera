@@ -66,6 +66,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ResponseEntity<Object> handleDataIntegrity(DataIntegrityViolationException ex, WebRequest request) {
         // The exception message can contain SQL and column values, so only its type is logged.
         log.warn("Data integrity violation on {}: {}", path(request), ex.getClass().getSimpleName());
+        // SQLSTATE class 22 (data exception: NUL character, value too long, numeric overflow) means the input cannot
+        // be stored; that is a bad request, not a conflict with the state of the resource (class 23: unique, FK).
+        if (org.springframework.core.NestedExceptionUtils.getMostSpecificCause(ex) instanceof java.sql.SQLException sql
+                && sql.getSQLState() != null && sql.getSQLState().startsWith("22")) {
+            return respond(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_FAILED,
+                    "A value in the request cannot be stored", request);
+        }
         return respond(HttpStatus.CONFLICT, ErrorCode.INVALID_STATE,
                 "The request conflicts with the current state of the resource", request);
     }

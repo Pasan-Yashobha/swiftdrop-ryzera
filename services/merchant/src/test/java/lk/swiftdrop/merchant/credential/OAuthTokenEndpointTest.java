@@ -284,7 +284,12 @@ class OAuthTokenEndpointTest extends AbstractCredentialTest {
         mockMvc.perform(post(TOKEN_PATH).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"grant_type\":\"client_credentials\"}")
                         .header(HttpHeaders.AUTHORIZATION, basic(client.clientId(), client.clientSecret())))
-                .andExpect(status().isUnsupportedMediaType());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("invalid_request"));
+        mockMvc.perform(post(TOKEN_PATH).header(HttpHeaders.AUTHORIZATION,
+                        basic(client.clientId(), client.clientSecret())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("invalid_request"));
         mockMvc.perform(get(TOKEN_PATH)).andExpect(status().isUnauthorized());
     }
 

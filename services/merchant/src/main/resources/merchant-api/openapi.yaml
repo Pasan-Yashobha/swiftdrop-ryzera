@@ -1,141 +1,1846 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: SwiftDrop Merchant API
-  version: 0.1.0
-  description: >
-    Placeholder document. It currently describes only the credential test endpoint and the OAuth token
-    endpoint; the order endpoints are added later.
+  version: 1.0.0
+  summary: Create and track SwiftDrop courier orders from your own systems.
+  description: |
+    The SwiftDrop Merchant API lets an approved merchant create delivery orders, look them up and follow their
+    status from a backend system, and receive signed webhooks when a parcel moves. This document describes
+    exactly what the Merchant Service implements. It is served, without authentication, at
+    `GET /api/v1/merchant-api/openapi.yaml`.
+
+    ## Quick start
+
+    1. Register your business in the Merchant Portal and wait for an administrator to approve it.
+       Until the merchant is `APPROVED`, every call with a credential is answered `403 MERCHANT_NOT_APPROVED`.
+    2. In the portal open *Developers, API keys* and create a **TEST** key. The full key (`sd_test_...`) is
+       shown **once**; store it in a secret manager.
+    3. Check the key:
+
+       ```bash
+       curl -s https://api.example.com/api/v1/merchant-api/ping -H "X-API-Key: $SWIFTDROP_API_KEY"
+       ```
+    4. Create a sandbox order, then move it along with the sandbox advance endpoint:
+
+       ```bash
+       curl -s -X POST https://api.example.com/api/v1/merchant-api/orders \
+         -H "X-API-Key: $SWIFTDROP_API_KEY" -H "Content-Type: application/json" \
+         -H "Idempotency-Key: order-1001-attempt-1" \
+         -d '{"externalRef":"ORDER-1001",
+              "recipient":{"name":"Nimali Perera","phone":"+94771234567"},
+              "pickup":{"addressLine":"12 Galle Rd","city":"Colombo","postalCode":"00300"},
+              "dropoff":{"addressLine":"45 Temple St","city":"Kandy","postalCode":"20000"},
+              "parcel":{"weightKg":2.5,"size":"SMALL","description":"Phone case"}}'
+       ```
+    5. When the integration works, create a **LIVE** key and switch the key in your configuration.
+
+    Replace `https://api.example.com` with the address of your SwiftDrop gateway. Every path in this document is
+    relative to the server URL `/api/v1`.
+
+    ## Authentication
+
+    Send **one** of the following on every `/merchant-api` request. Sending both an `X-API-Key` header and an
+    `Authorization: Bearer` header is ambiguous and is answered `400 MALFORMED_REQUEST`.
+
+    | Method | How | Scopes |
+    |---|---|---|
+    | API key | `X-API-Key: sd_live_ab12cd34_...` | always `orders:read` and `orders:write` |
+    | OAuth 2.0 client credentials | `Authorization: Bearer <access_token>` from `POST /oauth/token` | the scopes granted to the token |
+
+    **API keys** have the form `sd_<live|test>_<8 characters>_<43 characters>` (60 characters in total). The
+    first 16 characters (for example `sd_live_ab12cd34`) are a public prefix that the portal shows to identify the
+    key; the rest is secret. Keys are stored only as a SHA-256 hash, so a lost key cannot be recovered, only
+    replaced. Rotating a key
+    creates a new one and lets the old one work for a grace period (default 24 hours, 0 to 72).
+
+    **OAuth clients** (`client_id` `mc_...` and a 43 character secret, also shown once) exchange their
+    credentials for a one hour bearer token (`expires_in` tells the exact lifetime). The token is only valid for
+    this API. It stops working immediately when the client is revoked or the merchant is suspended.
+
+    Every request re-checks the credential and the merchant. A revoked, expired or unknown credential is answered
+    `401` with the same message whatever the reason, so the API does not reveal which keys exist.
+
+    ## Sandbox
+
+    A **TEST** credential (API key `sd_test_...` or an OAuth client created with the TEST environment) puts every
+    request in sandbox mode:
+
+    * Orders are created without calling the courier network. Their tracking number starts with `SBX` followed by
+      nine digits, the fee is `350.00 + 100.00 x weightKg` LKR, the order is `CREATED` and `sandbox` is `true`.
+    * A TEST credential only ever sees and creates sandbox orders. A LIVE credential never sees sandbox orders.
+      Looking up a sandbox order with a LIVE credential (or the other way round) is a `404`.
+    * You drive the lifecycle yourself with `POST /merchant-api/sandbox/orders/{trackingNo}/advance`:
+      `CREATED`, `ASSIGNED`, `PICKED_UP`, `IN_TRANSIT`, `OUT_FOR_DELIVERY`, `DELIVERED`, one step per call, or
+      `FAILED` at any step. `DELIVERED` and `FAILED` are final.
+    * Sandbox orders publish **no events and send no webhooks**. Use `POST /merchants/me/webhook/test` in the
+      portal to see a signed test delivery.
+    * LIVE credentials cannot call the advance endpoint (`403 SANDBOX_ONLY`).
+
+    ## Idempotency
+
+    Send an `Idempotency-Key` header (up to 100 characters, unique per order you intend to create) on
+    `POST /merchant-api/orders`. Keys are scoped to your merchant account and remembered for as long as the
+    order exists.
+
+    * Same key and same request: no new order. You get the stored order with `200` and
+      `Idempotent-Replayed: true`. The first request answered `201`.
+    * Same key and a **different** request: `422 IDEMPOTENCY_KEY_REUSED`.
+    * Same key while the first request is still being processed: `409 IDEMPOTENCY_KEY_IN_USE` with
+      `Retry-After: 1`. Wait and send the identical request again.
+    * A failed booking (`422 PARCEL_REJECTED`, `503 PARCEL_SERVICE_UNAVAILABLE`) leaves no order behind, so the
+      same key may be used to retry.
+
+    `externalRef` (your own order number) is also unique per merchant: a second order with the same
+    `externalRef` and no key, or a different key, is `409 DUPLICATE_EXTERNAL_REF`. Requests are compared on their content
+    (trimmed text, weight with two decimals), not on their byte representation.
+
+    ## Rate limits
+
+    Each merchant has a request budget per minute (60 by default, set by SwiftDrop administrators). It is a token
+    bucket that refills continuously, shared by all keys and tokens of the merchant, and applies to every
+    `/merchant-api` request (not to `/oauth/token`). Every response to an authenticated request carries
+    `X-RateLimit-Limit` and `X-RateLimit-Remaining`. When the bucket is empty the answer is
+    `429 RATE_LIMITED` with `Retry-After` (seconds).
+
+    ## Errors
+
+    All endpoints except `/oauth/token` answer errors with the JSON object described by the `ApiError` schema.
+    Use `code` (stable, machine readable) rather than `message` (human readable, may change) in your logic.
+    Validation errors list the offending fields in `details`. Unexpected failures return `500 INTERNAL_ERROR`
+    with a generic message; quote the `correlationId` when you contact support. The token endpoint uses the
+    error format of RFC 6749 section 5.2 instead.
+
+    ## Correlation ids
+
+    Send `X-Correlation-Id` (1 to 64 characters of `A-Z a-z 0-9 . _ : -`) to tag a request. Without one, or with
+    an unacceptable value, the service generates a UUID. The id is echoed in the `X-Correlation-Id` response
+    header and in error bodies, and is copied into the events the platform publishes about your order.
+
+    ## Conventions
+
+    * Timestamps are ISO 8601 in UTC with a `Z` suffix. Identifiers are UUIDs unless noted.
+    * Money is a decimal number with two decimals and a currency code (`LKR`).
+    * Optional values that are absent are returned as `null`, not omitted.
+    * Lists are paged with `page` (from 0) and `size` (1 to 100, default 20) and are sorted by creation time,
+      newest first.
+    * Unknown request fields are ignored. New response fields may be added without a version change.
+
+    ## Webhooks
+
+    SwiftDrop can call a URL of yours when a parcel is created, changes status or is cancelled. Configure the URL,
+    the event types and the signing secret in the portal. Delivery, signatures, retries and ordering are described
+    in the `webhooks` section of this document.
+  contact:
+    name: SwiftDrop merchant integration support
+  license:
+    name: Proprietary
+    identifier: LicenseRef-SwiftDrop-Proprietary
 servers:
   - url: /api/v1
+    description: Relative to the host that serves this document (the SwiftDrop gateway).
 security:
   - ApiKeyAuth: []
   - BearerAuth: []
+  - OAuth2ClientCredentials: []
+tags:
+  - name: Merchant API
+    description: Credential check and orders. Needs an API key or an access token.
+  - name: Sandbox
+    description: Helpers that only work with TEST credentials.
+  - name: Authentication
+    description: Access tokens for the OAuth 2.0 client credentials grant.
+  - name: Documentation
+    description: This document.
+  - name: Webhooks
+    description: |
+      Signed event callbacks that SwiftDrop sends to the URL you configured in the portal. They are delivered by
+      the SwiftDrop Webhook Delivery Service; the Merchant Service stores your URL, event selection and secret.
+
+      ## Request
+
+      Every delivery is an HTTPS `POST` with `Content-Type: application/json`. The body is the platform event
+      envelope (see the `WebhookEvent` schema) and these headers:
+
+      | Header | Meaning |
+      |---|---|
+      | `X-SwiftDrop-Event-Id` | Unique id of the event (same value as `eventId` in the body). Identical for every retry and replay. |
+      | `X-SwiftDrop-Event-Type` | Event type, for example `parcel.status.delivered`. |
+      | `X-SwiftDrop-Timestamp` | When this attempt was signed, Unix time in seconds. Changes on every attempt. |
+      | `X-SwiftDrop-Signature` | Lowercase hex HMAC-SHA256 signature, see below. |
+
+      ## Signature
+
+      `signature = hex( HMAC_SHA256( key = secret, message = timestamp + "." + body ) )`
+
+      * `secret` is your webhook secret, the complete string including the `whsec_` prefix, as UTF-8 bytes.
+      * `timestamp` is the value of the `X-SwiftDrop-Timestamp` header, used exactly as received.
+      * `body` is the raw request body, byte for byte. Verify before you parse the JSON; re-serialising a parsed
+        document changes the bytes and breaks the signature.
+      * `.` is a single full stop between the two parts.
+      * The secret is shown once when you create the webhook and again when you rotate it. It is stored encrypted
+        and cannot be read afterwards.
+
+      Verification pseudocode:
+
+      ```
+      function verify(secret, headers, rawBody, now):
+          timestamp = headers["X-SwiftDrop-Timestamp"]
+          received  = headers["X-SwiftDrop-Signature"]
+          if timestamp is not an integer:                       reject
+          if abs(now - integer(timestamp)) > 300 seconds:       reject    // replay protection
+          expected = hex(hmac_sha256(utf8(secret), utf8(timestamp + "." ) + rawBody))
+          if not constant_time_equals(expected, received):      reject
+          eventId = headers["X-SwiftDrop-Event-Id"]
+          if eventId was already processed:                     return 200  // duplicate, do nothing
+          process(parse_json(rawBody))
+          remember(eventId)
+          return 200
+      ```
+
+      Compare signatures in constant time (`hmac.compare_digest`, `crypto.timingSafeEqual`,
+      `MessageDigest.isEqual`). Reject a timestamp more than 5 minutes (300 seconds) away from your clock.
+
+      ## Delivery and retries
+
+      * A delivery succeeded when your endpoint answers with **any 2xx status within 5 seconds**. Answer quickly
+        and do the real work asynchronously.
+      * Timeouts, connection errors, `5xx` and `429` are temporary and are retried. Other `4xx` answers
+        (`400`, `401`, `404` ...) usually mean a configuration mistake and are **not** retried; the delivery is
+        marked failed at once.
+      * At most 6 attempts per event: immediately, then after 5 seconds, 30 seconds, 2 minutes, 10 minutes and
+        30 minutes (about 43 minutes in total). After the last failure the delivery is marked failed and
+        appears in the delivery log of the portal, where SwiftDrop staff can replay it once your endpoint works.
+      * A replay carries the **same event id** with a new timestamp and signature.
+      * Redirects are not a success. Do not answer with `3xx`.
+
+      ## Ordering and duplicates
+
+      Delivery is at least once and not ordered. A retried `parcel.status.out_for_delivery` can arrive after
+      `parcel.status.delivered`.
+
+      * Keep the `X-SwiftDrop-Event-Id` values you have processed and ignore repeats.
+      * Compare `occurredAt` of an event with the value you stored for that parcel and ignore an update that is
+        older than the state you already have.
+
+      ## Event types
+
+      Choose the events per webhook in the portal, or `*` for all of them. Sandbox orders never produce events.
+
+      | Event type | Sent when |
+      |---|---|
+      | `parcel.created` | A parcel was booked for your order. |
+      | `parcel.status.picked_up` | The courier collected the parcel. |
+      | `parcel.status.in_transit` | The parcel is on its way between hubs. |
+      | `parcel.status.out_for_delivery` | The parcel is out for delivery. |
+      | `parcel.status.delivered` | The parcel was delivered. |
+      | `parcel.status.failed` | A delivery attempt failed (`data.failureReason`). |
+      | `parcel.status.rescheduled` | Delivery was rescheduled. |
+      | `parcel.status.returned` | The parcel is being returned to you. |
+      | `parcel.cancelled` | The parcel was cancelled. |
+      | `webhook.test` | You pressed *Send test* in the portal. Always sent when asked, regardless of your selection. |
+
+      Webhook payloads carry identifiers and status information, not contact details. Look the order up with
+      `GET /merchant-api/orders/{trackingNo}` if you need the full record.
 paths:
   /merchant-api/ping:
     get:
-      summary: Test a credential
-      description: Returns the merchant, environment and scopes of the API key or access token used.
+      tags: [Merchant API]
       operationId: ping
+      summary: Test a credential
+      description: |
+        Returns the merchant, environment and scopes of the API key or access token that was used. Needs any valid
+        credential, no particular scope. Use it to check that a key or token works and which environment (LIVE
+        or TEST) it belongs to.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - OAuth2ClientCredentials: []
       responses:
         '200':
           description: The credential is valid.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-Correlation-Id:
+              $ref: '#/components/headers/CorrelationId'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Ping'
+              examples:
+                apiKey:
+                  summary: An API key (always both scopes)
+                  value:
+                    merchantId: 6f0d6c3e-8b3a-4c1e-9d65-0c4f3a2b7e10
+                    businessName: Lanka Crafts
+                    environment: TEST
+                    scopes: [orders:write, orders:read]
+                readOnlyToken:
+                  summary: An access token granted orders:read only
+                  value:
+                    merchantId: 6f0d6c3e-8b3a-4c1e-9d65-0c4f3a2b7e10
+                    businessName: Lanka Crafts
+                    environment: LIVE
+                    scopes: [orders:read]
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: The API key or access token is invalid, expired or revoked.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          description: The merchant account is not approved.
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /merchant-api/orders:
+    post:
+      tags: [Merchant API]
+      operationId: createOrder
+      summary: Create an order
+      description: |
+        Books a parcel for the merchant. Needs the `orders:write` scope (API keys always have it).
+
+        With a LIVE credential the parcel is booked with the SwiftDrop parcel service and gets a real tracking
+        number and fee. With a TEST credential nothing leaves the Merchant Service: a sandbox order with an `SBX`
+        tracking number is created, see *Sandbox* in the overview.
+
+        Send an `Idempotency-Key` to make retries safe (see *Idempotency* in the overview). A new order is
+        answered `201` with a `Location` header; a repeat of an earlier identical request is answered `200` with
+        `Idempotent-Replayed: true` and the stored order.
+
+        The merchant must be `APPROVED` at the moment of the call.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CorrelationId'
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - OAuth2ClientCredentials: [orders:write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+            examples:
+              minimal:
+                summary: Required fields only
+                value:
+                  recipient:
+                    name: Nimali Perera
+                    phone: '+94771234567'
+                  pickup:
+                    addressLine: 12 Galle Rd
+                    city: Colombo
+                  dropoff:
+                    addressLine: 45 Temple St
+                    city: Kandy
+                  parcel:
+                    weightKg: 1.2
+                    size: SMALL
+              full:
+                summary: All fields
+                value:
+                  externalRef: ORDER-1001
+                  recipient:
+                    name: Nimali Perera
+                    phone: '+94771234567'
+                  pickup:
+                    addressLine: 12 Galle Rd
+                    city: Colombo
+                    postalCode: '00300'
+                  dropoff:
+                    addressLine: 45 Temple St
+                    city: Kandy
+                    postalCode: '20000'
+                  parcel:
+                    weightKg: 2.5
+                    size: SMALL
+                    description: Phone case
+                  notes: Call on arrival
+      responses:
+        '201':
+          description: The order was created.
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-Correlation-Id:
+              $ref: '#/components/headers/CorrelationId'
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '429':
-          description: The rate limit of the merchant is exhausted.
+                $ref: '#/components/schemas/Order'
+              examples:
+                sandbox:
+                  summary: Sandbox order (TEST credential)
+                  value:
+                    id: 0f8b7c1e-5d0a-4a52-9d3e-2b8f0f1c6a11
+                    trackingNo: SBX482910377
+                    externalRef: ORDER-1001
+                    status: CREATED
+                    sandbox: true
+                    source: API
+                    trackingUrl: https://swiftdrop.example/track/SBX482910377
+                    recipient:
+                      name: Nimali Perera
+                      phone: '+94771234567'
+                    pickup:
+                      addressLine: 12 Galle Rd
+                      city: Colombo
+                      postalCode: '00300'
+                    dropoff:
+                      addressLine: 45 Temple St
+                      city: Kandy
+                      postalCode: '20000'
+                    parcel:
+                      weightKg: 2.50
+                      size: SMALL
+                      description: Phone case
+                    notes: Call on arrival
+                    fee:
+                      amount: 600.00
+                      currency: LKR
+                    failureReason: null
+                    createdAt: '2026-11-01T08:30:12.123Z'
+                    updatedAt: '2026-11-01T08:30:12.123Z'
+                live:
+                  summary: Live order (LIVE credential)
+                  value:
+                    id: 5a1d2c34-7b6e-4f90-8a12-3c4d5e6f7a80
+                    trackingNo: SD24000123
+                    externalRef: ORDER-1002
+                    status: CREATED
+                    sandbox: false
+                    source: API
+                    trackingUrl: https://swiftdrop.example/track/SD24000123
+                    recipient:
+                      name: Kamal Silva
+                      phone: '+94712345678'
+                    pickup:
+                      addressLine: 12 Galle Rd
+                      city: Colombo
+                      postalCode: null
+                    dropoff:
+                      addressLine: 7 Lake Rd
+                      city: Galle
+                      postalCode: null
+                    parcel:
+                      weightKg: 1.20
+                      size: SMALL
+                      description: null
+                    notes: null
+                    fee:
+                      amount: 450.00
+                      currency: LKR
+                    failureReason: null
+                    createdAt: '2026-11-01T09:02:44.512Z'
+                    updatedAt: '2026-11-01T09:02:44.512Z'
+        '200':
+          description: |
+            The request repeated an earlier request with the same `Idempotency-Key` and identical content. The
+            stored order is returned and no new order was created.
+          headers:
+            Idempotent-Replayed:
+              $ref: '#/components/headers/IdempotentReplayed'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-Correlation-Id:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+              examples:
+                replay:
+                  summary: Replay of the sandbox order above
+                  value:
+                    id: 0f8b7c1e-5d0a-4a52-9d3e-2b8f0f1c6a11
+                    trackingNo: SBX482910377
+                    externalRef: ORDER-1001
+                    status: CREATED
+                    sandbox: true
+                    source: API
+                    trackingUrl: https://swiftdrop.example/track/SBX482910377
+                    recipient:
+                      name: Nimali Perera
+                      phone: '+94771234567'
+                    pickup:
+                      addressLine: 12 Galle Rd
+                      city: Colombo
+                      postalCode: '00300'
+                    dropoff:
+                      addressLine: 45 Temple St
+                      city: Kandy
+                      postalCode: '20000'
+                    parcel:
+                      weightKg: 2.50
+                      size: SMALL
+                      description: Phone case
+                    notes: Call on arrival
+                    fee:
+                      amount: 600.00
+                      currency: LKR
+                    failureReason: null
+                    createdAt: '2026-11-01T08:30:12.123Z'
+                    updatedAt: '2026-11-01T08:30:12.123Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: |
+            The order conflicts with an existing one:
+
+            * `DUPLICATE_EXTERNAL_REF`: another order of the merchant already uses this `externalRef`.
+            * `IDEMPOTENCY_KEY_IN_USE`: the first request with this key is still being processed. Sent with
+              `Retry-After: 1`; repeat the identical request.
+            * `INVALID_STATE`: the order could not be reserved because of repeated concurrent conflicts; retry.
           headers:
             Retry-After:
-              description: Seconds to wait before the next request.
-              schema:
-                type: integer
+              $ref: '#/components/headers/RetryAfter'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-Correlation-Id:
+              $ref: '#/components/headers/CorrelationId'
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                duplicateExternalRef:
+                  summary: externalRef already used
+                  value:
+                    timestamp: '2026-11-01T08:31:02.004Z'
+                    status: 409
+                    error: Conflict
+                    code: DUPLICATE_EXTERNAL_REF
+                    message: Another order of this merchant already uses this externalRef
+                    path: /api/v1/merchant-api/orders
+                    correlationId: b41d0c2e-3f6a-4d1b-9c55-7a1e2f3b4c5d
+                idempotencyKeyInUse:
+                  summary: First request still in flight
+                  value:
+                    timestamp: '2026-11-01T08:31:02.004Z'
+                    status: 409
+                    error: Conflict
+                    code: IDEMPOTENCY_KEY_IN_USE
+                    message: A request with this Idempotency-Key is still being processed
+                    path: /api/v1/merchant-api/orders
+                    correlationId: b41d0c2e-3f6a-4d1b-9c55-7a1e2f3b4c5d
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          description: |
+            The request is well formed but cannot be executed:
+
+            * `IDEMPOTENCY_KEY_REUSED`: this `Idempotency-Key` was already used with a different request.
+            * `PARCEL_REJECTED`: the parcel service refused the order (LIVE credentials only). No order was
+              created and the key can be used again.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-Correlation-Id:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                keyReused:
+                  summary: Same key, different content
+                  value:
+                    timestamp: '2026-11-01T08:32:40.771Z'
+                    status: 422
+                    error: Unprocessable Entity
+                    code: IDEMPOTENCY_KEY_REUSED
+                    message: This Idempotency-Key was already used with a different request
+                    path: /api/v1/merchant-api/orders
+                    correlationId: 0c9d8e7f-6a5b-4c3d-8e2f-1a0b9c8d7e6f
+                parcelRejected:
+                  summary: Refused by the parcel service
+                  value:
+                    timestamp: '2026-11-01T08:33:10.025Z'
+                    status: 422
+                    error: Unprocessable Entity
+                    code: PARCEL_REJECTED
+                    message: Pickup city is outside the service area
+                    path: /api/v1/merchant-api/orders
+                    correlationId: 0c9d8e7f-6a5b-4c3d-8e2f-1a0b9c8d7e6f
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    get:
+      tags: [Merchant API]
+      operationId: listOrders
+      summary: List orders
+      description: |
+        Lists the merchant's orders of the environment of the credential: sandbox orders for a TEST credential,
+        live orders for a LIVE credential. Newest first. Needs the `orders:read` scope.
+
+        Internal placeholder orders (`PENDING`) are hidden unless you filter on `status=PENDING`.
+      parameters:
+        - name: externalRef
+          in: query
+          required: false
+          description: Only the order with exactly this `externalRef`.
+          schema:
+            type: string
+            examples: [ORDER-1001]
+        - name: status
+          in: query
+          required: false
+          description: Only orders in this status.
+          schema:
+            $ref: '#/components/schemas/OrderStatus'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/CorrelationId'
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - OAuth2ClientCredentials: [orders:read]
+      responses:
+        '200':
+          description: One page of orders.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-Correlation-Id:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderPage'
+              examples:
+                onePage:
+                  summary: A page with one sandbox order
+                  value:
+                    content:
+                      - id: 0f8b7c1e-5d0a-4a52-9d3e-2b8f0f1c6a11
+                        trackingNo: SBX482910377
+                        externalRef: ORDER-1001
+                        status: IN_TRANSIT
+                        sandbox: true
+                        source: API
+                        trackingUrl: https://swiftdrop.example/track/SBX482910377
+                        recipient:
+                          name: Nimali Perera
+                          phone: '+94771234567'
+                        pickup:
+                          addressLine: 12 Galle Rd
+                          city: Colombo
+                          postalCode: '00300'
+                        dropoff:
+                          addressLine: 45 Temple St
+                          city: Kandy
+                          postalCode: '20000'
+                        parcel:
+                          weightKg: 2.50
+                          size: SMALL
+                          description: Phone case
+                        notes: Call on arrival
+                        fee:
+                          amount: 600.00
+                          currency: LKR
+                        failureReason: null
+                        createdAt: '2026-11-01T08:30:12.123Z'
+                        updatedAt: '2026-11-01T08:41:55.300Z'
+                    page: 0
+                    size: 20
+                    totalElements: 1
+                    totalPages: 1
+                empty:
+                  summary: Nothing matches
+                  value:
+                    content: []
+                    page: 0
+                    size: 20
+                    totalElements: 0
+                    totalPages: 0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /merchant-api/orders/{trackingNo}:
+    get:
+      tags: [Merchant API]
+      operationId: getOrder
+      summary: Get an order by tracking number
+      description: |
+        Returns one order of the merchant. Needs the `orders:read` scope. The order must belong to the merchant and
+        to the environment of the credential; anything else is a `404`, so the API does not reveal whether a
+        tracking number exists for somebody else.
+      parameters:
+        - $ref: '#/components/parameters/TrackingNo'
+        - $ref: '#/components/parameters/CorrelationId'
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - OAuth2ClientCredentials: [orders:read]
+      responses:
+        '200':
+          description: The order.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-Correlation-Id:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+              examples:
+                delivered:
+                  summary: A delivered live order
+                  value:
+                    id: 5a1d2c34-7b6e-4f90-8a12-3c4d5e6f7a80
+                    trackingNo: SD24000123
+                    externalRef: ORDER-1002
+                    status: DELIVERED
+                    sandbox: false
+                    source: API
+                    trackingUrl: https://swiftdrop.example/track/SD24000123
+                    recipient:
+                      name: Kamal Silva
+                      phone: '+94712345678'
+                    pickup:
+                      addressLine: 12 Galle Rd
+                      city: Colombo
+                      postalCode: null
+                    dropoff:
+                      addressLine: 7 Lake Rd
+                      city: Galle
+                      postalCode: null
+                    parcel:
+                      weightKg: 1.20
+                      size: SMALL
+                      description: null
+                    notes: null
+                    fee:
+                      amount: 450.00
+                      currency: LKR
+                    failureReason: null
+                    createdAt: '2026-11-01T09:02:44.512Z'
+                    updatedAt: '2026-11-01T14:20:03.000Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /merchant-api/sandbox/orders/{trackingNo}/advance:
+    post:
+      tags: [Sandbox]
+      operationId: advanceSandboxOrder
+      summary: Advance a sandbox order
+      description: |
+        Moves a sandbox order to its next delivery step, or fails it, standing in for the couriers. Needs the
+        `orders:write` scope **and** a TEST credential (`403 SANDBOX_ONLY` otherwise).
+
+        Without a body, or with `outcome` `NEXT`, the order takes one step along
+        `CREATED`, `ASSIGNED`, `PICKED_UP`, `IN_TRANSIT`, `OUT_FOR_DELIVERY`, `DELIVERED`. With `outcome`
+        `FAILED` it moves to `FAILED` immediately and `reason` becomes its `failureReason` (default
+        `Delivery failed (sandbox)`). `DELIVERED` and `FAILED` are final: advancing them is
+        `409 INVALID_STATE`.
+
+        Nothing is published and no webhook is sent for sandbox orders.
+      parameters:
+        - $ref: '#/components/parameters/TrackingNo'
+        - $ref: '#/components/parameters/CorrelationId'
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - OAuth2ClientCredentials: [orders:write]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdvanceOrderRequest'
+            examples:
+              next:
+                summary: Take the next step (same as sending no body)
+                value:
+                  outcome: NEXT
+              fail:
+                summary: Fail the delivery
+                value:
+                  outcome: FAILED
+                  reason: Recipient not available
+      responses:
+        '200':
+          description: The order after the step.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-Correlation-Id:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+              examples:
+                assigned:
+                  summary: CREATED to ASSIGNED
+                  value:
+                    id: 0f8b7c1e-5d0a-4a52-9d3e-2b8f0f1c6a11
+                    trackingNo: SBX482910377
+                    externalRef: ORDER-1001
+                    status: ASSIGNED
+                    sandbox: true
+                    source: API
+                    trackingUrl: https://swiftdrop.example/track/SBX482910377
+                    recipient:
+                      name: Nimali Perera
+                      phone: '+94771234567'
+                    pickup:
+                      addressLine: 12 Galle Rd
+                      city: Colombo
+                      postalCode: '00300'
+                    dropoff:
+                      addressLine: 45 Temple St
+                      city: Kandy
+                      postalCode: '20000'
+                    parcel:
+                      weightKg: 2.50
+                      size: SMALL
+                      description: Phone case
+                    notes: Call on arrival
+                    fee:
+                      amount: 600.00
+                      currency: LKR
+                    failureReason: null
+                    createdAt: '2026-11-01T08:30:12.123Z'
+                    updatedAt: '2026-11-01T08:35:00.000Z'
+                failed:
+                  summary: Failed delivery
+                  value:
+                    id: 0f8b7c1e-5d0a-4a52-9d3e-2b8f0f1c6a11
+                    trackingNo: SBX482910377
+                    externalRef: ORDER-1001
+                    status: FAILED
+                    sandbox: true
+                    source: API
+                    trackingUrl: https://swiftdrop.example/track/SBX482910377
+                    recipient:
+                      name: Nimali Perera
+                      phone: '+94771234567'
+                    pickup:
+                      addressLine: 12 Galle Rd
+                      city: Colombo
+                      postalCode: '00300'
+                    dropoff:
+                      addressLine: 45 Temple St
+                      city: Kandy
+                      postalCode: '20000'
+                    parcel:
+                      weightKg: 2.50
+                      size: SMALL
+                      description: Phone case
+                    notes: Call on arrival
+                    fee:
+                      amount: 600.00
+                      currency: LKR
+                    failureReason: Recipient not available
+                    createdAt: '2026-11-01T08:30:12.123Z'
+                    updatedAt: '2026-11-01T08:38:20.000Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: The order is already `DELIVERED`, `FAILED`, `RETURNED` or `CANCELLED` and cannot be advanced.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-Correlation-Id:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                terminal:
+                  summary: Already delivered
+                  value:
+                    timestamp: '2026-11-01T08:45:00.000Z'
+                    status: 409
+                    error: Conflict
+                    code: INVALID_STATE
+                    message: An order that is DELIVERED cannot be advanced
+                    path: /api/v1/merchant-api/sandbox/orders/SBX482910377/advance
+                    correlationId: 7e6d5c4b-3a29-4180-9f7e-6d5c4b3a2918
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /merchant-api/openapi.yaml:
+    get:
+      tags: [Documentation]
+      operationId: getOpenApiDocument
+      summary: Download this OpenAPI document
+      description: Public; no credential needed. Cacheable for 5 minutes.
+      security: []
+      responses:
+        '200':
+          description: The OpenAPI 3.1 document in YAML.
+          headers:
+            Cache-Control:
+              description: Public, `max-age=300`.
+              schema:
+                type: string
+                examples: ['max-age=300, public']
+            X-Correlation-Id:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/yaml:
+              schema:
+                type: string
+              examples:
+                head:
+                  summary: Start of the document
+                  value: |
+                    openapi: 3.1.0
+                    info:
+                      title: SwiftDrop Merchant API
+        '406':
+          description: The `Accept` header does not allow `application/yaml`.
+          headers:
+            X-Correlation-Id:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                notAcceptable:
+                  value:
+                    timestamp: '2026-11-01T08:30:12.123Z'
+                    status: 406
+                    error: Not Acceptable
+                    code: MALFORMED_REQUEST
+                    message: The request could not be processed
+                    path: /api/v1/merchant-api/openapi.yaml
+                    correlationId: b41d0c2e-3f6a-4d1b-9c55-7a1e2f3b4c5d
   /oauth/token:
     post:
-      summary: Get an access token (OAuth 2.0 client credentials)
+      tags: [Authentication]
       operationId: createToken
-      security: []
+      summary: Get an access token (OAuth 2.0 client credentials)
+      description: |
+        The OAuth 2.0 client credentials grant of RFC 6749 section 4.4. Create an OAuth client in the portal
+        (*Developers, API keys, OAuth clients*) to get a `client_id` and a `client_secret`.
+
+        **Client authentication**, exactly one of:
+
+        * HTTP Basic: `Authorization: Basic base64(urlencode(client_id) + ":" + urlencode(client_secret))`
+        * the form fields `client_id` and `client_secret`
+
+        Sending both is `invalid_request`. The parameters must be in the **request body**
+        (`application/x-www-form-urlencoded`); parameters in the URL are refused with `invalid_request` so that
+        secrets never reach access logs. Any other content type gets a `415` in the usual `ApiError` format.
+
+        `scope` is optional: a space separated subset of the scopes of the client (`orders:write`,
+        `orders:read`). Without it the token gets all scopes of the client. Asking for a scope the client does not
+        have is `invalid_scope`.
+
+        The token is a signed JWT. Treat it as opaque; only the Merchant Service can verify it. It carries the
+        environment (LIVE or TEST) of the client. Use it as `Authorization: Bearer <access_token>` on
+        `/merchant-api` calls and request a new one before `expires_in` seconds have passed.
+
+        A client that is revoked, unknown, has a wrong secret, or whose merchant is not approved always gets the
+        same `401 invalid_client`, so the endpoint reveals nothing about clients or merchants. The request budget
+        of `/merchant-api` does not apply to this endpoint. Responses are never cacheable.
+      security:
+        - ClientBasicAuth: []
+        - {}
       requestBody:
         required: true
         content:
           application/x-www-form-urlencoded:
             schema:
-              type: object
-              required:
-                - grant_type
-              properties:
-                grant_type:
-                  type: string
-                  enum:
-                    - client_credentials
-                scope:
-                  type: string
-                  description: Space separated subset of the scopes of the client.
-                  example: orders:read orders:write
-                client_id:
-                  type: string
-                  description: Alternative to HTTP Basic authentication.
-                client_secret:
-                  type: string
-                  format: password
-                  description: Alternative to HTTP Basic authentication.
+              $ref: '#/components/schemas/TokenRequest'
+            examples:
+              basic:
+                summary: Client authenticates with HTTP Basic (body carries grant and scope only)
+                value:
+                  grant_type: client_credentials
+                  scope: orders:write orders:read
+              formFields:
+                summary: Client authenticates with form fields
+                value:
+                  grant_type: client_credentials
+                  client_id: mc_k3j9x0q2w8e4r6t7y1u5
+                  client_secret: Zk0pQw8dTn3VbX7cLm2aSj9RfHy4GuE6IoP1AsDqWxk
+                  scope: orders:read
       responses:
         '200':
-          description: Access token issued.
+          description: An access token was issued.
+          headers:
+            Cache-Control:
+              description: Always `no-store`.
+              schema:
+                type: string
+                const: no-store
+            Pragma:
+              description: Always `no-cache`.
+              schema:
+                type: string
+                const: no-cache
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Token'
+                $ref: '#/components/schemas/TokenResponse'
+              examples:
+                token:
+                  summary: Token with both scopes
+                  value:
+                    access_token: eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzd2lmdGRyb3AtbWVyY2hhbnQtc2VydmljZSJ9.c2lnbmF0dXJl
+                    token_type: Bearer
+                    expires_in: 3600
+                    scope: orders:write orders:read
         '400':
-          description: Invalid request, unsupported grant type or invalid scope.
+          description: |
+            The request is invalid. `error` is one of:
+
+            * `invalid_request`: parameters in the URL, both client authentication methods at once, or a missing
+              `grant_type`.
+            * `unsupported_grant_type`: `grant_type` is not `client_credentials`.
+            * `invalid_scope`: the requested scope exceeds the scopes of the client.
+          headers:
+            Cache-Control:
+              description: Always `no-store`.
+              schema:
+                type: string
+                const: no-store
+            Pragma:
+              description: Always `no-cache`.
+              schema:
+                type: string
+                const: no-cache
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/OAuthError'
+              examples:
+                invalidRequest:
+                  summary: grant_type missing
+                  value:
+                    error: invalid_request
+                    error_description: The grant_type parameter is required
+                unsupportedGrantType:
+                  summary: Another grant type
+                  value:
+                    error: unsupported_grant_type
+                    error_description: Only the client_credentials grant is supported
+                invalidScope:
+                  summary: Scope the client does not have
+                  value:
+                    error: invalid_scope
+                    error_description: The requested scope exceeds the scope of the client
         '401':
-          description: Client authentication failed.
+          description: Client authentication failed (`invalid_client`), for whatever reason.
+          headers:
+            WWW-Authenticate:
+              description: |
+                `Basic realm="swiftdrop-merchant-api", charset="UTF-8"`. Present when Basic authentication was
+                attempted or no client authentication was sent at all; absent when form fields were used.
+              schema:
+                type: string
+            Cache-Control:
+              description: Always `no-store`.
+              schema:
+                type: string
+                const: no-store
+            Pragma:
+              description: Always `no-cache`.
+              schema:
+                type: string
+                const: no-cache
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/OAuthError'
+              examples:
+                invalidClient:
+                  summary: Unknown client or wrong secret
+                  value:
+                    error: invalid_client
+                    error_description: Client authentication failed
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   securitySchemes:
     ApiKeyAuth:
       type: apiKey
       in: header
       name: X-API-Key
+      description: |
+        A merchant API key, `sd_live_...` or `sd_test_...`, created in the portal. Grants both `orders:read` and
+        `orders:write`. LIVE keys create real parcels, TEST keys work in sandbox mode.
     BearerAuth:
       type: http
       scheme: bearer
+      bearerFormat: JWT
+      description: |
+        The `access_token` returned by `POST /oauth/token`, sent as `Authorization: Bearer <access_token>`.
+        This is the same credential as `OAuth2ClientCredentials`; the scopes are those granted to the token.
+    OAuth2ClientCredentials:
+      type: oauth2
+      description: OAuth 2.0 client credentials grant (RFC 6749 section 4.4) with a client created in the portal.
+      flows:
+        clientCredentials:
+          tokenUrl: /api/v1/oauth/token
+          scopes:
+            orders:read: Look up and list orders.
+            orders:write: Create orders and advance sandbox orders.
+    ClientBasicAuth:
+      type: http
+      scheme: basic
+      description: |
+        Client authentication of the token endpoint: `client_id` as user name and `client_secret` as password,
+        each URL encoded before the Base64 step (RFC 6749 section 2.3.1).
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: |
+        Makes the request safe to repeat. Up to 100 characters (longer is `400 VALIDATION_FAILED`), unique per
+        order you intend to create. See *Idempotency* in the overview.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+        examples: [order-1001-attempt-1]
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      description: |
+        Your own id for the request, 1 to 64 characters of `A-Z a-z 0-9 . _ : -`. Generated when absent or when
+        the value is not acceptable. Echoed in the response.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+        pattern: '^[A-Za-z0-9._:-]{1,64}$'
+        examples: [shop-backend-7f3a9c]
+    TrackingNo:
+      name: trackingNo
+      in: path
+      required: true
+      description: Tracking number of the order, as returned when it was created (`SD...` live, `SBX...` sandbox).
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 40
+        examples: [SBX482910377]
+    Page:
+      name: page
+      in: query
+      required: false
+      description: Zero based page number.
+      schema:
+        type: integer
+        format: int32
+        minimum: 0
+        default: 0
+    Size:
+      name: size
+      in: query
+      required: false
+      description: Page size, 1 to 100.
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 100
+        default: 20
+  headers:
+    RateLimitLimit:
+      description: The merchant's request budget per minute.
+      schema:
+        type: integer
+        examples: [60]
+    RateLimitRemaining:
+      description: Requests left in the current budget after this one.
+      schema:
+        type: integer
+        minimum: 0
+        examples: [59]
+    RetryAfter:
+      description: Seconds to wait before repeating the request.
+      schema:
+        type: integer
+        minimum: 0
+        examples: [1]
+    CorrelationId:
+      description: The correlation id of the request, yours or a generated UUID.
+      schema:
+        type: string
+        examples: [b41d0c2e-3f6a-4d1b-9c55-7a1e2f3b4c5d]
+    Location:
+      description: Address of the new order, `/api/v1/merchant-api/orders/{trackingNo}`.
+      schema:
+        type: string
+        examples: [/api/v1/merchant-api/orders/SBX482910377]
+    IdempotentReplayed:
+      description: Always `true`. Present when the response is a replay of an earlier identical request.
+      schema:
+        type: string
+        const: 'true'
+  responses:
+    BadRequest:
+      description: |
+        The request is invalid. `VALIDATION_FAILED` lists the offending fields in `details` (also used for a bad
+        `page`, `size`, `status` or `Idempotency-Key`). `MALFORMED_REQUEST` means the body is missing or is not
+        valid JSON, or that both `X-API-Key` and `Authorization: Bearer` were sent.
+      headers:
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            validationFailed:
+              summary: Field errors
+              value:
+                timestamp: '2026-11-01T08:30:12.123Z'
+                status: 400
+                error: Bad Request
+                code: VALIDATION_FAILED
+                message: Validation failed
+                path: /api/v1/merchant-api/orders
+                correlationId: b41d0c2e-3f6a-4d1b-9c55-7a1e2f3b4c5d
+                details:
+                  - field: dropoff.city
+                    message: must not be blank
+                  - field: parcel.weightKg
+                    message: must be greater than or equal to 0.01
+            malformed:
+              summary: Not JSON, or two credentials
+              value:
+                timestamp: '2026-11-01T08:30:12.123Z'
+                status: 400
+                error: Bad Request
+                code: MALFORMED_REQUEST
+                message: Send either the X-API-Key header or an Authorization Bearer token, not both
+                path: /api/v1/merchant-api/ping
+                correlationId: b41d0c2e-3f6a-4d1b-9c55-7a1e2f3b4c5d
+    Unauthorized:
+      description: |
+        No credential was sent (`UNAUTHENTICATED`), or the credential is not acceptable: `INVALID_API_KEY` for an
+        API key, `INVALID_TOKEN` for an access token (then with `WWW-Authenticate: Bearer error="invalid_token"`).
+        The cause (malformed, unknown, revoked, expired, wrong secret) is deliberately not revealed.
+      headers:
+        WWW-Authenticate:
+          description: '`Bearer` or `Bearer error="invalid_token"`; absent for a rejected API key.'
+          schema:
+            type: string
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            invalidApiKey:
+              summary: Bad API key
+              value:
+                timestamp: '2026-11-01T08:30:12.123Z'
+                status: 401
+                error: Unauthorized
+                code: INVALID_API_KEY
+                message: The API key is invalid, expired or revoked
+                path: /api/v1/merchant-api/ping
+                correlationId: b41d0c2e-3f6a-4d1b-9c55-7a1e2f3b4c5d
+            invalidToken:
+              summary: Bad or expired access token
+              value:
+                timestamp: '2026-11-01T08:30:12.123Z'
+                status: 401
+                error: Unauthorized
+                code: INVALID_TOKEN
+                message: The access token is invalid, expired or revoked
+                path: /api/v1/merchant-api/ping
+                correlationId: b41d0c2e-3f6a-4d1b-9c55-7a1e2f3b4c5d
+            noCredential:
+              summary: No credential
+              value:
+                timestamp: '2026-11-01T08:30:12.123Z'
+                status: 401
+                error: Unauthorized
+                code: UNAUTHENTICATED
+                message: Authentication is required
+                path: /api/v1/merchant-api/ping
+                correlationId: b41d0c2e-3f6a-4d1b-9c55-7a1e2f3b4c5d
+    Forbidden:
+      description: |
+        The credential is valid but the call is not allowed:
+
+        * `MERCHANT_NOT_APPROVED`: the merchant is pending, rejected or suspended. Applies to every call, even
+          with a valid key. Does not count against the rate limit and carries no rate limit headers.
+        * `FORBIDDEN`: the credential lacks the scope the endpoint needs (`orders:read` or `orders:write`).
+        * `SANDBOX_ONLY`: the sandbox advance endpoint was called with a LIVE credential.
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            notApproved:
+              summary: Merchant not approved
+              value:
+                timestamp: '2026-11-01T08:30:12.123Z'
+                status: 403
+                error: Forbidden
+                code: MERCHANT_NOT_APPROVED
+                message: Your merchant account is not approved for API access
+                path: /api/v1/merchant-api/orders
+                correlationId: b41d0c2e-3f6a-4d1b-9c55-7a1e2f3b4c5d
+            missingScope:
+              summary: Token without the needed scope
+              value:
+                timestamp: '2026-11-01T08:30:12.123Z'
+                status: 403
+                error: Forbidden
+                code: FORBIDDEN
+                message: You do not have permission to perform this action
+                path: /api/v1/merchant-api/orders
+                correlationId: b41d0c2e-3f6a-4d1b-9c55-7a1e2f3b4c5d
+            sandboxOnly:
+              summary: LIVE credential on a sandbox endpoint
+              value:
+                timestamp: '2026-11-01T08:30:12.123Z'
+                status: 403
+                error: Forbidden
+                code: SANDBOX_ONLY
+                message: Orders can only be advanced with a TEST credential
+                path: /api/v1/merchant-api/sandbox/orders/SBX482910377/advance
+                correlationId: b41d0c2e-3f6a-4d1b-9c55-7a1e2f3b4c5d
+    NotFound:
+      description: |
+        No such order for this merchant in the environment of the credential. A tracking number of another
+        merchant, or of the other environment, gives the same answer.
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            orderNotFound:
+              value:
+                timestamp: '2026-11-01T08:30:12.123Z'
+                status: 404
+                error: Not Found
+                code: NOT_FOUND
+                message: Order not found
+                path: /api/v1/merchant-api/orders/SD99999999
+                correlationId: b41d0c2e-3f6a-4d1b-9c55-7a1e2f3b4c5d
+    UnsupportedMediaType:
+      description: The request body has a content type the endpoint does not accept (`application/json` is expected).
+      headers:
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            wrongContentType:
+              value:
+                timestamp: '2026-11-01T08:30:12.123Z'
+                status: 415
+                error: Unsupported Media Type
+                code: UNSUPPORTED_MEDIA_TYPE
+                message: This content type is not supported
+                path: /api/v1/merchant-api/orders
+                correlationId: b41d0c2e-3f6a-4d1b-9c55-7a1e2f3b4c5d
+    TooManyRequests:
+      description: The merchant's request budget is used up. Wait `Retry-After` seconds.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            rateLimited:
+              value:
+                timestamp: '2026-11-01T08:30:12.123Z'
+                status: 429
+                error: Too Many Requests
+                code: RATE_LIMITED
+                message: Rate limit of 60 requests per minute exceeded. Retry in 1 seconds
+                path: /api/v1/merchant-api/orders
+                correlationId: b41d0c2e-3f6a-4d1b-9c55-7a1e2f3b4c5d
+    InternalError:
+      description: Unexpected failure. The message is generic; quote the `correlationId` to support.
+      headers:
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            internalError:
+              value:
+                timestamp: '2026-11-01T08:30:12.123Z'
+                status: 500
+                error: Internal Server Error
+                code: INTERNAL_ERROR
+                message: An unexpected error occurred. Please quote the correlation id when contacting support
+                path: /api/v1/merchant-api/orders
+                correlationId: b41d0c2e-3f6a-4d1b-9c55-7a1e2f3b4c5d
+    ServiceUnavailable:
+      description: |
+        The SwiftDrop parcel service could not be reached or answered with an error (LIVE credentials only). No
+        order was created; repeat the request with the same `Idempotency-Key` after a short wait.
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            parcelServiceDown:
+              value:
+                timestamp: '2026-11-01T08:30:12.123Z'
+                status: 503
+                error: Service Unavailable
+                code: PARCEL_SERVICE_UNAVAILABLE
+                message: The parcel service is unavailable. Please try again shortly
+                path: /api/v1/merchant-api/orders
+                correlationId: b41d0c2e-3f6a-4d1b-9c55-7a1e2f3b4c5d
   schemas:
+    ApiError:
+      type: object
+      description: Error body of every endpoint except `/oauth/token`.
+      required: [timestamp, status, error, code, message, path]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: When the error was produced (UTC).
+        status:
+          type: integer
+          description: The HTTP status code.
+          examples: [422]
+        error:
+          type: string
+          description: The HTTP reason phrase.
+          examples: [Unprocessable Entity]
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        message:
+          type: string
+          description: Human readable and safe to show to end users. Never contains stack traces or personal data. May change; do not parse it.
+        path:
+          type: string
+          description: The request path.
+        correlationId:
+          type: [string, 'null']
+          description: The correlation id of the request.
+        details:
+          type: array
+          description: Field level problems; only present for `VALIDATION_FAILED`.
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+    ErrorDetail:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+          description: The offending field, for example `dropoff.city`.
+          examples: [dropoff.city]
+        message:
+          type: string
+          examples: [must not be blank]
+    ErrorCode:
+      type: string
+      description: Stable machine readable error code. Each code is tied to one HTTP status.
+      enum:
+        - VALIDATION_FAILED
+        - MALFORMED_REQUEST
+        - UNAUTHENTICATED
+        - INVALID_API_KEY
+        - INVALID_TOKEN
+        - FORBIDDEN
+        - MERCHANT_NOT_APPROVED
+        - SANDBOX_ONLY
+        - NOT_FOUND
+        - METHOD_NOT_ALLOWED
+        - DUPLICATE_EXTERNAL_REF
+        - IDEMPOTENCY_KEY_IN_USE
+        - INVALID_STATE
+        - OPTIMISTIC_LOCK
+        - PAYLOAD_TOO_LARGE
+        - UNSUPPORTED_MEDIA_TYPE
+        - IDEMPOTENCY_KEY_REUSED
+        - PARCEL_REJECTED
+        - RATE_LIMITED
+        - INTERNAL_ERROR
+        - PARCEL_SERVICE_UNAVAILABLE
+      examples: [VALIDATION_FAILED]
     Ping:
       type: object
+      required: [merchantId, businessName, environment, scopes]
       properties:
         merchantId:
           type: string
           format: uuid
+          description: The merchant the credential belongs to.
         businessName:
           type: string
         environment:
-          type: string
-          enum:
-            - LIVE
-            - TEST
+          $ref: '#/components/schemas/Environment'
         scopes:
           type: array
+          description: Scopes of the credential, in the order `orders:write`, `orders:read`.
           items:
-            type: string
-    Token:
+            $ref: '#/components/schemas/Scope'
+    Environment:
+      type: string
+      description: '`LIVE` creates real parcels; `TEST` works in sandbox mode.'
+      enum: [LIVE, TEST]
+    Scope:
+      type: string
+      enum: [orders:write, orders:read]
+    CreateOrderRequest:
       type: object
+      description: |
+        A delivery order. Text values are trimmed, blank optional values count as absent and control characters
+        (line breaks, NUL, escape sequences) are rejected. Unknown fields are ignored.
+      required: [recipient, pickup, dropoff, parcel]
+      properties:
+        externalRef:
+          type: string
+          description: Your own order number. Unique per merchant (`409 DUPLICATE_EXTERNAL_REF` otherwise).
+          minLength: 1
+          maxLength: 100
+          pattern: '^[A-Za-z0-9._:/#-]+$'
+          examples: [ORDER-1001]
+        recipient:
+          $ref: '#/components/schemas/Recipient'
+        pickup:
+          $ref: '#/components/schemas/Address'
+        dropoff:
+          $ref: '#/components/schemas/Address'
+        parcel:
+          $ref: '#/components/schemas/Parcel'
+        notes:
+          type: string
+          description: Free text for the courier.
+          maxLength: 500
+          examples: [Call on arrival]
+    Recipient:
+      type: object
+      required: [name, phone]
+      properties:
+        name:
+          type: string
+          description: Must not be blank.
+          minLength: 1
+          maxLength: 120
+          examples: [Nimali Perera]
+        phone:
+          type: string
+          description: |
+            E.164 style number: optional `+` and 9 to 15 digits. Spaces, dashes and brackets are removed before
+            the check, so `+94 (77) 123-4567` is accepted and returned as `+94771234567`.
+          pattern: '^\+?[0-9]{9,15}$'
+          examples: ['+94771234567']
+    Address:
+      type: object
+      required: [addressLine, city]
+      properties:
+        addressLine:
+          type: string
+          description: Must not be blank.
+          minLength: 1
+          maxLength: 300
+          examples: [12 Galle Rd]
+        city:
+          type: string
+          description: Must not be blank.
+          minLength: 1
+          maxLength: 100
+          examples: [Colombo]
+        postalCode:
+          type: [string, 'null']
+          maxLength: 16
+          examples: ['00300']
+    Parcel:
+      type: object
+      required: [weightKg, size]
+      properties:
+        weightKg:
+          type: number
+          description: |
+            Weight in kilograms, 0.01 to 50.00 with at most two decimals (`2.5` and `2.50` are the same parcel).
+          minimum: 0.01
+          maximum: 50.00
+          multipleOf: 0.01
+          examples: [2.5]
+        size:
+          $ref: '#/components/schemas/ParcelSize'
+        description:
+          type: [string, 'null']
+          maxLength: 200
+          examples: [Phone case]
+    ParcelSize:
+      type: string
+      enum: [SMALL, MEDIUM, LARGE]
+    Money:
+      type: object
+      description: An amount with two decimals and its ISO 4217 currency code.
+      required: [amount, currency]
+      properties:
+        amount:
+          type: number
+          multipleOf: 0.01
+          examples: [450.00]
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          examples: [LKR]
+    OrderStatus:
+      type: string
+      description: |
+        Lifecycle of an order. `PENDING` is an internal placeholder that exists for a moment while the parcel is
+        booked; it is never part of a successful create response.
+      enum:
+        - PENDING
+        - CREATED
+        - ASSIGNED
+        - PICKED_UP
+        - IN_TRANSIT
+        - OUT_FOR_DELIVERY
+        - DELIVERED
+        - FAILED
+        - RESCHEDULED
+        - RETURNED
+        - CANCELLED
+    OrderSource:
+      type: string
+      description: How the order reached SwiftDrop. Orders created through this API are `API`.
+      enum: [API, PORTAL, BULK]
+    Order:
+      type: object
+      description: An order as the merchant sees it.
+      required:
+        - id
+        - trackingNo
+        - externalRef
+        - status
+        - sandbox
+        - source
+        - trackingUrl
+        - recipient
+        - pickup
+        - dropoff
+        - parcel
+        - notes
+        - fee
+        - failureReason
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        trackingNo:
+          type: [string, 'null']
+          description: '`SD...` for live orders, `SBX...` followed by nine digits for sandbox orders. Null only while the parcel is being booked.'
+        externalRef:
+          type: [string, 'null']
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        sandbox:
+          type: boolean
+          description: True for orders created with a TEST credential.
+        source:
+          $ref: '#/components/schemas/OrderSource'
+        trackingUrl:
+          type: [string, 'null']
+          format: uri
+          description: Public tracking page of the parcel. Share it with the recipient.
+        recipient:
+          $ref: '#/components/schemas/Recipient'
+        pickup:
+          $ref: '#/components/schemas/Address'
+        dropoff:
+          $ref: '#/components/schemas/Address'
+        parcel:
+          $ref: '#/components/schemas/Parcel'
+        notes:
+          type: [string, 'null']
+        fee:
+          oneOf:
+            - $ref: '#/components/schemas/Money'
+            - type: 'null'
+          description: Delivery fee. Null until the parcel is booked.
+        failureReason:
+          type: [string, 'null']
+          description: Why the last delivery failed; set when the status is `FAILED`.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    OrderPage:
+      type: object
+      description: One page of orders.
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+        page:
+          type: integer
+          description: Zero based page number.
+        size:
+          type: integer
+          description: Requested page size.
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+    AdvanceOrderRequest:
+      type: object
+      properties:
+        outcome:
+          type: string
+          description: '`NEXT` takes the next step of the lifecycle (default); `FAILED` fails the order.'
+          enum: [NEXT, FAILED]
+          default: NEXT
+        reason:
+          type: [string, 'null']
+          description: Failure reason; only used with `FAILED`.
+          maxLength: 300
+          examples: [Recipient not available]
+    TokenRequest:
+      type: object
+      description: Form fields of the token request (`application/x-www-form-urlencoded`).
+      required: [grant_type]
+      properties:
+        grant_type:
+          type: string
+          enum: [client_credentials]
+        scope:
+          type: string
+          description: Space separated subset of the scopes of the client. Defaults to all of its scopes.
+          examples: [orders:write orders:read]
+        client_id:
+          type: string
+          description: The OAuth client id, `mc_` and 20 characters. Alternative to HTTP Basic authentication.
+          examples: [mc_k3j9x0q2w8e4r6t7y1u5]
+        client_secret:
+          type: string
+          format: password
+          writeOnly: true
+          description: The client secret. Alternative to HTTP Basic authentication.
+    TokenResponse:
+      type: object
+      description: Successful answer of the token endpoint (RFC 6749 section 5.1).
+      required: [access_token, token_type, expires_in, scope]
       properties:
         access_token:
           type: string
+          description: Signed JWT; opaque to clients.
         token_type:
           type: string
-          example: Bearer
+          const: Bearer
         expires_in:
           type: integer
-          example: 3600
+          description: Lifetime in seconds (3600 unless the operator changed it).
+          examples: [3600]
         scope:
           type: string
+          description: The granted scopes, space separated, in the order `orders:write orders:read`.
+          examples: [orders:write orders:read]
     OAuthError:
       type: object
+      description: Error body of the token endpoint (RFC 6749 section 5.2). Not an `ApiError`.
+      required: [error, error_description]
       properties:
         error:
           type: string
@@ -146,21 +1851,344 @@ components:
             - invalid_scope
         error_description:
           type: string
-    Error:
+          description: Human readable explanation; do not parse it.
+    WebhookEvent:
       type: object
+      description: |
+        The envelope of every webhook delivery. `eventId` is the idempotency key and equals the
+        `X-SwiftDrop-Event-Id` header; `eventType` equals `X-SwiftDrop-Event-Type`. Fields may be added in
+        future versions, never renamed or removed; ignore the ones you do not know.
+      required: [eventId, eventType, version, occurredAt, producer, correlationId, aggregateId, data]
       properties:
-        timestamp:
+        eventId:
+          type: string
+          description: Unique id of the event. The same value for every retry and replay.
+          examples: [7c1e9a52-0f4b-4a52-9d3e-2b8f0f1c6a11]
+        eventType:
+          $ref: '#/components/schemas/WebhookEventType'
+        version:
+          type: integer
+          description: Schema version of the envelope. Currently 1.
+          const: 1
+        occurredAt:
           type: string
           format: date-time
-        status:
-          type: integer
-        error:
+          description: When the change happened (UTC). Use it to ignore updates older than what you already have.
+        producer:
           type: string
-        code:
-          type: string
-        message:
-          type: string
-        path:
-          type: string
+          description: The service that produced the event, for example `parcel-service`.
+          examples: [parcel-service]
         correlationId:
+          type: [string, 'null']
+          description: The correlation id of the action that caused the event.
+        aggregateId:
           type: string
+          description: Id of the entity the event is about (the parcel).
+          examples: [PCL-000123]
+        data:
+          type: object
+          description: Event specific fields, see the individual events.
+    WebhookEventType:
+      type: string
+      enum:
+        - parcel.created
+        - parcel.status.picked_up
+        - parcel.status.in_transit
+        - parcel.status.out_for_delivery
+        - parcel.status.delivered
+        - parcel.status.failed
+        - parcel.status.rescheduled
+        - parcel.status.returned
+        - parcel.cancelled
+        - webhook.test
+    ParcelEventData:
+      type: object
+      description: |
+        `data` of the `parcel.*` events. Only the identifiers `merchantId`, `parcelId` and `trackingNo` are
+        always present; the other fields depend on the event type and may be absent.
+      required: [merchantId, parcelId, trackingNo]
+      properties:
+        merchantId:
+          type: string
+          description: Your merchant id (the `merchantId` of `GET /merchant-api/ping`).
+        parcelId:
+          type: string
+          examples: [PCL-000123]
+        trackingNo:
+          type: string
+          description: Tracking number of the order; use it with `GET /merchant-api/orders/{trackingNo}`.
+          examples: [SD24000123]
+        fromStatus:
+          type: string
+          description: Status before the change (`parcel.status.*`).
+          examples: [IN_TRANSIT]
+        toStatus:
+          type: string
+          description: Status after the change (`parcel.status.*`).
+          examples: [OUT_FOR_DELIVERY]
+        etaMinutes:
+          type: integer
+          description: Estimated minutes until delivery (`parcel.status.out_for_delivery`).
+        recipientName:
+          type: string
+          description: Who received the parcel (`parcel.status.delivered`).
+        proofUrl:
+          type: string
+          description: Link to the proof of delivery (`parcel.status.delivered`).
+        failureReason:
+          type: string
+          description: Why the delivery failed (`parcel.status.failed`).
+        attemptNo:
+          type: integer
+          description: Number of the delivery attempt (`parcel.status.failed`).
+        newDate:
+          type: string
+          description: New delivery date (`parcel.status.rescheduled`).
+        returnReason:
+          type: string
+          description: Why the parcel comes back (`parcel.status.returned`).
+        cancelledBy:
+          type: string
+          description: Who cancelled (`parcel.cancelled`).
+        reason:
+          type: string
+          description: Cancellation reason (`parcel.cancelled`).
+        fee:
+          oneOf:
+            - $ref: '#/components/schemas/Money'
+            - type: 'null'
+          description: Delivery fee (`parcel.created`).
+    WebhookTestData:
+      type: object
+      required: [merchantId]
+      properties:
+        merchantId:
+          type: string
+          description: Your merchant id.
+    WebhookParcelEvent:
+      description: A `parcel.*` event.
+      allOf:
+        - $ref: '#/components/schemas/WebhookEvent'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ParcelEventData'
+    WebhookTestEvent:
+      type: object
+      description: |
+        The `webhook.test` event sent when you press *Send test* in the portal. It has the envelope of the other
+        events, but no `aggregateId` and no `correlationId`.
+      required: [eventId, eventType, version, occurredAt, producer, data]
+      properties:
+        eventId:
+          type: string
+          examples: [2f6e0c8a-1b3d-4e5f-9a7b-8c6d4e2f0a1b]
+        eventType:
+          type: string
+          const: webhook.test
+        version:
+          type: integer
+          const: 1
+        occurredAt:
+          type: string
+          format: date-time
+        producer:
+          type: string
+          const: merchant-service
+        data:
+          $ref: '#/components/schemas/WebhookTestData'
+webhooks:
+  parcelEvent:
+    post:
+      tags: [Webhooks]
+      operationId: receiveParcelEvent
+      summary: Parcel created, status changed or cancelled
+      description: |
+        Sent to your webhook URL for `parcel.created`, `parcel.status.*` and `parcel.cancelled`, according to the
+        event selection of your webhook. See the *Webhooks* section above for the signature, the retry schedule
+        and the ordering rules.
+
+        Answer with any `2xx` within 5 seconds. Your endpoint must be reachable over HTTPS from the internet.
+      security: []
+      parameters:
+        - name: X-SwiftDrop-Event-Id
+          in: header
+          required: true
+          description: Unique id of the event; identical for every retry and replay.
+          schema:
+            type: string
+            examples: [7c1e9a52-0f4b-4a52-9d3e-2b8f0f1c6a11]
+        - name: X-SwiftDrop-Event-Type
+          in: header
+          required: true
+          description: The event type.
+          schema:
+            $ref: '#/components/schemas/WebhookEventType'
+        - name: X-SwiftDrop-Timestamp
+          in: header
+          required: true
+          description: Unix time in seconds at which this attempt was signed. Reject values more than 5 minutes from your clock.
+          schema:
+            type: string
+            pattern: '^[0-9]+$'
+            examples: ['1793521812']
+        - name: X-SwiftDrop-Signature
+          in: header
+          required: true
+          description: Lowercase hex HMAC-SHA256 of `timestamp + "." + body`, keyed with your webhook secret.
+          schema:
+            type: string
+            pattern: '^[0-9a-f]{64}$'
+            examples: ['9f2c1a7e5b3d8046f1e2a9c7b5d3f1e08a6c4e2b0d9f7a5c3e1b8d6f4a2c0e9b']
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookParcelEvent'
+            examples:
+              outForDelivery:
+                summary: parcel.status.out_for_delivery
+                value:
+                  eventId: 7c1e9a52-0f4b-4a52-9d3e-2b8f0f1c6a11
+                  eventType: parcel.status.out_for_delivery
+                  version: 1
+                  occurredAt: '2026-11-01T08:30:12Z'
+                  producer: parcel-service
+                  correlationId: b41d0c2e-3f6a-4d1b-9c55-7a1e2f3b4c5d
+                  aggregateId: PCL-000123
+                  data:
+                    merchantId: 6f0d6c3e-8b3a-4c1e-9d65-0c4f3a2b7e10
+                    parcelId: PCL-000123
+                    trackingNo: SD24000123
+                    fromStatus: IN_TRANSIT
+                    toStatus: OUT_FOR_DELIVERY
+                    etaMinutes: 45
+              failed:
+                summary: parcel.status.failed
+                value:
+                  eventId: 3d9b5f1a-6c2e-4b78-a0d4-9e8f7a6b5c43
+                  eventType: parcel.status.failed
+                  version: 1
+                  occurredAt: '2026-11-01T11:05:40Z'
+                  producer: parcel-service
+                  correlationId: 1f2e3d4c-5b6a-4978-8a9b-0c1d2e3f4a5b
+                  aggregateId: PCL-000123
+                  data:
+                    merchantId: 6f0d6c3e-8b3a-4c1e-9d65-0c4f3a2b7e10
+                    parcelId: PCL-000123
+                    trackingNo: SD24000123
+                    fromStatus: OUT_FOR_DELIVERY
+                    toStatus: FAILED
+                    failureReason: Recipient not available
+                    attemptNo: 1
+              created:
+                summary: parcel.created
+                value:
+                  eventId: a5b4c3d2-e1f0-4a9b-8c7d-6e5f4a3b2c1d
+                  eventType: parcel.created
+                  version: 1
+                  occurredAt: '2026-11-01T09:02:44Z'
+                  producer: parcel-service
+                  correlationId: 9a8b7c6d-5e4f-4321-8fed-cba987654321
+                  aggregateId: PCL-000123
+                  data:
+                    merchantId: 6f0d6c3e-8b3a-4c1e-9d65-0c4f3a2b7e10
+                    parcelId: PCL-000123
+                    trackingNo: SD24000123
+                    fee:
+                      amount: 450.00
+                      currency: LKR
+              cancelled:
+                summary: parcel.cancelled
+                value:
+                  eventId: 0b1c2d3e-4f50-4a61-b7c8-d9e0f1a2b3c4
+                  eventType: parcel.cancelled
+                  version: 1
+                  occurredAt: '2026-11-01T09:20:00Z'
+                  producer: parcel-service
+                  correlationId: 5c4d3e2f-1a0b-4c9d-8e7f-6a5b4c3d2e1f
+                  aggregateId: PCL-000123
+                  data:
+                    merchantId: 6f0d6c3e-8b3a-4c1e-9d65-0c4f3a2b7e10
+                    parcelId: PCL-000123
+                    trackingNo: SD24000123
+                    cancelledBy: merchant
+                    reason: Customer cancelled the order
+      responses:
+        2XX:
+          description: |
+            Delivered. Any `2xx` status within 5 seconds counts; the body is ignored. Also answer `2xx` for an
+            event you have already processed.
+        4XX:
+          description: |
+            Rejected. `429` is treated as temporary and retried; every other `4xx` answer (`400`, `401`,
+            `404` ...) is treated as a configuration error and is **not** retried.
+        5XX:
+          description: Temporary failure. The delivery is retried on the schedule described in the *Webhooks* section.
+  webhookTest:
+    post:
+      tags: [Webhooks]
+      operationId: receiveWebhookTest
+      summary: Test delivery
+      description: |
+        Sent once when you press *Send test* in the portal (`POST /merchants/me/webhook/test`). It is signed with
+        your secret exactly like a real delivery, so you can check your verification code. The request times out
+        after 5 seconds, redirects are not followed and your response body is discarded. The portal shows the
+        HTTP status you answered.
+      security: []
+      parameters:
+        - name: X-SwiftDrop-Event-Id
+          in: header
+          required: true
+          description: Unique id of the test event.
+          schema:
+            type: string
+            examples: [2f6e0c8a-1b3d-4e5f-9a7b-8c6d4e2f0a1b]
+        - name: X-SwiftDrop-Event-Type
+          in: header
+          required: true
+          description: Always `webhook.test`.
+          schema:
+            type: string
+            const: webhook.test
+        - name: X-SwiftDrop-Timestamp
+          in: header
+          required: true
+          description: Unix time in seconds at which the test was signed.
+          schema:
+            type: string
+            pattern: '^[0-9]+$'
+            examples: ['1793521812']
+        - name: X-SwiftDrop-Signature
+          in: header
+          required: true
+          description: Lowercase hex HMAC-SHA256 of `timestamp + "." + body`, keyed with your webhook secret.
+          schema:
+            type: string
+            pattern: '^[0-9a-f]{64}$'
+            examples: ['9f2c1a7e5b3d8046f1e2a9c7b5d3f1e08a6c4e2b0d9f7a5c3e1b8d6f4a2c0e9b']
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookTestEvent'
+            examples:
+              test:
+                summary: webhook.test
+                value:
+                  eventId: 2f6e0c8a-1b3d-4e5f-9a7b-8c6d4e2f0a1b
+                  eventType: webhook.test
+                  version: 1
+                  occurredAt: '2026-11-01T08:30:12.123Z'
+                  producer: merchant-service
+                  data:
+                    merchantId: 6f0d6c3e-8b3a-4c1e-9d65-0c4f3a2b7e10
+      responses:
+        2XX:
+          description: The test was delivered. The portal shows the status you answered.
+        4XX:
+          description: Reported as failed in the portal. A test is never retried.
+        5XX:
+          description: Reported as failed in the portal. A test is never retried.

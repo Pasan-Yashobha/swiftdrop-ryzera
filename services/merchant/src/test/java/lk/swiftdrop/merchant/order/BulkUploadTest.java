@@ -295,13 +295,18 @@ class BulkUploadTest extends AbstractOrderTest {
 
         JsonNode result = body(upload(fileOf(valid("B-1"), valid("B-2"), valid("B-3"), valid("B-4")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.created").value(2))
-                .andExpect(jsonPath("$.failed").value(2)));
+                .andExpect(jsonPath("$.created").value(1))
+                .andExpect(jsonPath("$.failed").value(3)));
 
         assertThat(errorsOf(result.get("results").get(1))).containsExactly("The parcel service rejected this order");
         assertThat(errorsOf(result.get("results").get(2)))
                 .containsExactly("The parcel service is unavailable. Please try again shortly");
-        assertThat(orders.findAll()).extracting(MerchantOrder::getExternalRef).containsExactlyInAnyOrder("B-1", "B-4");
+        // After the first outage the rest of the file is not tried: every row would wait for a timeout.
+        assertThat(errorsOf(result.get("results").get(3))).containsExactly(
+                "Not processed because the parcel service is unavailable. Upload the file again shortly");
+        verify(parcelClient, times(3)).createParcel(any());
+        // B-3 stays as a PENDING placeholder: the parcel service may have booked it before the answer was lost.
+        assertThat(orders.findAll()).extracting(MerchantOrder::getExternalRef).containsExactlyInAnyOrder("B-1", "B-3");
     }
 
     // ---- uploading the same file again ----
@@ -362,6 +367,39 @@ class BulkUploadTest extends AbstractOrderTest {
         upload(content).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.message").value(containsString("empty")));
+    }
+
+    @Test
+    void absurdlyLongNumbersAreRejectedWithoutBeingParsed() throws Exception {
+        String hugeWeight = "9".repeat(30);
+
+        JsonNode result = body(upload(fileOf(valid("B-1", "weightKg", hugeWeight), valid("B-2")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.created").value(1))
+                .andExpect(jsonPath("$.failed").value(1)));
+
+        assertThat(errorsOf(result.get("results").get(0))).containsExactly("weightKg: must be a number");
+    }
+
+    @Test
+    void aRowWithAHugeValueFailsOnItsOwn() throws Exception {
+        JsonNode result = body(upload(fileOf(valid("B-1", "notes", "x".repeat(5_000)), valid("B-2")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.created").value(1))
+                .andExpect(jsonPath("$.failed").value(1)));
+
+        assertThat(errorsOf(result.get("results").get(0))).containsExactly("A value is longer than 2000 characters");
+    }
+
+    @Test
+    void aFileWithFarTooManyRowsIsRejectedWithoutCountingAllOfThem() throws Exception {
+        StringBuilder lines = new StringBuilder(HEADER).append("\n");
+        for (int i = 0; i < 5_000; i++) {
+            lines.append("a\n");
+        }
+
+        upload(lines.toString()).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("more than 500 orders")));
     }
 
     @Test

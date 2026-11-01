@@ -33,11 +33,15 @@ class OrderWriter {
     MerchantOrder complete(UUID orderId, String parcelId, String trackingNo, Money fee, Instant now) {
         MerchantOrder order = orders.findById(orderId)
                 .orElseThrow(() -> new IllegalStateException("Placeholder order " + orderId + " no longer exists"));
+        if (order.getStatus() != OrderStatus.PENDING) {
+            // A concurrent retry completed it first, and events may have moved it on since: keep what is there.
+            return order;
+        }
         order.complete(parcelId, trackingNo, fee, now);
         return orders.saveAndFlush(order);
     }
 
-    /** Removes the placeholder of an order that could not be booked, which frees its key and reference. */
+    /** Removes the placeholder of an order that the parcel service rejected, which frees its key and reference. */
     @Transactional
     void discard(UUID orderId) {
         orders.deleteById(orderId);

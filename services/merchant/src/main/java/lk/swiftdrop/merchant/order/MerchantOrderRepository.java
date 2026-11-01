@@ -19,9 +19,13 @@ public interface MerchantOrderRepository
 
     Optional<MerchantOrder> findByMerchantIdAndParcelId(UUID merchantId, String parcelId);
 
+    Optional<MerchantOrder> findFirstByParcelId(String parcelId);
+
     Optional<MerchantOrder> findByMerchantIdAndIdempotencyKey(UUID merchantId, String idempotencyKey);
 
-    Optional<MerchantOrder> findByMerchantIdAndExternalRef(UUID merchantId, String externalRef);
+    /** The external reference is unique per merchant and environment: a sandbox test must not block the go-live order. */
+    Optional<MerchantOrder> findByMerchantIdAndSandboxAndExternalRef(UUID merchantId, boolean sandbox,
+                                                                     String externalRef);
 
     boolean existsByTrackingNo(String trackingNo);
 

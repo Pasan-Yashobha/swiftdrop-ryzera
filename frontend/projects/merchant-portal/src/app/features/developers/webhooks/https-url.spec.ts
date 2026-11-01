@@ -1,5 +1,5 @@
 import { FormControl } from '@angular/forms';
-import { httpsUrl } from './https-url';
+import { httpsUrl, webhookUrl } from './https-url';
 
 describe('httpsUrl', () => {
   const check = (value: unknown) => httpsUrl(new FormControl(value));
@@ -21,6 +21,13 @@ describe('httpsUrl', () => {
     expect(check('javascript:alert(1)')).toEqual({ httpsUrl: true });
     expect(check('/hooks/swiftdrop')).toEqual({ httpsUrl: true });
     expect(check('shop.example.com')).toEqual({ httpsUrl: true });
+  });
+
+  it('accepts plain http only when the validator is told to allow it', () => {
+    const lenient = (value: string) => webhookUrl(true)(new FormControl(value));
+    expect(lenient('http://localhost:9099/hook')).toBeNull();
+    expect(lenient('ftp://localhost/hook')).toEqual({ httpsUrl: true });
+    expect(lenient('http://user@localhost/hook')).toEqual({ httpsUrl: true });
   });
 
   it('rejects embedded credentials', () => {

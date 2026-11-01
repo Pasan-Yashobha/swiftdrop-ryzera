@@ -19,5 +19,6 @@ COPY --from=build /workspace/target/merchant-service.jar app.jar
 USER app
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-  CMD wget -qO- http://localhost:8080/actuator/health || exit 1
+  # The readiness group, not the aggregate: a broker outage must not mark a working service unhealthy.
+  CMD wget -qO- http://localhost:8080/actuator/health/readiness || exit 1
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]

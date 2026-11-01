@@ -23,6 +23,16 @@ class PagingTest {
     }
 
     @Test
+    void anOffsetBeyondWhatTheDatabaseLayerCanAddressIsABadRequest() {
+        assertThatThrownBy(() -> PageRequests.of(Integer.MAX_VALUE, 100, Sort.unsorted()))
+                .isInstanceOf(BadRequestException.class)
+                .satisfies(e -> assertThat(((BadRequestException) e).getDetails())
+                        .extracting(ApiError.Detail::field).containsExactly("page"));
+        assertThat(PageRequests.of(Integer.MAX_VALUE / 100, 100, Sort.unsorted()).getPageNumber())
+                .isEqualTo(Integer.MAX_VALUE / 100);
+    }
+
+    @Test
     void boundariesAreAccepted() {
         assertThat(PageRequests.of(0, 1, Sort.unsorted()).getPageSize()).isEqualTo(1);
         assertThat(PageRequests.of(0, PageRequests.MAX_SIZE, Sort.unsorted()).getPageSize()).isEqualTo(100);

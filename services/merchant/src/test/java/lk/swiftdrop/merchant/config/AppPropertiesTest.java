@@ -45,7 +45,8 @@ class AppPropertiesTest {
             assertThat(properties.parcel().baseUrl()).isEqualTo("http://parcel:8080");
             assertThat(properties.bulk().maxRows()).isEqualTo(500);
             assertThat(properties.bulk().maxBytes()).isEqualTo(1_048_576);
-            assertThat(properties.orders().pendingPlaceholderMaxAgeSeconds()).isEqualTo(300);
+            assertThat(properties.orders().pendingPlaceholderMaxAgeSeconds()).isEqualTo(86_400);
+            assertThat(properties.orders().resumeAfterSeconds()).isEqualTo(15);
         });
     }
 

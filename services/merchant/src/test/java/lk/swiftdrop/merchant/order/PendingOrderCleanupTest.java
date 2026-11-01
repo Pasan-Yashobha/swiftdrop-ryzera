@@ -81,16 +81,16 @@ class PendingOrderCleanupTest extends AbstractOrderTest {
     }
 
     @Test
-    void keyAndExternalRefOfARemovedPlaceholderCanBeUsedAgain() throws Exception {
-        String hash = RequestFingerprint.of(OrderFixtures.request("ORDER-1"), false);
-        orderFixtures.order(merchant).idempotencyKey("key-1", hash).externalRef("ORDER-1")
-                .createdAt(clock.instant().minusSeconds(600)).savePlaceholder();
+    void externalRefOfARemovedPlaceholderCanBeUsedAgain() throws Exception {
+        // A placeholder of some other request holds the reference (it is not the retry of this request).
+        orderFixtures.order(merchant).externalRef("ORDER-1").createdAt(clock.instant().minusSeconds(600))
+                .savePlaceholder();
         IssuedKey key = liveKey();
-        createViaApi(key, OrderFixtures.payload("ORDER-1"), "key-1").andExpect(status().isConflict());
+        createViaApi(key, OrderFixtures.payload("ORDER-1"), null).andExpect(status().isConflict());
 
         cleanup.removeStalePlaceholders();
 
-        createViaApi(key, OrderFixtures.payload("ORDER-1"), "key-1").andExpect(status().isCreated());
+        createViaApi(key, OrderFixtures.payload("ORDER-1"), null).andExpect(status().isCreated());
     }
 
     @Test

@@ -77,6 +77,10 @@ jobs:
           npm test --if-present -- --watch=false --browsers=ChromeHeadless
           npm run build --if-present
 
+      - name: Build the merchant portal image (no push)
+        if: steps.exists.outputs.found == 'true' && hashFiles('frontend/Dockerfile.merchant-portal') != ''
+        run: docker build -f frontend/Dockerfile.merchant-portal -t swiftdrop/merchant-portal:ci frontend
+
   compose-config:
     name: validate docker-compose
     runs-on: ubuntu-latest

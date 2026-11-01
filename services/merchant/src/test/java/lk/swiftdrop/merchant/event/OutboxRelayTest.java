@@ -189,6 +189,22 @@ class OutboxRelayTest {
         verifyNoInteractions(rabbitTemplate);
     }
 
+    @Test
+    void afterAFailedRunTheRelayWaitsBeforeItAsksTheBrokerAgain() {
+        OutboxEvent event = event("merchant.approved", "{}");
+        pending(event);
+        brokerAnswers(false, "no route");
+
+        relay.relayPendingEvents();
+        relay.relayPendingEvents();
+        relay.relayPendingEvents();
+
+        // The clock is frozen, so the backoff never ends: only the first run reached the database and the broker.
+        verify(rabbitTemplate, org.mockito.Mockito.times(1)).send(anyString(), anyString(), any(Message.class),
+                any(CorrelationData.class));
+        assertThat(event.getAttempts()).isEqualTo(1);
+    }
+
     private void pending(OutboxEvent... events) {
         when(repository.findByPublishedAtIsNullOrderByCreatedAtAscIdAsc(any(Pageable.class)))
                 .thenReturn(List.of(events));

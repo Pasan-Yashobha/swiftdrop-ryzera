@@ -157,9 +157,11 @@ public class MerchantOrder {
         this.updatedAt = stamp(now);
     }
 
-    /** True when an event that happened at {@code occurredAt} is newer than everything applied so far. */
+    /** True when an event that happened at {@code occurredAt} is not older than everything applied so far. */
     public boolean isNewerThanLastEvent(Instant occurredAt) {
-        return lastEventAt == null || stamp(occurredAt).isAfter(lastEventAt);
+        // Not strictly after: two transitions stamped within the same instant (the timestamps have second
+        // precision) must both apply; a repeated event is dropped by its event id before it gets here.
+        return lastEventAt == null || !stamp(occurredAt).isBefore(lastEventAt);
     }
 
     /** Applies a status change that happened at {@code occurredAt}; a missing failure reason clears the old one. */

@@ -75,10 +75,10 @@ describe('WebhookConfigForm', () => {
       expect(emitted).toEqual([]);
     });
 
-    it('rejects an address that is not https', () => {
+    it('rejects an address that does not use a web scheme', () => {
       const fixture = create();
 
-      type(inputByLabel(fixture, 'Endpoint URL'), 'http://shop.example.com/hooks');
+      type(inputByLabel(fixture, 'Endpoint URL'), 'ftp://shop.example.com/hooks');
       submit(fixture);
 
       expect(element(fixture).textContent).toContain('Enter a full https:// address');

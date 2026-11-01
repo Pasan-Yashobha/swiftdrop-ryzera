@@ -156,6 +156,27 @@ class ApiKeyPortalTest extends AbstractCredentialTest {
     }
 
     @Test
+    void rotatingWithAGracePeriodCannotExceedTheLimitOfActiveKeys() throws Exception {
+        Merchant merchant = fixtures.approvedMerchant("user-1");
+        List<UUID> issued = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            issued.add(credentials.apiKey(merchant, ApiEnvironment.LIVE).id());
+        }
+
+        // Both keys would be usable during the grace period, which would be the eleventh active key.
+        mockMvc.perform(post(BASE + "/" + issued.get(0) + "/rotate").with(TestAuth.merchant("user-1")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+        assertThat(apiKeys.count()).isEqualTo(10);
+
+        // Without a grace period the new key simply takes the place of the old one.
+        mockMvc.perform(post(BASE + "/" + issued.get(0) + "/rotate").with(TestAuth.merchant("user-1"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"graceHours\": 0}"))
+                .andExpect(status().isCreated());
+        assertThat(apiKeys.count()).isEqualTo(11);
+    }
+
+    @Test
     void revokedAndExpiredKeysDoNotCountTowardsTheLimit() throws Exception {
         Merchant merchant = fixtures.approvedMerchant("user-1");
         for (int i = 0; i < 9; i++) {

@@ -66,6 +66,8 @@ services:
     build:
       context: ./services/merchant
     restart: unless-stopped
+    # Longer than the 30 s graceful shutdown of the service, or Docker kills it after 10 s.
+    stop_grace_period: 40s
     depends_on:
       postgres:
         condition: service_healthy
@@ -81,10 +83,12 @@ services:
       SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-swiftdrop}
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev_rabbit_pw}
       IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-}
-      DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev_only_hmac_secret_change_me_0123456789}
-      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev_internal_token}
-      MERCHANT_TOKEN_SECRET: ${MERCHANT_TOKEN_SECRET:-dev_merchant_token_secret_at_least_32_bytes!}
-      WEBHOOK_ENCRYPTION_KEY: ${WEBHOOK_ENCRYPTION_KEY:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
+      # The same development defaults as application-dev.yml, so the service behaves the same from the IDE.
+      DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev-only-hmac-secret-change-me-0123456789}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-token}
+      MERCHANT_TOKEN_SECRET: ${MERCHANT_TOKEN_SECRET:-dev-only-merchant-token-secret-0123456789}
+      WEBHOOK_ENCRYPTION_KEY: ${WEBHOOK_ENCRYPTION_KEY:-ZGV2LW9ubHktd2ViaG9vay1rZXktMDEyMzQ1Njc4ISE=}
+      CORS_ALLOWED_ORIGINS: ${MERCHANT_CORS_ALLOWED_ORIGINS:-http://localhost:4201,http://localhost:4200}
       PARCEL_SERVICE_URL: ${PARCEL_SERVICE_URL:-http://parcel:8080}
       WEBHOOK_SERVICE_URL: ${WEBHOOK_SERVICE_URL:-http://webhook:8080}
       PUBLIC_TRACKING_URL: ${PUBLIC_TRACKING_URL:-http://localhost:4200/track}

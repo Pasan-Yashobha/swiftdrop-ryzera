@@ -46,13 +46,15 @@ server {
         proxy_pass $api_upstream;
 
         proxy_http_version 1.1;
-        proxy_set_header Host $host;
+        # $http_host keeps the port the browser used, so that Origin and Host agree and Spring sees a same-origin call.
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Connection "";
         proxy_connect_timeout 5s;
-        proxy_read_timeout 30s;
+        # The bulk CSV upload books up to 500 orders in one request.
+        proxy_read_timeout 120s;
     }
 
     # Build output with a content hash in its name never changes: cache it for a year.

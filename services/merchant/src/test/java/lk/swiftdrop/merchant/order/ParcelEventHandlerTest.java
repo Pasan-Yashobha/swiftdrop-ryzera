@@ -197,11 +197,11 @@ class ParcelEventHandlerTest extends AbstractOrderTest {
     }
 
     @Test
-    void eventWithTheTimeOfTheLastOneDoesNotMoveTheOrder() throws Exception {
+    void eventWithTheTimeOfTheLastOneStillMovesTheOrder() throws Exception {
         deliver("e1", "parcel.status.picked_up", minutes(3));
         deliver("e2", "parcel.status.in_transit", minutes(3));
 
-        assertThat(reloaded().getStatus()).isEqualTo(OrderStatus.PICKED_UP);
+        assertThat(reloaded().getStatus()).isEqualTo(OrderStatus.IN_TRANSIT);
         assertThat(timeline()).hasSize(2);
     }
 
@@ -243,11 +243,11 @@ class ParcelEventHandlerTest extends AbstractOrderTest {
         assertThat(reloaded().getStatus()).isEqualTo(OrderStatus.CREATED);
         assertThat(reloaded().getLastEventAt()).isNull();
         assertThat(history.count()).isZero();
-        assertThat(processedEvents.existsById("e1")).isTrue();
+        assertThat(processedEvents.existsById("e1")).isFalse();
     }
 
     @Test
-    void eventForAnUnknownOrderIsIgnoredButRemembered() throws Exception {
+    void eventForAnUnknownOrderIsIgnoredAndNotRemembered() throws Exception {
         Map<String, Object> unknown = data(merchant.getId(), "SD-UNKNOWN");
         unknown.put("parcelId", "P-UNKNOWN");
 
@@ -255,7 +255,7 @@ class ParcelEventHandlerTest extends AbstractOrderTest {
 
         assertThat(reloaded().getStatus()).isEqualTo(OrderStatus.CREATED);
         assertThat(history.count()).isZero();
-        assertThat(processedEvents.existsById("e1")).isTrue();
+        assertThat(processedEvents.existsById("e1")).isFalse();
     }
 
     @Test
@@ -335,18 +335,50 @@ class ParcelEventHandlerTest extends AbstractOrderTest {
     }
 
     @Test
-    void eventsWithoutAMerchantAreIgnoredAndNotRemembered() throws Exception {
+    void eventsThatNameNeitherAMerchantNorAParcelAreIgnoredAndNotRemembered() throws Exception {
         Map<String, Object> noMerchant = data(merchant.getId(), "SD100");
         noMerchant.remove("merchantId");
+        noMerchant.remove("parcelId");
         handler.handle(event("e1", "parcel.status.delivered", minutes(1), noMerchant));
         Map<String, Object> badMerchant = data(merchant.getId(), "SD100");
         badMerchant.put("merchantId", "not-a-uuid");
+        badMerchant.remove("parcelId");
         handler.handle(event("e2", "parcel.status.delivered", minutes(2), badMerchant));
         Map<String, Object> numericMerchant = data(merchant.getId(), "SD100");
         numericMerchant.put("merchantId", 42);
+        numericMerchant.remove("parcelId");
         handler.handle(event("e3", "parcel.status.delivered", minutes(3), numericMerchant));
         handler.handle("{\"eventId\":\"e4\",\"eventType\":\"parcel.status.delivered\",\"occurredAt\":\"2026-03-01T10:04:00Z\"}"
                 .getBytes(StandardCharsets.UTF_8));
+
+        assertThat(reloaded().getStatus()).isEqualTo(OrderStatus.CREATED);
+        assertThat(processedEvents.count()).isZero();
+    }
+
+    @Test
+    void dispatchEventsThatCarryOnlyTheParcelIdFindTheirOrder() throws Exception {
+        Map<String, Object> assigned = new LinkedHashMap<>();
+        assigned.put("parcelId", "P-100");
+        assigned.put("courierId", "C-1");
+        handler.handle(event("e1", "parcel.assigned", minutes(1), assigned));
+        assertThat(reloaded().getStatus()).isEqualTo(OrderStatus.ASSIGNED);
+
+        Map<String, Object> cancelled = new LinkedHashMap<>();
+        cancelled.put("parcelId", "P-100");
+        cancelled.put("reason", "customer request");
+        handler.handle(event("e2", "parcel.cancelled", minutes(2), cancelled));
+
+        assertThat(reloaded().getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(timeline()).hasSize(2);
+        assertThat(processedEvents.count()).isEqualTo(2);
+    }
+
+    @Test
+    void dispatchEventForAnUnknownParcelIsIgnored() throws Exception {
+        Map<String, Object> unknown = new LinkedHashMap<>();
+        unknown.put("parcelId", "P-NOBODY");
+
+        handler.handle(event("e1", "parcel.cancelled", minutes(1), unknown));
 
         assertThat(reloaded().getStatus()).isEqualTo(OrderStatus.CREATED);
         assertThat(processedEvents.count()).isZero();

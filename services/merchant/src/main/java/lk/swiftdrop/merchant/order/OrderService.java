@@ -1,8 +1,10 @@
 package lk.swiftdrop.merchant.order;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
+import lk.swiftdrop.merchant.config.AppProperties;
 import lk.swiftdrop.merchant.common.ConflictException;
 import lk.swiftdrop.merchant.common.ErrorCode;
 import lk.swiftdrop.merchant.common.ForbiddenException;
@@ -12,8 +14,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.IllegalTransactionStateException;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Creates orders for the portal, the merchant API and the bulk upload (CONTRACT section 6).
@@ -21,7 +23,14 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Creation runs outside of any transaction and refuses to run inside one. A {@code PENDING} placeholder is
  * committed first, so the unique constraints on the idempotency key and the external reference decide between
  * concurrent duplicates; the parcel service is called with no transaction open; then the placeholder is
- * completed, or removed when booking failed so that the same key can be used again.
+ * completed.
+ *
+ * <p>When the parcel service rejects the order for good (4xx), the placeholder is removed so that the key and the
+ * external reference can be used again. When the outcome is unknown (timeout, 5xx, lost answer) the parcel may have
+ * been booked, so the placeholder stays. The parcel service de-duplicates on the placeholder's id, which is sent as
+ * its Idempotency-Key; a retry with the same key (or, without a key, the same external reference and request)
+ * therefore completes <em>that</em> placeholder once it is old enough for its first request to be over, instead of
+ * booking a second parcel.
  */
 @Service
 public class OrderService {
@@ -38,9 +47,11 @@ public class OrderService {
     private final SandboxSimulator simulator;
     private final OrderMapper mapper;
     private final Clock clock;
+    private final Duration resumeAfter;
 
     OrderService(MerchantService merchants, MerchantOrderRepository orders, OrderWriter writer,
-                 ParcelClient parcelClient, SandboxSimulator simulator, OrderMapper mapper, Clock clock) {
+                 ParcelClient parcelClient, SandboxSimulator simulator, OrderMapper mapper, Clock clock,
+                 AppProperties properties) {
         this.merchants = merchants;
         this.orders = orders;
         this.writer = writer;
@@ -48,6 +59,7 @@ public class OrderService {
         this.simulator = simulator;
         this.mapper = mapper;
         this.clock = clock;
+        this.resumeAfter = Duration.ofSeconds(properties.orders().resumeAfterSeconds());
     }
 
     /**
@@ -56,14 +68,26 @@ public class OrderService {
      * @throws ConflictException       {@code IDEMPOTENCY_KEY_IN_USE}, {@code DUPLICATE_EXTERNAL_REF}
      * @throws lk.swiftdrop.merchant.common.ServiceUnavailableException {@code PARCEL_SERVICE_UNAVAILABLE}
      */
-    @Transactional(propagation = Propagation.NEVER)
     public OrderCreation create(NewOrder command) {
+        // Not @Transactional(NEVER): that opens a transaction synchronization, which binds one EntityManager (and its
+        // JDBC connection) to the thread for the whole call, including the parcel service call.
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalTransactionStateException("Order creation must not run inside a transaction");
+        }
         requireApproved(command.merchantId());
         String fingerprint = RequestFingerprint.of(command.request(), command.sandbox());
         for (int attempt = 0; attempt < MAX_RESERVE_ATTEMPTS; attempt++) {
-            Optional<MerchantOrder> replay = findExisting(command, fingerprint);
-            if (replay.isPresent()) {
-                return new OrderCreation(mapper.toResponse(replay.get()), true);
+            Optional<MerchantOrder> existing = findExisting(command, fingerprint);
+            if (existing.isPresent()) {
+                MerchantOrder order = existing.get();
+                if (order.getStatus() != OrderStatus.PENDING) {
+                    return new OrderCreation(mapper.toResponse(order), true);
+                }
+                if (order.getCreatedAt().isAfter(clock.instant().minus(resumeAfter))) {
+                    throw new IdempotencyKeyInUseException();
+                }
+                log.info("Completing order {} left PENDING by an earlier request", order.getId());
+                return new OrderCreation(mapper.toResponse(fulfil(order, command)), false);
             }
             Optional<MerchantOrder> placeholder = reserve(command, fingerprint);
             if (placeholder.isPresent()) {
@@ -91,7 +115,8 @@ public class OrderService {
      * have inserted its placeholder between the lookup by key and the lookup by reference. That order is a replay
      * (or still in flight), not a duplicate reference.
      *
-     * @return the order to replay, empty when the key and the external reference are unused
+     * @return the order to replay or, when it is still {@code PENDING}, to complete; empty when the key and the
+     *         external reference are unused
      */
     private Optional<MerchantOrder> findExisting(NewOrder command, String fingerprint) {
         String key = command.idempotencyKey();
@@ -105,24 +130,30 @@ public class OrderService {
         if (externalRef == null) {
             return Optional.empty();
         }
-        Optional<MerchantOrder> sameReference = orders.findByMerchantIdAndExternalRef(command.merchantId(), externalRef);
-        if (sameReference.isPresent() && key != null && key.equals(sameReference.get().getIdempotencyKey())) {
-            return Optional.of(checkedReplay(sameReference.get(), fingerprint));
+        Optional<MerchantOrder> sameReference = orders.findByMerchantIdAndSandboxAndExternalRef(
+                command.merchantId(), command.sandbox(), externalRef);
+        if (sameReference.isEmpty()) {
+            return Optional.empty();
         }
-        if (sameReference.isPresent()) {
-            throw new ConflictException(ErrorCode.DUPLICATE_EXTERNAL_REF,
-                    "Another order of this merchant already uses this externalRef");
+        MerchantOrder holder = sameReference.get();
+        if (key != null && key.equals(holder.getIdempotencyKey())) {
+            return Optional.of(checkedReplay(holder, fingerprint));
         }
-        return Optional.empty();
+        // Without a key a repeat is recognised only while it is unfinished: the identical request that left a
+        // placeholder behind is the retry of that order, not a second order with the same reference.
+        boolean retryWithoutKey = key == null && holder.getIdempotencyKey() == null
+                && holder.getStatus() == OrderStatus.PENDING && fingerprint.equals(holder.getRequestHash());
+        if (retryWithoutKey) {
+            return sameReference;
+        }
+        throw new ConflictException(ErrorCode.DUPLICATE_EXTERNAL_REF,
+                "Another order of this merchant already uses this externalRef");
     }
 
     private static MerchantOrder checkedReplay(MerchantOrder existing, String fingerprint) {
         if (!fingerprint.equals(existing.getRequestHash())) {
             throw new UnprocessableException(ErrorCode.IDEMPOTENCY_KEY_REUSED,
                     "This Idempotency-Key was already used with a different request");
-        }
-        if (existing.getStatus() == OrderStatus.PENDING) {
-            throw new IdempotencyKeyInUseException();
         }
         return existing;
     }
@@ -158,9 +189,11 @@ public class OrderService {
         try {
             return parcelClient.createParcel(
                     new ParcelBookingRequest(placeholder.getId(), command.merchantId(), command.request()));
-        } catch (RuntimeException failure) {
+        } catch (UnprocessableException rejected) {
+            // The parcel service refused the order: nothing was booked, so the key and the reference are free again.
             writer.discard(placeholder.getId());
-            throw failure;
+            throw rejected;
         }
+        // Any other failure leaves the placeholder: the parcel may have been booked (see the class comment).
     }
 }

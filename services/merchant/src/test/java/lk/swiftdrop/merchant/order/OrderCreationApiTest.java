@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import lk.swiftdrop.merchant.common.ErrorCode;
@@ -164,7 +165,8 @@ class OrderCreationApiTest extends AbstractOrderTest {
     void keyOfAnOrderThatIsStillBeingCreatedIsInUse() throws Exception {
         IssuedKey key = liveKey();
         String hash = RequestFingerprint.of(OrderFixtures.request("ORDER-1001"), false);
-        orderFixtures.order(merchant).idempotencyKey("key-1", hash).externalRef("ORDER-1001").savePlaceholder();
+        orderFixtures.order(merchant).idempotencyKey("key-1", hash).externalRef("ORDER-1001")
+                .createdAt(Instant.now()).savePlaceholder();
 
         createViaApi(key, OrderFixtures.payload("ORDER-1001"), "key-1")
                 .andExpect(status().isConflict())
@@ -205,6 +207,31 @@ class OrderCreationApiTest extends AbstractOrderTest {
     }
 
     @Test
+    void sandboxTestsDoNotUseUpTheExternalRefOfTheLiveOrder() throws Exception {
+        createViaApi(testKey(), OrderFixtures.payload("ORDER-1001"), null).andExpect(status().isCreated());
+
+        createViaApi(liveKey(), OrderFixtures.payload("ORDER-1001"), null).andExpect(status().isCreated());
+
+        assertThat(orders.count()).isEqualTo(2);
+        createViaApi(liveKey(), OrderFixtures.payload("ORDER-1001"), null)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DUPLICATE_EXTERNAL_REF"));
+    }
+
+    @Test
+    void retryWithoutAKeyCompletesThePlaceholderOfTheSameRequest() throws Exception {
+        String hash = RequestFingerprint.of(OrderFixtures.request("ORDER-1001"), false);
+        MerchantOrder placeholder = orderFixtures.order(merchant).idempotencyKey(null, hash)
+                .externalRef("ORDER-1001").savePlaceholder();
+
+        createViaApi(liveKey(), OrderFixtures.payload("ORDER-1001"), null)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(placeholder.getId().toString()));
+
+        assertThat(orders.count()).isEqualTo(1);
+    }
+
+    @Test
     void sameExternalRefOfAnotherMerchantIsFine() throws Exception {
         createViaApi(liveKey(), OrderFixtures.payload("ORDER-1001"), null).andExpect(status().isCreated());
         Merchant other = fixtures.approvedMerchant("owner-2");
@@ -233,7 +260,26 @@ class OrderCreationApiTest extends AbstractOrderTest {
     }
 
     @Test
-    void unavailableParcelServiceRemovesThePlaceholderSoTheSameKeyCanBeRetried() throws Exception {
+    void placeholderOfAnEarlierRequestIsCompletedByTheRetryWithTheSameOrderId() throws Exception {
+        IssuedKey key = liveKey();
+        String hash = RequestFingerprint.of(OrderFixtures.request("ORDER-1001"), false);
+        MerchantOrder placeholder = orderFixtures.order(merchant).idempotencyKey("key-1", hash)
+                .externalRef("ORDER-1001").savePlaceholder();
+
+        createViaApi(key, OrderFixtures.payload("ORDER-1001"), "key-1")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(placeholder.getId().toString()));
+
+        ArgumentCaptor<ParcelBookingRequest> captor = ArgumentCaptor.forClass(ParcelBookingRequest.class);
+        verify(parcelClient).createParcel(captor.capture());
+        // The parcel service de-duplicates on this id, so a booking made by the lost first attempt is not repeated.
+        assertThat(captor.getValue().orderId()).isEqualTo(placeholder.getId());
+        assertThat(orders.count()).isEqualTo(1);
+        assertThat(orders.findAll().get(0).getStatus()).isEqualTo(OrderStatus.CREATED);
+    }
+
+    @Test
+    void unavailableParcelServiceKeepsThePlaceholderBecauseTheParcelMayBeBooked() throws Exception {
         IssuedKey key = liveKey();
         when(parcelClient.createParcel(any())).thenThrow(
                 new ServiceUnavailableException(ErrorCode.PARCEL_SERVICE_UNAVAILABLE, "The parcel service is unavailable"));
@@ -241,21 +287,24 @@ class OrderCreationApiTest extends AbstractOrderTest {
         createViaApi(key, OrderFixtures.payload("ORDER-1001"), "key-1")
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.code").value("PARCEL_SERVICE_UNAVAILABLE"));
-        assertThat(orders.count()).isZero();
+        assertThat(orders.findAll()).extracting(MerchantOrder::getStatus).containsExactly(OrderStatus.PENDING);
 
+        // Straight away the first request is still taken to be running; the retry completes it once it is old enough.
         bookParcelsSuccessfully();
-        createViaApi(key, OrderFixtures.payload("ORDER-1001"), "key-1").andExpect(status().isCreated());
+        createViaApi(key, OrderFixtures.payload("ORDER-1001"), "key-1")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_IN_USE"));
     }
 
     @Test
-    void unexpectedParcelClientFailureAlsoRemovesThePlaceholderAndIsReportedAsInternalError() throws Exception {
+    void unexpectedParcelClientFailureAlsoKeepsThePlaceholderAndIsReportedAsInternalError() throws Exception {
         when(parcelClient.createParcel(any())).thenThrow(new IllegalStateException("boom"));
 
         createViaApi(liveKey(), OrderFixtures.payload("ORDER-1001"), "key-1")
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
                 .andExpect(jsonPath("$.message").value(not(containsString("boom"))));
-        assertThat(orders.count()).isZero();
+        assertThat(orders.count()).isEqualTo(1);
     }
 
     @Test

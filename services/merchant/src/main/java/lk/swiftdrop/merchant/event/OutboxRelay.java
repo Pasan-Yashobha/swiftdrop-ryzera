@@ -2,6 +2,8 @@ package lk.swiftdrop.merchant.event;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
@@ -34,11 +36,17 @@ public class OutboxRelay {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
 
+    private static final long MAX_BACKOFF_SECONDS = 60;
+
     private final OutboxRepository repository;
     private final RabbitTemplate rabbitTemplate;
     private final AppProperties.Outbox settings;
     private final String exchange;
     private final Clock clock;
+
+    private int consecutiveFailures;
+    private Instant retryNotBefore = Instant.MIN;
+    private boolean lastBatchFailed;
 
     public OutboxRelay(OutboxRepository repository, RabbitTemplate rabbitTemplate, AppProperties properties,
                        Clock clock) {
@@ -51,12 +59,35 @@ public class OutboxRelay {
 
     @Scheduled(fixedDelayString = "${swiftdrop.outbox.poll-interval-ms:1000}")
     public void relayPendingEvents() {
+        Instant now = clock.instant();
+        if (now.isBefore(retryNotBefore)) {
+            return;
+        }
         try {
             publishBatch();
+            if (lastBatchFailed) {
+                consecutiveFailures++;
+                retryNotBefore = now.plus(backoff(consecutiveFailures));
+            } else {
+                if (consecutiveFailures > 0) {
+                    log.info("Outbox relay publishes again after {} failed run(s)", consecutiveFailures);
+                }
+                consecutiveFailures = 0;
+                retryNotBefore = Instant.MIN;
+            }
         } catch (RuntimeException e) {
             // e.g. the database is unavailable; the next run starts again from the unpublished rows
-            log.warn("Outbox relay run failed: {}", e.getClass().getSimpleName());
+            consecutiveFailures++;
+            retryNotBefore = now.plus(backoff(consecutiveFailures));
+            if (consecutiveFailures == 1) {
+                log.warn("Outbox relay run failed: {}", e.getClass().getSimpleName());
+            }
         }
+    }
+
+    /** 2, 4, 8, ... seconds, at most a minute: a broker that is down is not asked every second. */
+    private static Duration backoff(int failures) {
+        return Duration.ofSeconds(Math.min(MAX_BACKOFF_SECONDS, 1L << Math.min(failures, 6)));
     }
 
     /**
@@ -69,13 +100,21 @@ public class OutboxRelay {
         List<OutboxEvent> batch = repository
                 .findByPublishedAtIsNullOrderByCreatedAtAscIdAsc(PageRequest.of(0, settings.batchSize()));
         int published = 0;
+        lastBatchFailed = false;
         for (OutboxEvent event : batch) {
             Optional<String> failure = send(event);
             if (failure.isPresent()) {
                 event.recordFailure(failure.get());
-                log.warn("Publishing event {} ({}) failed, attempt {}: {}", event.getEventId(), event.getEventType(),
-                        event.getAttempts(), failure.get());
+                // The first failure of a series is a warning; the retries that follow are only noted at debug level.
+                if (consecutiveFailures == 0) {
+                    log.warn("Publishing event {} ({}) failed, attempt {}: {}", event.getEventId(),
+                            event.getEventType(), event.getAttempts(), failure.get());
+                } else {
+                    log.debug("Publishing event {} ({}) failed again, attempt {}: {}", event.getEventId(),
+                            event.getEventType(), event.getAttempts(), failure.get());
+                }
                 repository.save(event);
+                lastBatchFailed = true;
                 break;
             }
             event.markPublished(clock.instant());

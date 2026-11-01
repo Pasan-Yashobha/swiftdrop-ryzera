@@ -69,8 +69,8 @@ public class ApiKeyService {
 
     /**
      * Replaces a key by a new one with the same label and environment. The old key keeps working for
-     * {@code graceHours} (0 revokes it at once). Rotation does not count against the limit of active keys:
-     * the new key takes the place of the old one.
+     * {@code graceHours} (0 revokes it at once). Without a grace period the new key takes the place of the old
+     * one; with one, both are usable for a while, so the limit of active keys applies.
      */
     public IssuedApiKey rotate(UUID id, int graceHours) {
         Merchant merchant = currentMerchant.requireApprovedMerchant();
@@ -79,6 +79,10 @@ public class ApiKeyService {
         if (!old.isRotatable()) {
             throw new ConflictException(ErrorCode.INVALID_STATE,
                     "Only active API keys that have not been rotated yet can be rotated");
+        }
+        if (graceHours > 0 && repository.countUsable(merchant.getId(), now) >= MAX_ACTIVE_KEYS) {
+            throw new ConflictException(ErrorCode.INVALID_STATE, "You can have at most " + MAX_ACTIVE_KEYS
+                    + " active API keys. Revoke one first, or rotate without a grace period");
         }
         IssuedApiKey replacement = issue(merchant.getId(), old.getLabel(), old.getEnvironment(), old.getId(), now);
         if (graceHours == 0) {
