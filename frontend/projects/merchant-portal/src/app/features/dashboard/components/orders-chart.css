@@ -1,0 +1,29 @@
+.chart {
+  margin: 0;
+}
+
+.chart__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.chart__grid {
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.chart__bar {
+  fill: var(--color-primary);
+}
+
+.chart__tick,
+.chart__value {
+  fill: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.chart__value {
+  fill: var(--color-text);
+  font-weight: 600;
+}

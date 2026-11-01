@@ -1,0 +1,14 @@
+.back-link {
+  align-self: flex-start;
+}
+
+.details dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+address {
+  font-style: normal;
+}

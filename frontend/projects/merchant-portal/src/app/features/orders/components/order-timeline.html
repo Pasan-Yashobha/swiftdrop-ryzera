@@ -1,0 +1,26 @@
+@if (steps().length === 0) {
+  <p class="muted">No status updates yet.</p>
+} @else {
+  <ol class="timeline" aria-label="Status history">
+    @for (step of steps(); track $index) {
+      <li class="timeline__step" [class.timeline__step--current]="step.current">
+        <span class="timeline__marker" aria-hidden="true"></span>
+        <div class="timeline__body">
+          <p class="timeline__title">
+            {{ step.label }}
+            @if (step.current) {
+              <span class="timeline__current">Current status</span>
+            }
+          </p>
+          <p class="small muted">
+            <time [attr.datetime]="step.occurredAt">{{ step.occurredAt | date: 'medium' }}</time>
+            ({{ step.occurredAt | relativeTime }})
+          </p>
+          @if (step.note) {
+            <p class="small">{{ step.note }}</p>
+          }
+        </div>
+      </li>
+    }
+  </ol>
+}
