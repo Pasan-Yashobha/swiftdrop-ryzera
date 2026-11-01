@@ -1,0 +1,61 @@
+<div class="page page--narrow">
+  <div>
+    <h1>Create a merchant account</h1>
+    <p class="page__lead">
+      Sign up, then tell us about your business. We review every application before you can send
+      parcels.
+    </p>
+  </div>
+
+  <app-error-alert [error]="error()" />
+
+  <form class="card stack" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <app-form-field label="Full name" [control]="form.controls.fullName">
+      <input appFieldControl formControlName="fullName" autocomplete="name" />
+    </app-form-field>
+
+    <app-form-field label="Email" [control]="form.controls.email">
+      <input appFieldControl type="email" formControlName="email" autocomplete="email" />
+    </app-form-field>
+
+    <app-form-field
+      label="Phone"
+      hint="Include the country code, for example +94771234567"
+      [control]="form.controls.phone"
+    >
+      <input appFieldControl type="tel" formControlName="phone" autocomplete="tel" />
+    </app-form-field>
+
+    <app-password-field
+      label="Password"
+      autocomplete="new-password"
+      [control]="form.controls.password"
+    />
+
+    <div>
+      <p class="small" id="password-rules-title">Your password needs:</p>
+      <ul class="rules" aria-labelledby="password-rules-title">
+        @for (rule of rules(); track rule.label) {
+          <li [class.rules__met]="rule.met">
+            <span aria-hidden="true">{{ rule.met ? '✓' : '○' }}</span>
+            {{ rule.label
+            }}<span class="visually-hidden">{{ rule.met ? ' (done)' : ' (not yet)' }}</span>
+          </li>
+        }
+      </ul>
+    </div>
+
+    <app-password-field
+      label="Confirm password"
+      autocomplete="new-password"
+      [control]="form.controls.confirmPassword"
+      [messages]="confirmMessages"
+    />
+
+    <button type="submit" class="btn btn-primary" [disabled]="busy()">
+      {{ busy() ? 'Creating account...' : 'Create account' }}
+    </button>
+  </form>
+
+  <p class="muted">Already have an account? <a routerLink="/login">Sign in</a></p>
+</div>

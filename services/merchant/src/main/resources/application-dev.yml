@@ -1,0 +1,32 @@
+# Local development defaults (profile "dev"). Never use these values outside a developer machine.
+# Matches the Postgres and RabbitMQ containers started by the root docker-compose.yml.
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/merchant_db}
+    username: ${SPRING_DATASOURCE_USERNAME:merchant_svc}
+    password: ${SPRING_DATASOURCE_PASSWORD:dev_service_pw}
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:swiftdrop}
+    password: ${SPRING_RABBITMQ_PASSWORD:dev_rabbit_pw}
+
+management:
+  endpoint:
+    health:
+      show-details: always
+
+swiftdrop:
+  security:
+    # No Identity service in local runs: tokens come from POST /api/v1/dev/tokens (HS256).
+    dev-hmac-secret: ${DEV_JWT_HMAC_SECRET:dev-only-hmac-secret-change-me-0123456789}
+    internal-token: ${INTERNAL_API_TOKEN:dev-internal-token}
+    merchant-token-secret: ${MERCHANT_TOKEN_SECRET:dev-only-merchant-token-secret-0123456789}
+  parcel:
+    base-url: ${PARCEL_SERVICE_URL:http://localhost:8084}
+  webhook:
+    # base64 of a 32-byte dev-only key
+    encryption-key: ${WEBHOOK_ENCRYPTION_KEY:ZGV2LW9ubHktd2ViaG9vay1rZXktMDEyMzQ1Njc4ISE=}
+    delivery-log-url: ${WEBHOOK_SERVICE_URL:http://localhost:8089}
+    allow-private-hosts: ${WEBHOOK_ALLOW_PRIVATE_HOSTS:true}

@@ -1,0 +1,70 @@
+<div class="page page--medium">
+  <h1>Application status</h1>
+
+  @if (store.error(); as error) {
+    <app-error-alert [error]="error" [retryable]="true" (retry)="refresh()" />
+  } @else if (store.merchant(); as merchant) {
+    <section class="card stack" aria-labelledby="status-heading">
+      <div class="cluster">
+        <h2 id="status-heading">{{ merchant.businessName }}</h2>
+        <app-status-badge [status]="merchant.status" />
+      </div>
+
+      @switch (merchant.status) {
+        @case ('PENDING') {
+          <p>
+            Your application is waiting for review. You can look around your profile in the
+            meantime, but orders and API keys unlock once a SwiftDrop administrator approves it.
+          </p>
+          <p class="muted small">Last updated {{ merchant.updatedAt | relativeTime }}</p>
+        }
+        @case ('REJECTED') {
+          <div class="alert alert--danger stack">
+            <p><strong>Your application was not approved.</strong></p>
+            @if (merchant.decisionReason) {
+              <p>Reason: {{ merchant.decisionReason }}</p>
+            }
+            @if (merchant.decidedAt) {
+              <p class="small">Decided on {{ merchant.decidedAt | date: 'mediumDate' }}</p>
+            }
+          </div>
+          <p>Correct your details below and resubmit. We will review them again.</p>
+        }
+        @case ('SUSPENDED') {
+          <div class="alert alert--warning stack">
+            <p>
+              <strong>Your account is suspended.</strong> New orders and API requests are blocked
+              until it is reinstated.
+            </p>
+            @if (merchant.decisionReason) {
+              <p>Reason: {{ merchant.decisionReason }}</p>
+            }
+            <p class="small">Contact SwiftDrop support if you think this is a mistake.</p>
+          </div>
+        }
+      }
+
+      @if (merchant.status !== 'REJECTED') {
+        <div>
+          <button type="button" class="btn" [disabled]="refreshing()" (click)="refresh()">
+            {{ refreshing() ? 'Checking...' : 'Check status' }}
+          </button>
+        </div>
+      }
+    </section>
+
+    @if (merchant.status === 'REJECTED') {
+      <section class="card" aria-label="Edit and resubmit">
+        <app-merchant-form
+          submitLabel="Save and resubmit"
+          [merchant]="merchant"
+          [busy]="saving()"
+          [submitError]="saveError()"
+          (submitted)="resubmit($event)"
+        />
+      </section>
+    }
+  } @else {
+    <app-skeleton label="Loading your application" [lines]="4" />
+  }
+</div>

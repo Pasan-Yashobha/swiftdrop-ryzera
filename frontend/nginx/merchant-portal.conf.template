@@ -1,0 +1,70 @@
+# Merchant portal: serves the Angular build and proxies /api/ to the merchant service (or the gateway).
+#
+# The official nginx image runs envsubst over /etc/nginx/templates/*.template at start-up and writes the
+# result to /etc/nginx/conf.d/. NGINX_ENVSUBST_FILTER (set in the Dockerfile) limits substitution to the two
+# variables below, so nginx's own $variables are left alone.
+#   API_UPSTREAM  base URL of the API, without a path, e.g. http://merchant:8080
+#   DNS_RESOLVER  DNS server nginx uses to look the upstream up at request time (Docker's is 127.0.0.11)
+
+server {
+    listen 8080;
+    server_name _;
+    server_tokens off;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Uploads are CSV files of at most 1 MiB; leave room for the multipart envelope.
+    client_max_body_size 2m;
+
+    gzip on;
+    gzip_comp_level 5;
+    gzip_min_length 1024;
+    gzip_vary on;
+    gzip_types text/plain text/css text/csv application/javascript application/json image/svg+xml;
+
+    # Security headers. Set at server level only: an add_header inside a location would drop these.
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    # The API. The upstream is resolved per request (not once at start-up) so the portal can start before it.
+    location ^~ /api/ {
+        resolver ${DNS_RESOLVER} valid=10s ipv6=off;
+        set $api_upstream "${API_UPSTREAM}";
+        proxy_pass $api_upstream;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 30s;
+    }
+
+    # Build output with a content hash in its name never changes: cache it for a year.
+    location ~* "^/.+-[A-Za-z0-9]{8,}\.(js|css|woff2?)$" {
+        expires 1y;
+        try_files $uri =404;
+    }
+
+    # The shell must always be revalidated so a new release is picked up.
+    location = /index.html {
+        expires -1;
+    }
+
+    # Single-page app: unknown paths are client-side routes.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

@@ -1,0 +1,49 @@
+<header class="header">
+  <div class="container header__bar">
+    <a class="header__brand" routerLink="/"
+      >SwiftDrop <span class="header__brand-sub">Merchant</span></a
+    >
+
+    @if (auth.user(); as user) {
+      <p class="header__chip" aria-label="Signed in account">
+        <span class="header__role">{{ user.role === 'MERCHANT' ? 'Merchant' : user.role }}</span>
+        @if (store.status(); as status) {
+          <app-status-badge [status]="status" />
+        }
+      </p>
+    }
+
+    <button
+      type="button"
+      class="header__toggle btn btn-ghost btn-sm"
+      aria-controls="primary-nav"
+      [attr.aria-expanded]="menuOpen()"
+      (click)="toggleMenu()"
+    >
+      Menu
+    </button>
+
+    <nav
+      id="primary-nav"
+      class="header__nav"
+      [class.header__nav--open]="menuOpen()"
+      aria-label="Primary"
+    >
+      <ul class="header__links">
+        @for (link of links(); track link.path) {
+          <li>
+            <a
+              [routerLink]="link.path"
+              routerLinkActive="header__link--active"
+              class="header__link"
+              >{{ link.label }}</a
+            >
+          </li>
+        }
+      </ul>
+      @if (auth.isAuthenticated()) {
+        <button type="button" class="btn btn-ghost btn-sm" (click)="logout()">Sign out</button>
+      }
+    </nav>
+  </div>
+</header>
