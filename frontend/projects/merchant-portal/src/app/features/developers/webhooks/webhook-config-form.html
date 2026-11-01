@@ -1,0 +1,60 @@
+<form class="stack" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+  <app-developer-error [error]="submitError()" />
+
+  <app-form-field
+    label="Endpoint URL"
+    hint="A public address that starts with https://. SwiftDrop sends each event to it as a JSON POST."
+    [control]="form.controls.url"
+    [messages]="{
+      required: 'Enter the URL that should receive events.',
+      httpsUrl: 'Enter a full https:// address without a username or password.',
+      maxlength: 'The URL can be at most 500 characters.',
+    }"
+  >
+    <input
+      appFieldControl
+      type="url"
+      formControlName="url"
+      autocomplete="off"
+      placeholder="https://shop.example.com/hooks/swiftdrop"
+    />
+  </app-form-field>
+
+  <label class="checkbox">
+    <input type="checkbox" formControlName="active" />
+    <span>Active: deliver events to this URL. Turn off to pause deliveries.</span>
+  </label>
+
+  <fieldset>
+    <legend>Events</legend>
+    <label class="checkbox">
+      <input type="checkbox" formControlName="allEvents" />
+      <span>All events, including any that SwiftDrop adds later</span>
+    </label>
+    <div class="events" role="group" aria-label="Specific events">
+      @for (type of eventTypes; track type) {
+        <label class="checkbox">
+          <input
+            #box
+            type="checkbox"
+            [checked]="isEventSelected(type)"
+            [disabled]="allEvents()"
+            (change)="toggleEvent(type, box.checked)"
+          />
+          <code>{{ type }}</code>
+        </label>
+      }
+    </div>
+    @if (form.touched && form.hasError('noEvents')) {
+      <p class="events-error small" role="alert">
+        Select at least one event, or choose all events.
+      </p>
+    }
+  </fieldset>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary" [disabled]="busy()">
+      {{ busy() ? 'Saving...' : config() ? 'Save changes' : 'Save and create signing secret' }}
+    </button>
+  </div>
+</form>

@@ -3,7 +3,6 @@ import { PageResponse } from './page.model';
 /** Event types a merchant can subscribe to; `*` (ALL_WEBHOOK_EVENTS) means all of them. */
 export const WEBHOOK_EVENT_TYPES = [
   'parcel.created',
-  'parcel.assigned',
   'parcel.status.picked_up',
   'parcel.status.in_transit',
   'parcel.status.out_for_delivery',
