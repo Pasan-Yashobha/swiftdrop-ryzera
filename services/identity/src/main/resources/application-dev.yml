@@ -1,0 +1,16 @@
+# Local development defaults (profile "dev").
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/identity_db}
+    username: ${SPRING_DATASOURCE_USERNAME:identity_svc}
+    password: ${SPRING_DATASOURCE_PASSWORD:dev_service_pw}
+
+management:
+  endpoint:
+    health:
+      show-details: always
+
+swiftdrop:
+  security:
+    internal-token: ${INTERNAL_API_TOKEN:dev-internal-token}
+    bcrypt-cost: 10
