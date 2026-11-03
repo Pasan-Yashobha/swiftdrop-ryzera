@@ -1,33 +1,24 @@
 package lk.swiftdrop.identity.config;
 
-import java.util.Collection;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 import lk.swiftdrop.identity.common.CorrelationIdFilter;
 import lk.swiftdrop.identity.domain.Role;
 import lk.swiftdrop.identity.security.InternalTokenFilter;
+import lk.swiftdrop.identity.security.JwtRoleConverter;
 import lk.swiftdrop.identity.security.RestAccessDeniedHandler;
 import lk.swiftdrop.identity.security.RestAuthenticationEntryPoint;
 import lk.swiftdrop.identity.security.RsaKeyProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
-import org.springframework.core.convert.converter.Converter;
 import org.springframework.http.HttpHeaders;
-import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -78,7 +69,7 @@ public class SecurityConfig {
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt
                                 .decoder(jwtDecoder)
-                                .jwtAuthenticationConverter(jwtRoleConverter()))
+                                .jwtAuthenticationConverter(new JwtRoleConverter()))
                         .authenticationEntryPoint(entryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
                 .exceptionHandling(handling -> handling
@@ -90,24 +81,6 @@ public class SecurityConfig {
     @Bean
     public JwtDecoder jwtDecoder(RsaKeyProvider keyProvider) {
         return NimbusJwtDecoder.withPublicKey(keyProvider.getPublicKey()).build();
-    }
-
-    @Bean
-    public Converter<Jwt, ? extends AbstractAuthenticationToken> jwtRoleConverter() {
-        return jwt -> {
-            Set<GrantedAuthority> authorities = new LinkedHashSet<>();
-            String singleRole = jwt.getClaimAsString("role");
-            if (singleRole != null) {
-                Role.parse(singleRole).ifPresent(r -> authorities.add(new SimpleGrantedAuthority(r.authority())));
-            }
-            List<String> roles = jwt.getClaimAsStringList("roles");
-            if (roles != null) {
-                for (String r : roles) {
-                    Role.parse(r).ifPresent(role -> authorities.add(new SimpleGrantedAuthority(role.authority())));
-                }
-            }
-            return new JwtAuthenticationToken(jwt, authorities, jwt.getSubject());
-        };
     }
 
     @Bean

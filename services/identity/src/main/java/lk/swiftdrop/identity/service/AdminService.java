@@ -67,7 +67,7 @@ public class AdminService {
         }
 
         user.changeRole(newRole, now);
-        user = userRepository.save(user);
+        user = userRepository.saveAndFlush(user);
 
         // Role change revokes user's active sessions so new tokens reflect the new role
         refreshTokenRepository.revokeAllForUser(targetUserId, now);

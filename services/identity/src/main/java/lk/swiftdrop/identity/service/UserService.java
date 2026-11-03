@@ -46,7 +46,7 @@ public class UserService {
         User user = findActiveUser(userId);
         Instant now = clock.instant();
         user.updateProfile(request.fullName(), request.phone(), request.avatarUrl(), now);
-        user = userRepository.save(user);
+        user = userRepository.saveAndFlush(user);
         return UserResponse.from(user);
     }
 
@@ -65,7 +65,7 @@ public class UserService {
 
         String newHash = passwordService.hash(request.newPassword());
         user.updatePassword(newHash, now);
-        userRepository.save(user);
+        userRepository.saveAndFlush(user);
 
         // Revoke all competing sessions except the current one
         if (currentFamilyId != null) {

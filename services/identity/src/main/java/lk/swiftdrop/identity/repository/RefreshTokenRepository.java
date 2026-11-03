@@ -18,15 +18,15 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
 
     List<RefreshToken> findAllByFamilyId(UUID familyId);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE RefreshToken r SET r.revoked = true, r.revokedAt = :revokedAt WHERE r.familyId = :familyId AND r.revoked = false")
     int revokeFamily(@Param("familyId") UUID familyId, @Param("revokedAt") Instant revokedAt);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE RefreshToken r SET r.revoked = true, r.revokedAt = :revokedAt WHERE r.userId = :userId AND r.revoked = false")
     int revokeAllForUser(@Param("userId") UUID userId, @Param("revokedAt") Instant revokedAt);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE RefreshToken r SET r.revoked = true, r.revokedAt = :revokedAt WHERE r.userId = :userId AND r.familyId <> :currentFamilyId AND r.revoked = false")
     int revokeCompetingFamilies(@Param("userId") UUID userId, @Param("currentFamilyId") UUID currentFamilyId, @Param("revokedAt") Instant revokedAt);
 }

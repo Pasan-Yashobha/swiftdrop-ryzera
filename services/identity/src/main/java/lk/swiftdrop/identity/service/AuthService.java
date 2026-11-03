@@ -31,7 +31,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@Transactional
+@Transactional(noRollbackFor = {UnauthorizedException.class, TooManyRequestsException.class})
 public class AuthService {
 
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
