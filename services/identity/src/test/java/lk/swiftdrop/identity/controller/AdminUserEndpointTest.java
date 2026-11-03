@@ -104,7 +104,7 @@ class AdminUserEndpointTest extends AbstractIntegrationTest {
 
     @Test
     void adminCanUnlockUser() throws Exception {
-        customer.recordFailedAttempt(5, 15, Instant.now());
+        customer.recordFailedAttempt(1, 15, Instant.now());
         userRepository.save(customer);
         assertThat(customer.isLocked()).isTrue();
 
