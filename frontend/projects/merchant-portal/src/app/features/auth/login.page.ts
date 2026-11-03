@@ -36,6 +36,7 @@ const NOT_A_MERCHANT = new AppError(
   imports: [ReactiveFormsModule, RouterLink, FormField, FieldControl, PasswordField, ErrorAlert],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './login.page.html',
+  styleUrl: './auth.css',
 })
 export class LoginPage {
   /** Query parameters, bound by the router (withComponentInputBinding). */

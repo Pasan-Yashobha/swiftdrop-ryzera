@@ -36,20 +36,7 @@ const EMAIL_TAKEN = new AppError(
   imports: [ReactiveFormsModule, RouterLink, FormField, FieldControl, PasswordField, ErrorAlert],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './signup.page.html',
-  styles: `
-    .rules {
-      display: grid;
-      gap: var(--space-1);
-      margin: var(--space-1) 0 0;
-      padding: 0;
-      list-style: none;
-      color: var(--color-text-muted);
-      font-size: var(--text-sm);
-    }
-    .rules__met {
-      color: var(--tone-success-fg);
-    }
-  `,
+  styleUrl: './auth.css',
 })
 export class SignupPage {
   protected readonly form = new FormGroup({
