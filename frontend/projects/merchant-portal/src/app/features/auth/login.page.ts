@@ -1,4 +1,4 @@
-import {
+﻿import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
@@ -39,10 +39,10 @@ export class LoginPage {
   /** Query parameters, bound by the router (withComponentInputBinding). */
   readonly returnUrl = input<string>();
   readonly reason = input<string>();
-  readonly errorParam = input<string>(undefined, { alias: 'error' });
+  readonly error = input<string>();
 
   readonly oauthErrorMessage = computed(() => {
-    const err = this.errorParam();
+    const err = this.error();
     if (err === 'oauth_denied') return 'Sign in with Google was cancelled or denied.';
     if (err === 'csrf_detected') return 'Security verification failed. Please try signing in again.';
     if (err === 'unverified_google_email') return 'Your Google email address has not been verified.';
@@ -58,7 +58,7 @@ export class LoginPage {
   });
 
   protected readonly busy = signal(false);
-  protected readonly error = signal<AppError | null>(null);
+  protected readonly formError = signal<AppError | null>(null);
 
   private readonly router = inject(Router);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -79,13 +79,13 @@ export class LoginPage {
 
   private signIn(request: Observable<AuthUser>): void {
     this.busy.set(true);
-    this.error.set(null);
+    this.formError.set(null);
     request.subscribe({
       next: (user) => this.onSignedIn(user),
       error: (error: unknown) => {
         this.busy.set(false);
         const appError = toAppError(error);
-        this.error.set(appError.status === 401 ? INVALID_CREDENTIALS : appError);
+        this.formError.set(appError.status === 401 ? INVALID_CREDENTIALS : appError);
       },
     });
   }
@@ -100,3 +100,5 @@ export class LoginPage {
     }
   }
 }
+
+

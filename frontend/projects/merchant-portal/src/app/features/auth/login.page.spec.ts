@@ -1,4 +1,4 @@
-import { provideHttpClient, withInterceptors } from '@angular/common/http';
+﻿import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
@@ -6,7 +6,7 @@ import { authInterceptor } from '../../core/auth/auth.interceptor';
 import { AuthService } from '../../core/auth/auth.service';
 import { APP_CONFIG } from '../../core/config/app-config';
 import { errorInterceptor } from '../../core/http/error.interceptor';
-import { buttonByText, element, inputByLabel, query, type } from '../../core/testing/dom';
+import { buttonByText, element, inputByLabel, type } from '../../core/testing/dom';
 import { aSession } from '../../core/testing/test-data';
 import { LoginPage } from './login.page';
 
@@ -40,7 +40,7 @@ describe('LoginPage', () => {
       fixture.componentRef.setInput('reason', options.reason);
     }
     if (options.error) {
-      fixture.componentRef.setInput('errorParam', options.error);
+      fixture.componentRef.setInput('error', options.error);
     }
     fixture.detectChanges();
     return fixture;
@@ -182,3 +182,4 @@ describe('LoginPage', () => {
     expect(element(fixture).textContent).toContain('Security verification failed');
   });
 });
+

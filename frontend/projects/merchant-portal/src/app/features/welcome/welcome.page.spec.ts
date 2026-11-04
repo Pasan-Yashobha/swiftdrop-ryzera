@@ -1,4 +1,4 @@
-import { provideHttpClient } from '@angular/common/http';
+﻿import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
@@ -27,7 +27,7 @@ describe('WelcomePage', () => {
   });
 
   function createWithUser(role: 'CUSTOMER' | 'COURIER' | 'ADMIN' | 'MERCHANT') {
-    (auth as any).session.set(
+    (auth as unknown as { session: { set(v: unknown): void } }).session.set(
       aSession({
         user: {
           id: 'user-123',
@@ -55,7 +55,7 @@ describe('WelcomePage', () => {
     const f = createWithUser('CUSTOMER');
     const component = f.componentInstance;
 
-    (component as any).trackPackage('SWD-TEST-99');
+    (component as unknown as { trackPackage(c: string): void }).trackPackage('SWD-TEST-99');
     f.detectChanges();
 
     expect(f.nativeElement.textContent).toContain('SWD-TEST-99');
@@ -70,7 +70,7 @@ describe('WelcomePage', () => {
     expect(el.textContent).toContain('Courier Dispatch & Route Hub');
     expect(el.textContent).toContain('On Duty');
 
-    (component as any).toggleCourierDuty();
+    (component as unknown as { toggleCourierDuty(): void }).toggleCourierDuty();
     f.detectChanges();
 
     expect(el.textContent).toContain('On Break');
@@ -89,10 +89,11 @@ describe('WelcomePage', () => {
     const f = createWithUser('CUSTOMER');
     const spy = spyOn(auth, 'logout').and.callThrough();
 
-    (f.componentInstance as any).signOut();
+    (f.componentInstance as unknown as { signOut(): void }).signOut();
 
     expect(spy).toHaveBeenCalled();
     expect(router.navigateByUrl).toHaveBeenCalledWith('/login');
   });
 });
+
 

@@ -1,4 +1,4 @@
-<div class="auth-shell">
+﻿<div class="auth-shell">
 
   <div class="auth-box">
 
@@ -45,7 +45,7 @@
       </div>
     }
 
-    <app-error-alert [error]="error()" />
+    <app-error-alert [error]="formError()" />
 
     <form class="auth-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
 
@@ -59,7 +59,7 @@
       <button type="submit" class="btn btn-primary auth-submit-btn" [disabled]="busy()">
         @if (busy()) {
           <span class="auth-spinner" aria-hidden="true"></span>
-          Signing in…
+          Signing inâ€¦
         } @else {
           Sign in
         }
@@ -86,3 +86,4 @@
   </div>
 
 </div>
+

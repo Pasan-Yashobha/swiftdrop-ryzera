@@ -1,4 +1,4 @@
-<div class="auth-shell">
+﻿<div class="auth-shell">
   <div class="auth-box auth-box--wide">
 
     <!-- Brand -->
@@ -35,7 +35,7 @@
       </app-form-field>
 
       <div class="role-selector stack">
-        <label class="role-selector__label">Account type <span aria-hidden="true">*</span></label>
+        <span class="role-selector__label" aria-hidden="true">Account type <span>*</span></span>
         <div class="role-pills" role="radiogroup" aria-label="Account type">
           @for (r of availableRoles; track r.value) {
             <label class="role-pill" [class.role-pill--selected]="form.controls.role.value === r.value">
@@ -64,7 +64,7 @@
         <ul class="rules" aria-labelledby="password-rules-title">
           @for (rule of rules(); track rule.label) {
             <li [class.rules__met]="rule.met">
-              <span aria-hidden="true">{{ rule.met ? '✓' : '○' }}</span>
+              <span aria-hidden="true">{{ rule.met ? 'âœ“' : 'â—‹' }}</span>
               {{ rule.label }}<span class="visually-hidden">{{ rule.met ? ' (done)' : ' (not yet)' }}</span>
             </li>
           }
@@ -81,7 +81,7 @@
       <button type="submit" class="btn btn-primary auth-submit-btn" [disabled]="busy()">
         @if (busy()) {
           <span class="auth-spinner" aria-hidden="true"></span>
-          Creating account…
+          Creating accountâ€¦
         } @else {
           Create account
         }
@@ -105,3 +105,4 @@
 
   </div>
 </div>
+
