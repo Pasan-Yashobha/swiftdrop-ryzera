@@ -70,6 +70,7 @@ describe('LoginPage', () => {
     const fixture = create();
 
     buttonByText(fixture, 'Sign in').click();
+    fixture.detectChanges();
 
     expect(http.match('/api/v1/auth/login')).toEqual([]);
     expect(element(fixture).textContent).toContain('Email is required.');
