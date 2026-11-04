@@ -16,10 +16,6 @@ public record AppProperties(
         @Valid @NotNull @DefaultValue Security security,
         @Valid @NotNull @DefaultValue GoogleOAuth google) {
 
-    public AppProperties(Security security) {
-        this(security, new GoogleOAuth("", "", "http://localhost:8080/api/v1/auth/google/callback", "http://localhost:4200"));
-    }
-
     public record Security(
             @DefaultValue("swiftdrop-identity") String jwtIssuer,
             @DefaultValue("") String jwtPrivateKeyPem,

@@ -59,17 +59,18 @@ public class OAuthController {
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, stateCookie.toString());
 
-        String googleConsentUrl = UriComponentsBuilder.fromUriString(GOOGLE_AUTH_URL)
+        URI googleConsentUri = UriComponentsBuilder.fromUriString(GOOGLE_AUTH_URL)
                 .queryParam("client_id", properties.google().clientId())
                 .queryParam("redirect_uri", properties.google().redirectUri())
                 .queryParam("response_type", "code")
                 .queryParam("scope", "openid email profile")
                 .queryParam("state", state)
                 .build()
-                .toUriString();
+                .encode()
+                .toUri();
 
         return ResponseEntity.status(HttpStatus.FOUND)
-                .location(URI.create(googleConsentUrl))
+                .location(googleConsentUri)
                 .build();
     }
 

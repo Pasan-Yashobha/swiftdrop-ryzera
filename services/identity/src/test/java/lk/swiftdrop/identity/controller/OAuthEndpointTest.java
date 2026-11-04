@@ -4,6 +4,7 @@ import jakarta.servlet.http.Cookie;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
+import java.util.function.Function;
 import lk.swiftdrop.identity.domain.RefreshToken;
 import lk.swiftdrop.identity.domain.Role;
 import lk.swiftdrop.identity.domain.User;
@@ -12,20 +13,47 @@ import lk.swiftdrop.identity.repository.RefreshTokenRepository;
 import lk.swiftdrop.identity.repository.UserRepository;
 import lk.swiftdrop.identity.security.GoogleOAuthClient;
 import lk.swiftdrop.identity.security.PasswordService;
+import lk.swiftdrop.identity.service.AuthService;
 import lk.swiftdrop.identity.testsupport.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@Import(OAuthEndpointTest.TestOAuthClientConfig.class)
 class OAuthEndpointTest extends AbstractIntegrationTest {
+
+    @TestConfiguration
+    public static class TestOAuthClientConfig {
+        @Bean
+        @Primary
+        public TestOAuthClient testGoogleOAuthClient() {
+            return new TestOAuthClient();
+        }
+    }
+
+    public static class TestOAuthClient implements GoogleOAuthClient {
+        private Function<String, GoogleUserInfo> handler = code -> {
+            throw new RuntimeException("Default exchange failure");
+        };
+
+        public void setHandler(Function<String, GoogleUserInfo> handler) {
+            this.handler = handler;
+        }
+
+        @Override
+        public GoogleUserInfo exchangeCode(String code) {
+            return handler.apply(code);
+        }
+    }
 
     @Autowired
     private UserRepository userRepository;
@@ -39,8 +67,8 @@ class OAuthEndpointTest extends AbstractIntegrationTest {
     @Autowired
     private PasswordService passwordService;
 
-    @MockBean
-    private GoogleOAuthClient googleOAuthClient;
+    @Autowired
+    private TestOAuthClient googleOAuthClient;
 
     @Test
     void initiateGoogleLoginSetsStateCookieAndRedirectsToGoogle() throws Exception {
@@ -95,8 +123,7 @@ class OAuthEndpointTest extends AbstractIntegrationTest {
     @Test
     void callbackWithUnverifiedGoogleEmailRedirectsToLoginWithUnverifiedError() throws Exception {
         String state = "test-nonce-123";
-        when(googleOAuthClient.exchangeCode("unverified-code"))
-                .thenReturn(new GoogleUserInfo("g-123", "unverified@example.com", "Test Name", null, false));
+        googleOAuthClient.setHandler(code -> new GoogleUserInfo("g-123", "unverified@example.com", "Test Name", null, false));
 
         mockMvc.perform(get("/api/v1/auth/google/callback")
                         .param("code", "unverified-code")
@@ -109,8 +136,9 @@ class OAuthEndpointTest extends AbstractIntegrationTest {
     @Test
     void callbackWithExchangeFailureRedirectsToLoginWithOAuthFailed() throws Exception {
         String state = "test-nonce-fail";
-        when(googleOAuthClient.exchangeCode(anyString()))
-                .thenThrow(new RuntimeException("Google token endpoint unavailable"));
+        googleOAuthClient.setHandler(code -> {
+            throw new RuntimeException("Google token endpoint unavailable");
+        });
 
         mockMvc.perform(get("/api/v1/auth/google/callback")
                         .param("code", "bad-code")
@@ -123,8 +151,7 @@ class OAuthEndpointTest extends AbstractIntegrationTest {
     @Test
     void callbackProvisionsNewUserAndRedirectsToDashboard() throws Exception {
         String state = "test-nonce-new-user";
-        when(googleOAuthClient.exchangeCode("new-code"))
-                .thenReturn(new GoogleUserInfo("google-sub-456", "fresh@example.com", "Fresh User", "https://avatar.example/p.png", true));
+        googleOAuthClient.setHandler(code -> new GoogleUserInfo("google-sub-456", "fresh@example.com", "Fresh User", "https://avatar.example/p.png", true));
 
         mockMvc.perform(get("/api/v1/auth/google/callback")
                         .param("code", "new-code")
@@ -155,8 +182,7 @@ class OAuthEndpointTest extends AbstractIntegrationTest {
         refreshTokenRepository.saveAndFlush(oldSession);
 
         String state = "test-nonce-hijack";
-        when(googleOAuthClient.exchangeCode("hijack-code"))
-                .thenReturn(new GoogleUserInfo("legit-google-sub-789", "victim@example.com", "Victim Account", "https://google.example/photo.png", true));
+        googleOAuthClient.setHandler(code -> new GoogleUserInfo("legit-google-sub-789", "victim@example.com", "Victim Account", "https://google.example/photo.png", true));
 
         mockMvc.perform(get("/api/v1/auth/google/callback")
                         .param("code", "hijack-code")
@@ -181,8 +207,7 @@ class OAuthEndpointTest extends AbstractIntegrationTest {
         existing = userRepository.saveAndFlush(existing);
 
         String state = "test-nonce-existing";
-        when(googleOAuthClient.exchangeCode("existing-code"))
-                .thenReturn(new GoogleUserInfo("existing-google-sub", "existing@example.com", "Existing User", "https://new-avatar.png", true));
+        googleOAuthClient.setHandler(code -> new GoogleUserInfo("existing-google-sub", "existing@example.com", "Existing User", "https://new-avatar.png", true));
 
         mockMvc.perform(get("/api/v1/auth/google/callback")
                         .param("code", "existing-code")

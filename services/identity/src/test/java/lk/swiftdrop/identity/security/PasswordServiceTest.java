@@ -16,7 +16,8 @@ class PasswordServiceTest {
         AppProperties.Security sec = new AppProperties.Security(
                 "test-issuer", "", "", 900, 7, 30, "test-token", List.of(), 5, 15, 4
         );
-        AppProperties props = new AppProperties(sec);
+        AppProperties.GoogleOAuth google = new AppProperties.GoogleOAuth("", "", "", "");
+        AppProperties props = new AppProperties(sec, google);
         this.passwordService = new PasswordService(props);
     }
 

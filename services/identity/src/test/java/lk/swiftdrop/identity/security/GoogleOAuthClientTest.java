@@ -1,10 +1,9 @@
 package lk.swiftdrop.identity.security;
 
-import lk.swiftdrop.identity.common.BadRequestException;
+import lk.swiftdrop.identity.common.UnauthorizedException;
 import lk.swiftdrop.identity.config.AppProperties;
 import lk.swiftdrop.identity.dto.GoogleUserInfo;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.client.RestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -30,11 +29,10 @@ class GoogleOAuthClientTest {
         AppProperties.GoogleOAuth google = new AppProperties.GoogleOAuth("dummy-id", "dummy-secret", "http://callback", "http://fe");
         AppProperties props = new AppProperties(sec, google);
 
-        DefaultGoogleOAuthClient client = new DefaultGoogleOAuthClient(props, RestClient.builder());
+        DefaultGoogleOAuthClient client = new DefaultGoogleOAuthClient(props);
 
         assertThatThrownBy(() -> client.exchangeCode("invalid-dummy-code"))
-                .isInstanceOf(BadRequestException.class)
+                .isInstanceOf(UnauthorizedException.class)
                 .hasMessageContaining("Google authorization code exchange failed");
     }
 }
-
