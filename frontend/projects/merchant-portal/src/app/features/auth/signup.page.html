@@ -1,53 +1,57 @@
-<div class="page page--narrow">
-  <header class="auth-header">
-    <div class="auth-header__brand">
-      <span class="auth-header__icon" aria-hidden="true">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+<div class="auth-shell">
+  <div class="auth-box auth-box--wide">
+
+    <!-- Brand -->
+    <div class="auth-brand">
+      <span class="auth-brand__icon" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
           <path d="M12 2 L20 8 L16 8 L22 14 L14 14 L18 20 L6 12 L10 12 L4 6 Z" fill="currentColor"/>
         </svg>
       </span>
-      <span style="font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em;">Swift<span style="color: var(--color-primary);">Drop</span></span>
-    </div>
-    <h1 class="auth-header__title">Create a merchant account</h1>
-    <p class="page__lead auth-header__lead">
-      Sign up, then tell us about your business. We review every application before you can send parcels.
-    </p>
-  </header>
-
-  <app-error-alert [error]="error()" />
-
-  <div class="card auth-card stack">
-    <!-- Google OAuth option -->
-    <a class="btn-google" href="/api/v1/auth/google" aria-label="Sign up with Google">
-      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-        <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z"/>
-        <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z"/>
-        <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z"/>
-        <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58Z"/>
-      </svg>
-      <span>Sign up with Google</span>
-    </a>
-
-    <div class="auth-divider">
-      <span>or sign up with email</span>
+      <span class="auth-brand__name">Swift<em>Drop</em></span>
     </div>
 
-    <form class="stack" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <h1 class="auth-title">Create an account</h1>
+    <p class="auth-lead">Join SwiftDrop to send parcels, manage deliveries, or grow your business.</p>
+
+    <app-error-alert [error]="error()" />
+
+    <form class="auth-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+
       <app-form-field label="Full name" [control]="form.controls.fullName">
-        <input appFieldControl formControlName="fullName" autocomplete="name" />
+        <input appFieldControl formControlName="fullName" autocomplete="name" placeholder="e.g. John Silva" />
       </app-form-field>
 
       <app-form-field label="Email" [control]="form.controls.email">
-        <input appFieldControl type="email" formControlName="email" autocomplete="email" />
+        <input appFieldControl type="email" formControlName="email" autocomplete="email" placeholder="you@company.com" />
       </app-form-field>
 
       <app-form-field
         label="Phone"
-        hint="Include the country code, for example +94771234567"
+        hint="Include the country code, e.g. +94771234567"
         [control]="form.controls.phone"
       >
-        <input appFieldControl type="tel" formControlName="phone" autocomplete="tel" />
+        <input appFieldControl type="tel" formControlName="phone" autocomplete="tel" placeholder="+94771234567" />
       </app-form-field>
+
+      <div class="role-selector stack">
+        <label class="role-selector__label">Account type <span aria-hidden="true">*</span></label>
+        <div class="role-pills" role="radiogroup" aria-label="Account type">
+          @for (r of availableRoles; track r.value) {
+            <label class="role-pill" [class.role-pill--selected]="form.controls.role.value === r.value">
+              <input
+                type="radio"
+                name="role"
+                [value]="r.value"
+                [formControl]="form.controls.role"
+                class="visually-hidden"
+              />
+              <span class="role-pill__title">{{ r.label }}</span>
+              <span class="role-pill__desc muted small">{{ r.description }}</span>
+            </label>
+          }
+        </div>
+      </div>
 
       <app-password-field
         label="Password"
@@ -61,8 +65,7 @@
           @for (rule of rules(); track rule.label) {
             <li [class.rules__met]="rule.met">
               <span aria-hidden="true">{{ rule.met ? '✓' : '○' }}</span>
-              {{ rule.label
-              }}<span class="visually-hidden">{{ rule.met ? ' (done)' : ' (not yet)' }}</span>
+              {{ rule.label }}<span class="visually-hidden">{{ rule.met ? ' (done)' : ' (not yet)' }}</span>
             </li>
           }
         </ul>
@@ -75,11 +78,30 @@
         [messages]="confirmMessages"
       />
 
-      <button type="submit" class="btn btn-primary" [disabled]="busy()">
-        {{ busy() ? 'Creating account...' : 'Create account' }}
+      <button type="submit" class="btn btn-primary auth-submit-btn" [disabled]="busy()">
+        @if (busy()) {
+          <span class="auth-spinner" aria-hidden="true"></span>
+          Creating account…
+        } @else {
+          Create account
+        }
       </button>
-    </form>
-  </div>
 
-  <p class="muted auth-footer">Already have an account? <a routerLink="/login">Sign in</a></p>
+    </form>
+
+    <div class="auth-divider"><span>or sign up with</span></div>
+
+    <a class="btn-google" href="/api/v1/auth/google" aria-label="Sign up with Google">
+      <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden="true">
+        <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z"/>
+        <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z"/>
+        <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z"/>
+        <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58Z"/>
+      </svg>
+      Continue with Google
+    </a>
+
+    <p class="auth-footer-text">Already have an account? <a routerLink="/login">Sign in</a></p>
+
+  </div>
 </div>

@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  ViewEncapsulation,
   computed,
   inject,
   input,
@@ -11,12 +12,11 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { Router, RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
-import { safeReturnUrl } from '../../core/auth/return-url';
-import { APP_CONFIG } from '../../core/config/app-config';
+import { notBlank } from '../../shared/forms/validators';
+import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid';
 import { AppError, toAppError } from '../../core/http/app-error';
 import { AuthUser } from '../../core/models/auth.model';
-import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid';
-import { notBlank } from '../../shared/forms/validators';
+import { safeReturnUrl } from '../../core/auth/return-url';
 import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
 import { FieldControl, FormField } from '../../shared/ui/form-field/form-field';
 import { PasswordField } from '../../shared/ui/password-field/password-field';
@@ -26,16 +26,12 @@ const INVALID_CREDENTIALS = new AppError(
   'INVALID_CREDENTIALS',
   'The email or password is incorrect.',
 );
-const NOT_A_MERCHANT = new AppError(
-  403,
-  'NOT_A_MERCHANT',
-  'This portal is for merchant accounts only.',
-);
 
 @Component({
   selector: 'app-login-page',
   imports: [ReactiveFormsModule, RouterLink, FormField, FieldControl, PasswordField, ErrorAlert],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  encapsulation: ViewEncapsulation.None,
   templateUrl: './login.page.html',
   styleUrl: './auth.css',
 })
@@ -55,15 +51,10 @@ export class LoginPage {
   });
 
   protected readonly auth = inject(AuthService);
-  protected readonly devLoginEnabled = inject(APP_CONFIG).devLogin;
 
   protected readonly form = new FormGroup({
     email: new FormControl('', { nonNullable: true, validators: [notBlank, Validators.email] }),
     password: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-  });
-  protected readonly devSubject = new FormControl('user-1', {
-    nonNullable: true,
-    validators: [notBlank],
   });
 
   protected readonly busy = signal(false);
@@ -80,14 +71,6 @@ export class LoginPage {
     }
     const { email, password } = this.form.getRawValue();
     this.signIn(this.auth.login({ email: email.trim(), password }));
-  }
-
-  protected devSignIn(): void {
-    if (this.devSubject.invalid) {
-      this.devSubject.markAsTouched();
-      return;
-    }
-    this.signIn(this.auth.devLogin(this.devSubject.value.trim()));
   }
 
   protected signOut(): void {
@@ -108,12 +91,12 @@ export class LoginPage {
   }
 
   private onSignedIn(user: AuthUser): void {
-    if (user.role !== 'MERCHANT') {
-      this.busy.set(false);
-      this.error.set(NOT_A_MERCHANT);
-      return;
+    this.busy.set(false);
+    if (user.role === 'MERCHANT') {
+      const target = safeReturnUrl(this.returnUrl()) ?? '/dashboard';
+      void this.router.navigateByUrl(target);
+    } else {
+      void this.router.navigateByUrl('/welcome');
     }
-    const target = safeReturnUrl(this.returnUrl()) ?? '/dashboard';
-    void this.router.navigateByUrl(target);
   }
 }

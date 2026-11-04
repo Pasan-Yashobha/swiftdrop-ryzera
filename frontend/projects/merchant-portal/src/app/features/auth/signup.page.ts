@@ -5,6 +5,7 @@ import {
   ElementRef,
   inject,
   signal,
+  ViewEncapsulation,
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -35,10 +36,17 @@ const EMAIL_TAKEN = new AppError(
   selector: 'app-signup-page',
   imports: [ReactiveFormsModule, RouterLink, FormField, FieldControl, PasswordField, ErrorAlert],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  encapsulation: ViewEncapsulation.None,
   templateUrl: './signup.page.html',
   styleUrl: './auth.css',
 })
 export class SignupPage {
+  protected readonly availableRoles = [
+    { value: 'MERCHANT' as const, label: 'Merchant', description: 'Sell & ship business orders' },
+    { value: 'CUSTOMER' as const, label: 'Customer', description: 'Send & track personal packages' },
+    { value: 'COURIER' as const, label: 'Courier Driver', description: 'Deliver assigned parcels' },
+  ];
+
   protected readonly form = new FormGroup({
     fullName: new FormControl('', {
       nonNullable: true,
@@ -49,6 +57,10 @@ export class SignupPage {
       validators: [notBlank, Validators.email, Validators.maxLength(254)],
     }),
     phone: new FormControl('', { nonNullable: true, validators: [notBlank, phoneNumber] }),
+    role: new FormControl<'MERCHANT' | 'CUSTOMER' | 'COURIER'>('MERCHANT', {
+      nonNullable: true,
+      validators: [Validators.required],
+    }),
     password: new FormControl('', {
       nonNullable: true,
       validators: [Validators.required, passwordPolicy],
@@ -96,10 +108,16 @@ export class SignupPage {
         email: value.email.trim(),
         phone: normalizePhone(value.phone),
         password: value.password,
-        role: 'MERCHANT',
+        role: value.role,
       })
       .subscribe({
-        next: () => void this.router.navigateByUrl('/onboarding'),
+        next: (user) => {
+          if (user.role === 'MERCHANT') {
+            void this.router.navigateByUrl('/onboarding');
+          } else {
+            void this.router.navigateByUrl('/welcome');
+          }
+        },
         error: (error: unknown) => this.onFailure(toAppError(error)),
       });
   }

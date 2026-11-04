@@ -1,169 +1,367 @@
 /*
- * SwiftDrop Auth Pages Styling.
- * Simple, clean, and appealing design with decent and appropriate color tones.
+ * SwiftDrop Auth Pages — scoped under .auth-shell
+ * ViewEncapsulation.None is used so styles reach child components
+ * (app-form-field, app-password-field). All selectors MUST be scoped.
  */
 
-:host {
-  display: block;
+/* ── Full-page dark shell ───────────────────────────────── */
+.auth-shell {
+  min-height: calc(100vh - var(--header-height));
+  display: grid;
+  place-items: center;
+  padding: var(--space-6) var(--space-4);
+  background-color: #0c0f14;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+  /* Break out of the .container wrapper padding */
+  margin-inline: calc(-1 * var(--space-4));
+  width: calc(100% + var(--space-4) * 2);
 }
 
-.auth-header {
-  text-align: center;
-  margin-bottom: var(--space-4);
+/* ── The card ───────────────────────────────────────────── */
+.auth-box {
+  width: 100%;
+  max-width: 25rem;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 2.25rem 2rem 1.75rem;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.05),
+    0 20px 50px rgba(0,0,0,0.45);
 }
 
-.auth-header__brand {
-  display: inline-flex;
+.auth-box--wide {
+  max-width: 29rem;
+}
+
+/* ── Brand ──────────────────────────────────────────────── */
+.auth-shell .auth-brand {
+  display: flex;
   align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
-  text-decoration: none;
-  color: var(--color-text);
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
 }
 
-.auth-header__icon {
+.auth-shell .auth-brand__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 7px;
+  background: #0c0f14;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.auth-shell .auth-brand__name {
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #0c0f14;
+}
+
+.auth-shell .auth-brand__name em {
+  font-style: normal;
+  color: #1d4ed8;
+}
+
+/* ── Heading ────────────────────────────────────────────── */
+.auth-shell .auth-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #111827;
+  margin: 0 0 0.25rem;
+  line-height: 1.15;
+}
+
+.auth-shell .auth-lead {
+  font-size: 0.8125rem;
+  color: #6b7280;
+  margin: 0 0 1.5rem;
+  line-height: 1.4;
+}
+
+/* ── Form layout ────────────────────────────────────────── */
+.auth-shell .auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+/* ── Labels inside the auth card ────────────────────────── */
+.auth-box label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #374151;
+  letter-spacing: 0.01em;
+}
+
+/* ── Text inputs inside the auth card ───────────────────── */
+.auth-box input:not([type='checkbox']):not([type='radio']):not([type='file']) {
+  width: 100%;
+  min-height: 2.65rem;
+  padding: 0.5rem 0.75rem;
+  background: #f9fafb;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  color: #111827;
+  font-size: 0.9375rem;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.auth-box input:not([type='checkbox']):not([type='radio']):not([type='file'])::placeholder {
+  color: #9ca3af;
+}
+
+.auth-box input:not([type='checkbox']):not([type='radio']):not([type='file']):focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  background: #fff;
+}
+
+.auth-box input[aria-invalid='true'] {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.08);
+}
+
+/* ── Password wrapper — keep the eye button positioned ─── */
+.auth-box .password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.auth-box .password-wrapper input {
+  padding-right: 2.75rem;
+}
+
+.auth-box .password-toggle-btn {
+  position: absolute;
+  right: 0.375rem;
+  top: 50%;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 2.25rem;
   height: 2.25rem;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, var(--color-primary), #6366f1);
-  color: #ffffff;
-  box-shadow: 0 4px 10px rgb(37 99 235 / 25%);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
 }
 
-.auth-header__title {
-  font-size: var(--text-2xl);
-  font-weight: 800;
-  letter-spacing: -0.02em;
+.auth-box .password-toggle-btn:hover {
+  color: #2563eb;
+  background: #eff6ff;
 }
 
-.auth-header__lead {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  max-width: 24rem;
-  margin: var(--space-1) auto 0;
-}
-
-/* Card enhancement with subtle gradient accent top bar */
-.auth-card {
-  position: relative;
-  border-radius: var(--radius-lg);
-  box-shadow: 0 4px 6px -1px rgb(15 23 42 / 6%), 0 10px 20px -3px rgb(15 23 42 / 8%);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  overflow: hidden;
-  padding: var(--space-6);
-}
-
-.auth-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #2563eb, #6366f1, #8b5cf6);
-}
-
-/* Google OAuth continue button */
-.btn-google {
-  display: inline-flex;
+/* ── Submit button ──────────────────────────────────────── */
+.auth-shell .auth-submit-btn {
+  width: 100%;
+  min-height: 2.65rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-3);
-  width: 100%;
-  min-height: 2.75rem;
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font: inherit;
-  font-weight: 600;
-  font-size: var(--text-sm);
-  cursor: pointer;
-  text-decoration: none;
-  transition: all 0.15s ease-in-out;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
 }
 
-.btn-google:hover {
-  background: var(--color-surface-alt);
-  border-color: var(--color-border-strong);
+.auth-shell .auth-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: auth-spin 0.65s linear infinite;
 }
 
-/* Subtle or divider */
-.auth-divider {
+@keyframes auth-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Divider ────────────────────────────────────────────── */
+.auth-shell .auth-divider {
   display: flex;
   align-items: center;
-  text-align: center;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  margin: var(--space-3) 0;
+  gap: 0.75rem;
+  color: #9ca3af;
+  font-size: 0.75rem;
+  margin: 0.75rem 0;
 }
 
-.auth-divider::before,
-.auth-divider::after {
+.auth-shell .auth-divider::before,
+.auth-shell .auth-divider::after {
   content: '';
   flex: 1;
-  border-bottom: 1px solid var(--color-border);
+  height: 1px;
+  background: #e5e7eb;
 }
 
-.auth-divider span {
-  padding: 0 var(--space-3);
-}
-
-/* Submit CTA full-width inside card */
-.auth-card .btn-primary {
-  width: 100%;
-  min-height: 2.75rem;
-  font-size: var(--text-base);
-  font-weight: 600;
-  box-shadow: 0 2px 4px rgb(37 99 235 / 20%);
-  transition: transform 0.1s ease, box-shadow 0.15s ease;
-}
-
-.auth-card .btn-primary:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgb(37 99 235 / 30%);
-}
-
-.auth-card .btn-primary:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-/* Password rules checklist in signup */
-.rules {
-  display: grid;
-  gap: var(--space-1);
-  margin: var(--space-2) 0 0;
-  padding: 0;
-  list-style: none;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-}
-
-.rules li {
+/* ── Google button ──────────────────────────────────────── */
+.auth-shell .btn-google {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-}
-
-.rules__met {
-  color: var(--tone-success-fg);
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: 2.65rem;
+  padding: 0 1rem;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #111827;
   font-weight: 600;
+  font-size: 0.875rem;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
 }
 
-/* Footer link */
-.auth-footer {
+.auth-shell .btn-google:hover {
+  border-color: #9ca3af;
+  background: #f9fafb;
+}
+
+/* ── Footer link ────────────────────────────────────────── */
+.auth-shell .auth-footer-text {
   text-align: center;
-  font-size: var(--text-sm);
+  font-size: 0.8125rem;
+  color: #6b7280;
+  margin: 1.25rem 0 0;
 }
 
-/* Developer sign-in container */
-.dev-card {
-  border-style: dashed;
-  background: var(--color-surface-alt);
+.auth-shell .auth-footer-text a {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: none;
 }
 
+.auth-shell .auth-footer-text a:hover {
+  text-decoration: underline;
+}
+
+/* ── Active session banner ──────────────────────────────── */
+.auth-shell .active-session-banner {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.auth-shell .active-session-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.auth-shell .session-avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: #0c0f14;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+
+.auth-shell .session-info { display: flex; flex-direction: column; gap: 2px; }
+.auth-shell .session-name-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.auth-shell .session-name { font-weight: 700; font-size: 0.875rem; }
+
+/* ── Role badges ────────────────────────────────────────── */
+.auth-shell .role-badge {
+  display: inline-flex;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 999px;
+}
+.auth-shell .role-badge--admin    { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+.auth-shell .role-badge--courier  { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.auth-shell .role-badge--customer { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.auth-shell .role-badge--merchant { background: #faf5ff; color: #7e22ce; border: 1px solid #e9d5ff; }
+
+/* ── Role selector pills (signup) ───────────────────────── */
+.auth-shell .role-selector { display: flex; flex-direction: column; gap: 0.25rem; }
+.auth-shell .role-selector__label { font-size: 0.8125rem; font-weight: 600; color: #374151; }
+
+.auth-shell .role-pills {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+@media (max-width: 480px) {
+  .auth-shell .role-pills { grid-template-columns: 1fr; }
+}
+
+.auth-shell .role-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0.5rem;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  cursor: pointer;
+  background: #fff;
+  transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
+  user-select: none;
+}
+
+.auth-shell .role-pill:hover { border-color: #2563eb; background: #f9fafb; }
+
+.auth-shell .role-pill--selected {
+  border-color: #2563eb;
+  background: rgba(37, 99, 235, 0.04);
+  box-shadow: 0 0 0 1px #2563eb;
+}
+
+.auth-shell .role-pill__title { font-size: 0.8125rem; font-weight: 700; color: #111827; }
+.auth-shell .role-pill--selected .role-pill__title { color: #2563eb; }
+.auth-shell .role-pill__desc { font-size: 0.6875rem; line-height: 1.25; margin-top: 2px; color: #6b7280; }
+
+/* ── Password rules checklist (signup) ──────────────────── */
+.auth-shell .rules {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  color: #6b7280;
+  font-size: 0.8125rem;
+}
+.auth-shell .rules li { display: flex; align-items: center; gap: 0.5rem; }
+.auth-shell .rules__met { color: #16a34a; font-weight: 600; }
+
+/* ── Hints and field errors ─────────────────────────────── */
+.auth-box .field__error {
+  color: #dc2626;
+  font-weight: 600;
+  font-size: 0.8125rem;
+}
+
+/* Legacy compat — old .auth-footer class from pages */
+.auth-shell .auth-footer { text-align: center; font-size: 0.8125rem; color: #6b7280; }
+.auth-shell .auth-footer a { color: #2563eb; font-weight: 600; text-decoration: none; }
+.auth-shell .auth-footer a:hover { text-decoration: underline; }
