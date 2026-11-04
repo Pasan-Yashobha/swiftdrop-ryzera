@@ -72,7 +72,8 @@ describe('LoginPage', () => {
     buttonByText(fixture, 'Sign in').click();
 
     expect(http.match('/api/v1/auth/login')).toEqual([]);
-    expect(element(fixture).textContent).toContain('Please enter a valid email address');
+    expect(element(fixture).textContent).toContain('Email is required.');
+    expect(element(fixture).textContent).toContain('Password is required.');
   });
 
   it('signs in and navigates to the dashboard by default', () => {
