@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
+import lk.swiftdrop.identity.common.BadRequestException;
 import lk.swiftdrop.identity.common.ConflictException;
 import lk.swiftdrop.identity.common.ErrorCode;
 import lk.swiftdrop.identity.common.NotFoundException;
@@ -16,6 +17,7 @@ import lk.swiftdrop.identity.domain.RefreshToken;
 import lk.swiftdrop.identity.domain.Role;
 import lk.swiftdrop.identity.domain.User;
 import lk.swiftdrop.identity.dto.AuthSessionResponse;
+import lk.swiftdrop.identity.dto.GoogleUserInfo;
 import lk.swiftdrop.identity.dto.LoginRequest;
 import lk.swiftdrop.identity.dto.SignupRequest;
 import lk.swiftdrop.identity.dto.UserResponse;
@@ -127,6 +129,55 @@ public class AuthService {
         user.resetLockout(now);
         userRepository.save(user);
         recordLoginAttempt(email, clientIp, true, now);
+
+        return createSession(user, now);
+    }
+
+    public AuthSessionResponse handleGoogleLogin(GoogleUserInfo googleUser) {
+        if (googleUser == null || googleUser.email() == null || googleUser.email().isBlank()) {
+            throw new BadRequestException(ErrorCode.VALIDATION_FAILED, "Google account does not provide an email address");
+        }
+
+        String email = googleUser.email().trim().toLowerCase();
+        Instant now = clock.instant();
+
+        // 1. Look up by Google ID
+        Optional<User> userOpt = userRepository.findByGoogleIdAndDeletedAtIsNull(googleUser.googleId());
+        User user;
+
+        if (userOpt.isPresent()) {
+            user = userOpt.get();
+            user.linkGoogle(googleUser.googleId(), googleUser.picture(), now);
+            user = userRepository.saveAndFlush(user);
+        } else {
+            // 2. Look up by Email
+            Optional<User> byEmailOpt = userRepository.findByEmailAndDeletedAtIsNull(email);
+            if (byEmailOpt.isPresent()) {
+                // Anti-Pre-Hijacking defense:
+                // An existing password account matches this Google email.
+                // 1. Link the legitimate Google account
+                // 2. Wipe the existing password hash to lock out any potential attacker who pre-registered the email
+                // 3. Revoke all previous active refresh token session families
+                user = byEmailOpt.get();
+                user.linkGoogle(googleUser.googleId(), googleUser.picture(), now);
+                user.wipePasswordForPreHijackingProtection(now);
+                user = userRepository.saveAndFlush(user);
+
+                refreshTokenRepository.revokeAllForUser(user.getId(), now);
+                log.info("Anti-pre-hijacking defense executed for user {}: password wiped and previous sessions revoked", user.getId());
+            } else {
+                // 3. New user registration via Google
+                String name = (googleUser.name() != null && !googleUser.name().isBlank())
+                        ? googleUser.name()
+                        : email.split("@")[0];
+                user = User.registerGoogle(name, email, googleUser.googleId(), googleUser.picture(), Role.CUSTOMER, now);
+                user = userRepository.saveAndFlush(user);
+                log.info("Registered new user {} via Google OAuth", user.getId());
+            }
+        }
+
+        user.resetLockout(now);
+        userRepository.save(user);
 
         return createSession(user, now);
     }

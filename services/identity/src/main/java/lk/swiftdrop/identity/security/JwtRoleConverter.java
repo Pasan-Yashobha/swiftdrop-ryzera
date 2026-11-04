@@ -42,3 +42,4 @@ public class JwtRoleConverter implements Converter<Jwt, AbstractAuthenticationTo
         return values;
     }
 }
+

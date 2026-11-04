@@ -13,7 +13,12 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties("swiftdrop")
 public record AppProperties(
-        @Valid @NotNull @DefaultValue Security security) {
+        @Valid @NotNull @DefaultValue Security security,
+        @Valid @NotNull @DefaultValue GoogleOAuth google) {
+
+    public AppProperties(Security security) {
+        this(security, new GoogleOAuth("", "", "http://localhost:8080/api/v1/auth/google/callback", "http://localhost:4200"));
+    }
 
     public record Security(
             @DefaultValue("swiftdrop-identity") String jwtIssuer,
@@ -27,5 +32,12 @@ public record AppProperties(
             @DefaultValue("5") @Min(1) int maxFailedAttempts,
             @DefaultValue("15") @Min(1) int lockoutDurationMinutes,
             @DefaultValue("12") @Min(4) @Max(31) int bcryptCost) {
+    }
+
+    public record GoogleOAuth(
+            @DefaultValue("") String clientId,
+            @DefaultValue("") String clientSecret,
+            @DefaultValue("http://localhost:8080/api/v1/auth/google/callback") String redirectUri,
+            @DefaultValue("http://localhost:4200") String frontendUrl) {
     }
 }

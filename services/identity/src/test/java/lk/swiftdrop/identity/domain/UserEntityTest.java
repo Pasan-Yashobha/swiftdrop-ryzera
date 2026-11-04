@@ -134,3 +134,4 @@ class UserEntityTest {
         assertThat(token.getRevokedAt()).isEqualTo(now);
     }
 }
+
