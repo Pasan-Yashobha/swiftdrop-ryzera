@@ -1,4 +1,4 @@
-﻿import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
@@ -20,6 +20,7 @@ describe('WelcomePage', () => {
     auth = TestBed.inject(AuthService);
     router = TestBed.inject(Router);
     spyOn(router, 'navigateByUrl').and.resolveTo(true);
+    spyOn(router, 'navigate').and.resolveTo(true);
   });
 
   afterEach(() => {
@@ -55,7 +56,7 @@ describe('WelcomePage', () => {
     const f = createWithUser('CUSTOMER');
     const component = f.componentInstance;
 
-    (component as unknown as { trackPackage(c: string): void }).trackPackage('SWD-TEST-99');
+    component.trackPackage('SWD-TEST-99');
     f.detectChanges();
 
     expect(f.nativeElement.textContent).toContain('SWD-TEST-99');
@@ -70,7 +71,7 @@ describe('WelcomePage', () => {
     expect(el.textContent).toContain('Courier Dispatch & Route Hub');
     expect(el.textContent).toContain('On Duty');
 
-    (component as unknown as { toggleCourierDuty(): void }).toggleCourierDuty();
+    component.toggleCourierDuty();
     f.detectChanges();
 
     expect(el.textContent).toContain('On Break');
@@ -85,15 +86,12 @@ describe('WelcomePage', () => {
     expect(el.textContent).toContain('Superuser');
   });
 
-  it('signs out and navigates to login when sign out button is clicked', () => {
+  it('signs out when sign out button is clicked', () => {
     const f = createWithUser('CUSTOMER');
-    const spy = spyOn(auth, 'logout').and.callThrough();
+    const spy = spyOn(auth, 'logout');
 
-    (f.componentInstance as unknown as { signOut(): void }).signOut();
+    f.componentInstance.signOut();
 
     expect(spy).toHaveBeenCalled();
-    expect(router.navigateByUrl).toHaveBeenCalledWith('/login');
   });
 });
-
-

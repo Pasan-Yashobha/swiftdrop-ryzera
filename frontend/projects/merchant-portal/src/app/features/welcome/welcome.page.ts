@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 
 @Component({
@@ -12,13 +12,12 @@ import { AuthService } from '../../core/auth/auth.service';
 })
 export class WelcomePage {
   protected readonly auth = inject(AuthService);
-  private readonly router = inject(Router);
 
-  protected readonly user = computed(() => this.auth.user());
-  protected readonly role = computed(() => this.auth.user()?.role ?? 'CUSTOMER');
+  readonly user = computed(() => this.auth.user());
+  readonly role = computed(() => this.auth.user()?.role ?? 'CUSTOMER');
 
   // Customer tracking demo state
-  protected readonly trackingResult = signal<{
+  readonly trackingResult = signal<{
     code: string;
     status: string;
     carrier: string;
@@ -39,9 +38,9 @@ export class WelcomePage {
   });
 
   // Courier duty state
-  protected readonly courierDuty = signal<'ONLINE' | 'OFFLINE'>('ONLINE');
+  readonly courierDuty = signal<'ONLINE' | 'OFFLINE'>('ONLINE');
 
-  protected trackPackage(inputCode: string): void {
+  trackPackage(inputCode: string): void {
     const code = (inputCode || 'SWD-9042-LK').trim().toUpperCase();
     this.trackingResult.set({
       code,
@@ -58,12 +57,11 @@ export class WelcomePage {
     });
   }
 
-  protected toggleCourierDuty(): void {
+  toggleCourierDuty(): void {
     this.courierDuty.update((s) => (s === 'ONLINE' ? 'OFFLINE' : 'ONLINE'));
   }
 
-  protected signOut(): void {
+  signOut(): void {
     this.auth.logout();
-    void this.router.navigateByUrl('/login');
   }
 }
