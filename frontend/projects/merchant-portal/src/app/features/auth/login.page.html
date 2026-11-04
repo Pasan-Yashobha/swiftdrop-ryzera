@@ -16,6 +16,10 @@
     <p class="alert alert--info" role="status">Your session expired. Please sign in again.</p>
   }
 
+  @if (oauthErrorMessage()) {
+    <p class="alert alert--danger" role="alert">{{ oauthErrorMessage() }}</p>
+  }
+
   @if (auth.isAuthenticated() && !auth.isMerchant()) {
     <div class="alert alert--warning stack" role="status">
       <p>You are signed in with a non-merchant account. This portal is for merchants only.</p>

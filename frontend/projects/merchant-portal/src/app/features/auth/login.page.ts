@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  computed,
   inject,
   input,
   signal,
@@ -42,6 +43,16 @@ export class LoginPage {
   /** Query parameters, bound by the router (withComponentInputBinding). */
   readonly returnUrl = input<string>();
   readonly reason = input<string>();
+  readonly errorParam = input<string>(undefined, { alias: 'error' });
+
+  readonly oauthErrorMessage = computed(() => {
+    const err = this.errorParam();
+    if (err === 'oauth_denied') return 'Sign in with Google was cancelled or denied.';
+    if (err === 'csrf_detected') return 'Security verification failed. Please try signing in again.';
+    if (err === 'unverified_google_email') return 'Your Google email address has not been verified.';
+    if (err === 'oauth_failed') return 'Failed to sign in with Google. Please try again.';
+    return null;
+  });
 
   protected readonly auth = inject(AuthService);
   protected readonly devLoginEnabled = inject(APP_CONFIG).devLogin;
@@ -98,11 +109,11 @@ export class LoginPage {
 
   private onSignedIn(user: AuthUser): void {
     if (user.role !== 'MERCHANT') {
-      this.auth.logout();
       this.busy.set(false);
       this.error.set(NOT_A_MERCHANT);
       return;
     }
-    void this.router.navigateByUrl(safeReturnUrl(this.returnUrl()));
+    const target = safeReturnUrl(this.returnUrl()) ?? '/dashboard';
+    void this.router.navigateByUrl(target);
   }
 }
