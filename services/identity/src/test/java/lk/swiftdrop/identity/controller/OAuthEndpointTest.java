@@ -1,0 +1,205 @@
+package lk.swiftdrop.identity.controller;
+
+import jakarta.servlet.http.Cookie;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Optional;
+import lk.swiftdrop.identity.domain.RefreshToken;
+import lk.swiftdrop.identity.domain.Role;
+import lk.swiftdrop.identity.domain.User;
+import lk.swiftdrop.identity.dto.GoogleUserInfo;
+import lk.swiftdrop.identity.repository.RefreshTokenRepository;
+import lk.swiftdrop.identity.repository.UserRepository;
+import lk.swiftdrop.identity.security.GoogleOAuthClient;
+import lk.swiftdrop.identity.security.PasswordService;
+import lk.swiftdrop.identity.testsupport.AbstractIntegrationTest;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.mock.mockito.MockBean;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+class OAuthEndpointTest extends AbstractIntegrationTest {
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
+
+    @Autowired
+    private AuthService authService;
+
+    @Autowired
+    private PasswordService passwordService;
+
+    @MockBean
+    private GoogleOAuthClient googleOAuthClient;
+
+    @Test
+    void initiateGoogleLoginSetsStateCookieAndRedirectsToGoogle() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/google"))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", org.hamcrest.Matchers.startsWith("https://accounts.google.com/o/oauth2/v2/auth")))
+                .andExpect(header().string("Location", org.hamcrest.Matchers.containsString("client_id=test-google-client-id")))
+                .andExpect(header().string("Location", org.hamcrest.Matchers.containsString("response_type=code")))
+                .andExpect(header().string("Location", org.hamcrest.Matchers.containsString("state=")))
+                .andExpect(cookie().exists(OAuthController.OAUTH_STATE_COOKIE))
+                .andExpect(cookie().httpOnly(OAuthController.OAUTH_STATE_COOKIE, true));
+    }
+
+    @Test
+    void callbackWithOAuthErrorRedirectsToLoginWithError() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/google/callback")
+                        .param("error", "access_denied"))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "http://localhost:4200/login?error=oauth_denied"))
+                .andExpect(cookie().maxAge(OAuthController.OAUTH_STATE_COOKIE, 0));
+    }
+
+    @Test
+    void callbackWithCsrfStateMismatchRedirectsToLoginWithCsrfDetected() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/google/callback")
+                        .param("code", "any-code")
+                        .param("state", "attacker-state")
+                        .cookie(new Cookie(OAuthController.OAUTH_STATE_COOKIE, "victim-state")))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "http://localhost:4200/login?error=csrf_detected"))
+                .andExpect(cookie().maxAge(OAuthController.OAUTH_STATE_COOKIE, 0));
+    }
+
+    @Test
+    void callbackWithMissingStateCookieRedirectsToLoginWithCsrfDetected() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/google/callback")
+                        .param("code", "any-code")
+                        .param("state", "some-state"))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "http://localhost:4200/login?error=csrf_detected"));
+    }
+
+    @Test
+    void callbackWithMissingCodeRedirectsToLoginWithOAuthDenied() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/google/callback")
+                        .param("state", "valid-state")
+                        .cookie(new Cookie(OAuthController.OAUTH_STATE_COOKIE, "valid-state")))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "http://localhost:4200/login?error=oauth_denied"));
+    }
+
+    @Test
+    void callbackWithUnverifiedGoogleEmailRedirectsToLoginWithUnverifiedError() throws Exception {
+        String state = "test-nonce-123";
+        when(googleOAuthClient.exchangeCode("unverified-code"))
+                .thenReturn(new GoogleUserInfo("g-123", "unverified@example.com", "Test Name", null, false));
+
+        mockMvc.perform(get("/api/v1/auth/google/callback")
+                        .param("code", "unverified-code")
+                        .param("state", state)
+                        .cookie(new Cookie(OAuthController.OAUTH_STATE_COOKIE, state)))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "http://localhost:4200/login?error=unverified_google_email"));
+    }
+
+    @Test
+    void callbackWithExchangeFailureRedirectsToLoginWithOAuthFailed() throws Exception {
+        String state = "test-nonce-fail";
+        when(googleOAuthClient.exchangeCode(anyString()))
+                .thenThrow(new RuntimeException("Google token endpoint unavailable"));
+
+        mockMvc.perform(get("/api/v1/auth/google/callback")
+                        .param("code", "bad-code")
+                        .param("state", state)
+                        .cookie(new Cookie(OAuthController.OAUTH_STATE_COOKIE, state)))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "http://localhost:4200/login?error=oauth_failed"));
+    }
+
+    @Test
+    void callbackProvisionsNewUserAndRedirectsToDashboard() throws Exception {
+        String state = "test-nonce-new-user";
+        when(googleOAuthClient.exchangeCode("new-code"))
+                .thenReturn(new GoogleUserInfo("google-sub-456", "fresh@example.com", "Fresh User", "https://avatar.example/p.png", true));
+
+        mockMvc.perform(get("/api/v1/auth/google/callback")
+                        .param("code", "new-code")
+                        .param("state", state)
+                        .cookie(new Cookie(OAuthController.OAUTH_STATE_COOKIE, state)))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "http://localhost:4200/dashboard"))
+                .andExpect(cookie().exists(AuthController.REFRESH_COOKIE_NAME))
+                .andExpect(cookie().maxAge(OAuthController.OAUTH_STATE_COOKIE, 0));
+
+        Optional<User> createdOpt = userRepository.findByEmailAndDeletedAtIsNull("fresh@example.com");
+        assertThat(createdOpt).isPresent();
+        User created = createdOpt.get();
+        assertThat(created.getGoogleId()).isEqualTo("google-sub-456");
+        assertThat(created.getFullName()).isEqualTo("Fresh User");
+        assertThat(created.getAvatarUrl()).isEqualTo("https://avatar.example/p.png");
+        assertThat(created.getPasswordHash()).isNull();
+        assertThat(created.getRole()).isEqualTo(Role.CUSTOMER);
+    }
+
+    @Test
+    void callbackExecutesAntiPreHijackingDefenseOnExistingEmailAccount() throws Exception {
+        Instant now = Instant.now();
+        User victim = User.register("Victim Account", "victim@example.com", null, passwordService.hash("AttackerPassword123!"), Role.CUSTOMER, now);
+        victim = userRepository.saveAndFlush(victim);
+
+        RefreshToken oldSession = RefreshToken.createNewFamily(victim.getId(), "old-hash-val", now.plus(7, ChronoUnit.DAYS), now);
+        refreshTokenRepository.saveAndFlush(oldSession);
+
+        String state = "test-nonce-hijack";
+        when(googleOAuthClient.exchangeCode("hijack-code"))
+                .thenReturn(new GoogleUserInfo("legit-google-sub-789", "victim@example.com", "Victim Account", "https://google.example/photo.png", true));
+
+        mockMvc.perform(get("/api/v1/auth/google/callback")
+                        .param("code", "hijack-code")
+                        .param("state", state)
+                        .cookie(new Cookie(OAuthController.OAUTH_STATE_COOKIE, state)))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "http://localhost:4200/dashboard"))
+                .andExpect(cookie().exists(AuthController.REFRESH_COOKIE_NAME));
+
+        User updatedUser = userRepository.findById(victim.getId()).orElseThrow();
+        assertThat(updatedUser.getGoogleId()).isEqualTo("legit-google-sub-789");
+        assertThat(updatedUser.getPasswordHash()).isNull(); // Pre-hijack defense: password wiped!
+
+        RefreshToken revokedSession = refreshTokenRepository.findById(oldSession.getId()).orElseThrow();
+        assertThat(revokedSession.isRevoked()).isTrue(); // Old sessions revoked!
+    }
+
+    @Test
+    void callbackLogsInExistingGoogleUser() throws Exception {
+        Instant now = Instant.now();
+        User existing = User.registerGoogle("Existing User", "existing@example.com", "existing-google-sub", null, Role.CUSTOMER, now);
+        existing = userRepository.saveAndFlush(existing);
+
+        String state = "test-nonce-existing";
+        when(googleOAuthClient.exchangeCode("existing-code"))
+                .thenReturn(new GoogleUserInfo("existing-google-sub", "existing@example.com", "Existing User", "https://new-avatar.png", true));
+
+        mockMvc.perform(get("/api/v1/auth/google/callback")
+                        .param("code", "existing-code")
+                        .param("state", state)
+                        .cookie(new Cookie(OAuthController.OAUTH_STATE_COOKIE, state)))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "http://localhost:4200/dashboard"))
+                .andExpect(cookie().exists(AuthController.REFRESH_COOKIE_NAME));
+
+        User refreshed = userRepository.findById(existing.getId()).orElseThrow();
+        assertThat(refreshed.getAvatarUrl()).isEqualTo("https://new-avatar.png");
+    }
+
+    @Test
+    void handleGoogleLoginRejectsBlankEmail() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                authService.handleGoogleLogin(new GoogleUserInfo("g-1", "", "Name", null, true)))
+                .isInstanceOf(lk.swiftdrop.identity.common.BadRequestException.class);
+    }
+}

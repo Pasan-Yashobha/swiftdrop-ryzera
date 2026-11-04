@@ -15,3 +15,8 @@ swiftdrop:
   security:
     internal-token: test-internal-token
     bcrypt-cost: 4
+  google:
+    client-id: test-google-client-id
+    client-secret: test-google-client-secret
+    redirect-uri: http://localhost:8080/api/v1/auth/google/callback
+    frontend-url: http://localhost:4200
