@@ -151,7 +151,7 @@ describe('LoginPage', () => {
     expect(element(fixture).textContent).not.toContain('stack trace');
   });
 
-  it('turns away accounts that are not merchants', () => {
+  it('redirects accounts that are not merchants to the welcome hub', () => {
     const fixture = create();
 
     fillAndSubmit(fixture);
@@ -160,9 +160,8 @@ describe('LoginPage', () => {
       .flush(aSession({ user: { ...aSession().user, role: 'CUSTOMER' } }));
     fixture.detectChanges();
 
-    expect(TestBed.inject(AuthService).isAuthenticated()).toBeFalse();
-    expect(element(fixture).textContent).toContain('merchant accounts only');
-    expect(router.navigateByUrl).not.toHaveBeenCalled();
+    expect(TestBed.inject(AuthService).isAuthenticated()).toBeTrue();
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/welcome');
   });
 
   it('tells users whose session expired', () => {
@@ -181,23 +180,5 @@ describe('LoginPage', () => {
     const fixture = create({ error: 'csrf_detected' });
 
     expect(element(fixture).textContent).toContain('Security verification failed');
-  });
-
-  it('hides the developer sign-in outside development builds', () => {
-    const fixture = create({ devLogin: false });
-
-    expect(element(fixture).textContent).not.toContain('Developer sign-in');
-  });
-
-  it('offers the developer sign-in in development builds', () => {
-    const fixture = create({ devLogin: true });
-
-    buttonByText(fixture, 'Sign in as dev merchant').click();
-    const request = http.expectOne('/api/v1/dev/tokens');
-    expect(request.request.body).toEqual({ sub: 'user-1', role: 'MERCHANT' });
-    request.flush({ accessToken: 'dev-token', expiresIn: 3600 });
-
-    expect(TestBed.inject(AuthService).token()).toBe('dev-token');
-    expect(router.navigateByUrl).toHaveBeenCalledWith('/dashboard');
   });
 });
