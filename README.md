@@ -8,8 +8,14 @@ Enterprise application development group project (10 members).
 ## Quick start (local platform stack)
 
 ```bash
-docker compose up -d          # Postgres, RabbitMQ, Redis, Mailpit (local dev defaults, no .env needed)
+docker compose up -d          # Postgres, RabbitMQ, Redis, Mailpit, Identity, Merchant (no .env needed)
 docker compose ps             # everything should become "healthy"
+```
+
+Then start the frontend dev server (from `frontend/`):
+
+```bash
+npm start                     # Angular dev server on http://localhost:4200 with API proxy
 ```
 
 Optional extras:
@@ -18,22 +24,38 @@ Optional extras:
 docker compose --profile observability up -d   # Prometheus + Grafana
 ```
 
-## Local URLs
+## Demo login credentials
 
-| Tool | URL | Notes |
+All demo accounts share the default password: **`Password123!`**
+
+| Role | Email | Password | Landing page |
+|---|---|---|---|
+| Admin | `admin@swiftdrop.com` | `Password123!` | `/welcome` |
+| Merchant | `merchant@swiftdrop.com` | `Password123!` | `/dashboard` |
+| Courier | `courier@swiftdrop.com` | `Password123!` | `/welcome` |
+| Customer | `customer@swiftdrop.com` | `Password123!` | `/welcome` |
+
+> These accounts are seeded automatically by Flyway migrations V2 & V3 on first startup.
+
+## Local service URLs
+
+| Service | URL | Notes |
 |---|---|---|
-| RabbitMQ UI | http://localhost:15672 | user/pass from `.env` |
-| Mailpit inbox | http://localhost:8025 | services send SMTP to `mailpit:1025` |
-| Prometheus | http://localhost:9090 | `observability` profile |
-| Grafana | http://localhost:3001 | `observability` profile |
-| PostgreSQL | localhost:5432 | one DB per service: `<service>_db`, user `<service>_svc` |
+| **Frontend (Angular)** | http://localhost:4200 | Proxies `/api/v1/auth` → 8081, `/api` → 8083 |
+| **Identity Service** | http://localhost:8081 | Auth, JWT, user management |
+| **Merchant Service** | http://localhost:8083 | Merchant & parcel APIs |
+| **RabbitMQ UI** | http://localhost:15672 | user/pass from `.env` (default: `swiftdrop` / `dev_rabbit_pw`) |
+| **Mailpit inbox** | http://localhost:8025 | Captures all outbound emails in dev |
+| **PostgreSQL** | localhost:**5433** | Host port 5433 (not 5432) to avoid conflicts |
+| **Prometheus** | http://localhost:9090 | `observability` profile only |
+| **Grafana** | http://localhost:3001 | `observability` profile only |
 
 ## Repository layout
 
 ```
 services/      one folder per microservice (Spring Boot, Maven)
-frontend/      Angular workspace (customer app, merchant portal, courier PWA, admin console, shared library)
-infra/         local Postgres init, Prometheus, Grafana config, plus cloud/ (AWS CDK or OpenTofu) and k8s/ (manifests)
+frontend/      Angular workspace (merchant-portal and shared libraries)
+infra/         local Postgres init, Prometheus, Grafana config, plus cloud/ and k8s/
 templates/     Dockerfile template for services
 .github/       CI workflows
 docs/          design documents and diagrams
@@ -49,6 +71,6 @@ docs/          design documents and diagrams
 
 ## Rules
 
-- Local passwords in docker-compose are dev-only defaults. To override them create a `.env` file (it is git-ignored). Never commit `.env` or any real secret.
+- Local passwords in `docker-compose.yml` are dev-only defaults. To override them create a `.env` file (it is git-ignored). Never commit `.env` or any real secret.
 - Every PR needs one review and a green CI run.
 - Minimum 70% test coverage per service.

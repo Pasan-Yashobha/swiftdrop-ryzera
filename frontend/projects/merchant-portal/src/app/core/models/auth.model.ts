@@ -17,7 +17,7 @@ export interface SignupRequest {
   email: string;
   phone: string;
   password: string;
-  role: 'MERCHANT';
+  role?: UserRole;
 }
 
 /** Identity's login / signup / refresh response (ASSUMED contract, CONTRACT section 10). */

@@ -7,3 +7,12 @@ dist/
 .vscode/
 *.iml
 .DS_Store
+
+# Local AI Memory Bank & Agent files
+.memory-bank/
+memory-bank/
+AGENTS.md
+GEMINI.md
+.agent/
+.agents/
+.memory/

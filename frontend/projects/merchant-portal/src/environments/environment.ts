@@ -4,5 +4,5 @@ import type { AppConfig } from '../app/core/config/app-config';
 export const environment: AppConfig = {
   production: false,
   apiBase: '/api/v1',
-  devLogin: true,
+  devLogin: false,
 };

@@ -23,6 +23,8 @@
         <commons-csv.version>1.14.1</commons-csv.version>
         <!-- Minimum bundle line coverage enforced by "mvn verify" (team rule: 70%). -->
         <jacoco.minimum>0.70</jacoco.minimum>
+        <!-- Flyway 11+ pulls google-cloud-storage which requires GitHub Packages auth in Docker. Flyway 10.x avoids this entirely. -->
+        <flyway.version>10.21.0</flyway.version>
     </properties>
 
     <dependencies>

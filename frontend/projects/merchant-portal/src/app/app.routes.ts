@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, guestGuard } from './core/guards/auth.guard';
+import { authGuard, guestGuard, userAuthGuard } from './core/guards/auth.guard';
 import {
   merchantStatusGuard,
   onboardingGuard,
@@ -10,7 +10,7 @@ import {
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
 
-  // Public pages (signed-in merchants are sent on to the dashboard).
+  // Public pages (signed-in merchants are sent on to the dashboard; non-merchants to /welcome).
   {
     path: 'login',
     title: 'Sign in',
@@ -22,6 +22,14 @@ export const routes: Routes = [
     title: 'Create account',
     canActivate: [guestGuard],
     loadComponent: () => import('./features/auth/signup.page').then((m) => m.SignupPage),
+  },
+
+  // Dedicated landing hub for non-merchant roles (Customer, Courier, Admin)
+  {
+    path: 'welcome',
+    title: 'Welcome to SwiftDrop',
+    canActivate: [userAuthGuard],
+    loadComponent: () => import('./features/welcome/welcome.page').then((m) => m.WelcomePage),
   },
 
   // Everything below needs a signed-in merchant user. authGuard runs before any child guard.
