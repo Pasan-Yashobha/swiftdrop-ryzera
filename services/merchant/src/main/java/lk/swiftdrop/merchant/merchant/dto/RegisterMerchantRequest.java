@@ -14,6 +14,8 @@ import lk.swiftdrop.merchant.merchant.MerchantProfile;
  * Business details sent to {@code POST /merchants/register} and, unchanged, to {@code PUT /merchants/me}.
  * Input is normalised before validation: text is trimmed, the email is lower-cased and spaces, dashes and
  * brackets are removed from the phone number.
+ *
+ * <p>Enforces clean input hygiene and prevents XSS by forbidding unescaped HTML characters in text fields.
  */
 public record RegisterMerchantRequest(
         @NotBlank @Size(min = 2, max = 150) @PlainText String businessName,
