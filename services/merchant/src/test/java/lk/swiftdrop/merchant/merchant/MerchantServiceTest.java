@@ -22,6 +22,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 
+/**
+ * Unit tests verifying merchant registration, approval lifecycle, and
+ * conflict detection across the merchant onboarding state machine.
+ */
 @ExtendWith(MockitoExtension.class)
 class MerchantServiceTest {
 
