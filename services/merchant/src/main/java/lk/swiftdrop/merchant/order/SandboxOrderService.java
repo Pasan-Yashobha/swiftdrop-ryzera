@@ -16,8 +16,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Moves sandbox orders through their delivery on request, standing in for the couriers. Nothing is published to
- * the broker and no webhook is sent.
+ * Moves sandbox orders through their delivery state transitions on request, standing in for
+ * courier physical events during integration and testing.
+ *
+ * <p>State transitions are strictly simulated in-memory and database without triggering
+ * downstream courier dispatches or production webhooks.
  */
 @Service
 @Transactional
