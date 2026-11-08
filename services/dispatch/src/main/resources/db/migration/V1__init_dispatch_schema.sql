@@ -1,5 +1,5 @@
 -- V1__init_dispatch_schema.sql
--- SwiftDrop Dispatch Service Schema
+-- SwiftDrop Dispatch Service Schema for PostgreSQL 16
 
 CREATE TABLE assignment (
     id UUID PRIMARY KEY,
@@ -8,7 +8,7 @@ CREATE TABLE assignment (
     strategy VARCHAR(32) NOT NULL,
     status VARCHAR(32) NOT NULL,
     assigned_by UUID NOT NULL,
-    assigned_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reason VARCHAR(255)
 );
 
@@ -23,7 +23,7 @@ CREATE TABLE courier_workload (
     active_deliveries INT NOT NULL DEFAULT 0,
     max_active INT NOT NULL DEFAULT 8,
     available BOOLEAN NOT NULL DEFAULT TRUE,
-    last_assigned_at TIMESTAMPTZ,
+    last_assigned_at TIMESTAMP WITH TIME ZONE,
     version BIGINT NOT NULL DEFAULT 0
 );
 
@@ -34,9 +34,8 @@ CREATE TABLE outbox (
     event_type VARCHAR(64) NOT NULL,
     aggregate_id UUID NOT NULL,
     payload TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    sent_at TIMESTAMPTZ
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    sent_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE INDEX idx_outbox_unsent ON outbox (created_at) WHERE sent_at IS NULL;
-

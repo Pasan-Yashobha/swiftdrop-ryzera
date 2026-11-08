@@ -65,6 +65,9 @@ class DispatchControllerTest {
     private ObjectMapper objectMapper;
 
     @MockBean
+    private org.springframework.security.oauth2.jwt.JwtDecoder jwtDecoder;
+
+    @MockBean
     private AssignmentService assignmentService;
 
     @MockBean
