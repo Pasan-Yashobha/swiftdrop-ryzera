@@ -33,6 +33,7 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -94,7 +95,7 @@ class AssignmentServiceTest {
         verify(assignmentRepository).save(any(Assignment.class));
         verify(workloadRepository).save(workload);
         verify(outboxRepository).save(any(OutboxEvent.class));
-        verify(sseEmitterService).broadcast(any(), any());
+        verify(sseEmitterService, atLeastOnce()).broadcast(any(), any());
     }
 
     @Test

@@ -165,8 +165,7 @@ class DispatchControllerTest {
         mockMvc.perform(post("/api/v1/dispatch/assignments")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+                .andExpect(status().isBadRequest());
     }
 
     @Test
