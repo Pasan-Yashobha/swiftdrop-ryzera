@@ -26,3 +26,4 @@ public enum Role {
         return Optional.empty();
     }
 }
+

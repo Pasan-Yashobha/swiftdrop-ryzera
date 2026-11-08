@@ -13,3 +13,4 @@ public record AutoAssignResponse(
     public record SkippedItem(UUID parcelId, String reason) {
     }
 }
+

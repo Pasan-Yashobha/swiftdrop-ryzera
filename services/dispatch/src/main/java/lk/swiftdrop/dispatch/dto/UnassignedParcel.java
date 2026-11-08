@@ -12,3 +12,4 @@ public record UnassignedParcel(
         double weight,
         Instant createdAt) {
 }
+

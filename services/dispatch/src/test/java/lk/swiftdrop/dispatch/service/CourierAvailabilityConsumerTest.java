@@ -60,3 +60,4 @@ class CourierAvailabilityConsumerTest {
         verify(sseEmitterService).broadcast(eq("workload.changed"), any());
     }
 }
+

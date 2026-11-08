@@ -5,3 +5,4 @@ public class NotFoundException extends ApiException {
         super(ErrorCode.NOT_FOUND, message);
     }
 }
+

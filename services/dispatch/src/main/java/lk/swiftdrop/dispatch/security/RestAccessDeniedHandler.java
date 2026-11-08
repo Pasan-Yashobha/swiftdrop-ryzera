@@ -25,3 +25,4 @@ public class RestAccessDeniedHandler implements AccessDeniedHandler {
                 "You do not have permission to perform this action (requires DISPATCHER or ADMIN role)");
     }
 }
+

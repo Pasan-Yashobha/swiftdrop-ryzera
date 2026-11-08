@@ -39,3 +39,4 @@ CREATE TABLE outbox (
 );
 
 CREATE INDEX idx_outbox_unsent ON outbox (created_at) WHERE sent_at IS NULL;
+

@@ -216,3 +216,4 @@ class AssignmentServiceTest {
         assertThat(response.skipped().get(0).parcelId()).isEqualTo(p2);
     }
 }
+

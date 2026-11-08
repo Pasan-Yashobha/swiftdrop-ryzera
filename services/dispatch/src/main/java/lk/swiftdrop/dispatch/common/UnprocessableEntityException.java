@@ -9,3 +9,4 @@ public class UnprocessableEntityException extends ApiException {
         super(ErrorCode.COURIER_CAPACITY_EXCEEDED, message);
     }
 }
+

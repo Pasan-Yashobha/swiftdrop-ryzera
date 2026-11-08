@@ -5,3 +5,4 @@ public enum StrategyType {
     LEAST_LOADED,
     ZONE_BASED
 }
+

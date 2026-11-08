@@ -47,3 +47,4 @@ public record CurrentUser(UUID userId, Set<String> roles) {
         return roles.contains(role.name());
     }
 }
+

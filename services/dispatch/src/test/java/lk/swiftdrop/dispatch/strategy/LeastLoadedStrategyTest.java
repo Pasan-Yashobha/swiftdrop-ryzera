@@ -93,3 +93,4 @@ class LeastLoadedStrategyTest {
         return new UnassignedParcel(UUID.randomUUID(), "SWD-TEST-1", zone, "Test Area", "SMALL", 1.0, Instant.now());
     }
 }
+

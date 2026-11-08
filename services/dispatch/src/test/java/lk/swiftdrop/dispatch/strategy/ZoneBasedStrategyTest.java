@@ -86,3 +86,4 @@ class ZoneBasedStrategyTest {
         return new UnassignedParcel(UUID.randomUUID(), "SWD-ZONE-TEST", zone, "Area", "MEDIUM", 2.0, Instant.now());
     }
 }
+

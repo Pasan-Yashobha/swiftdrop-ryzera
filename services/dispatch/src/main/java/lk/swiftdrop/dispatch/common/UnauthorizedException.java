@@ -5,3 +5,4 @@ public class UnauthorizedException extends ApiException {
         super(ErrorCode.UNAUTHENTICATED, message);
     }
 }
+

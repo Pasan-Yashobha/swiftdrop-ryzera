@@ -5,3 +5,4 @@ public class ForbiddenException extends ApiException {
         super(ErrorCode.FORBIDDEN, message);
     }
 }
+

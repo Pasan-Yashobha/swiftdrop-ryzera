@@ -19,3 +19,4 @@ public record ApiError(
     public record Detail(String field, String message) {
     }
 }
+

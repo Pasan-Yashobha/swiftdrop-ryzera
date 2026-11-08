@@ -10,3 +10,4 @@ public record ManualAssignRequest(
         @NotNull(message = "courierId must be provided")
         UUID courierId) {
 }
+

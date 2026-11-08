@@ -20,3 +20,4 @@ public interface CourierWorkloadRepository extends JpaRepository<CourierWorkload
     @Query("SELECT c FROM CourierWorkload c WHERE c.courierId = :courierId")
     Optional<CourierWorkload> findByIdForUpdate(@Param("courierId") UUID courierId);
 }
+

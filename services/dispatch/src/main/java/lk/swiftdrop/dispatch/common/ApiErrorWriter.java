@@ -31,3 +31,4 @@ public class ApiErrorWriter {
         objectMapper.writeValue(response.getOutputStream(), body);
     }
 }
+

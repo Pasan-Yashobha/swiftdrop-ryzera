@@ -37,3 +37,4 @@ public record AppProperties(
             List<String> corsAllowedOrigins) {
     }
 }
+

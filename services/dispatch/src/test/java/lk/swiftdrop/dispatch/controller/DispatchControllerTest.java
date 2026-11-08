@@ -185,3 +185,4 @@ class DispatchControllerTest {
                 .andExpect(jsonPath("$.reason").value(request.reason()));
     }
 }
+

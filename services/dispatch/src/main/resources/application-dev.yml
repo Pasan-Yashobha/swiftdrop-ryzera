@@ -19,3 +19,4 @@ swiftdrop:
   security:
     # Dev fallback secret if JWKS is offline during local test
     dev-hmac-secret: ${DEV_JWT_HMAC_SECRET:dev-only-hmac-secret-change-me-0123456789}
+

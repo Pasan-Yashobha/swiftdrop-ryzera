@@ -31,3 +31,4 @@ public abstract class AbstractCapacityAwareStrategy implements AssignmentStrateg
 
     protected abstract Optional<CourierWorkload> pick(UnassignedParcel parcel, List<CourierWorkload> eligible);
 }
+

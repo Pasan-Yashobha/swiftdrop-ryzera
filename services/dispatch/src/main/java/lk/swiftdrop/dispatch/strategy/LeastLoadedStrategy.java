@@ -29,3 +29,4 @@ public class LeastLoadedStrategy extends AbstractCapacityAwareStrategy {
         return eligible.stream().min(LEAST_LOADED_COMPARATOR);
     }
 }
+

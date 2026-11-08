@@ -25,3 +25,4 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
                 "Authentication required. Please provide a valid Bearer token");
     }
 }
+

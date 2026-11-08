@@ -38,3 +38,4 @@ class CommonExceptionTest {
         assertThat(unprocessable.code()).isEqualTo(ErrorCode.COURIER_CAPACITY_EXCEEDED);
     }
 }
+

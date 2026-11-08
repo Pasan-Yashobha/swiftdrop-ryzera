@@ -13,3 +13,4 @@ public record AutoAssignRequest(
         @NotNull(message = "strategy must be specified")
         StrategyType strategy) {
 }
+

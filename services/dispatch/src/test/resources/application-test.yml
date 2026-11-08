@@ -26,3 +26,4 @@ swiftdrop:
   integration:
     parcel-service-url: http://localhost:8080
     pricing-service-url: http://localhost:8080
+

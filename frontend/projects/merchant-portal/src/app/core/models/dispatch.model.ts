@@ -47,3 +47,4 @@ export interface Assignment {
   assignedAt: string;
   reason?: string;
 }
+

@@ -74,3 +74,4 @@ public class OutboxEvent {
         return sentAt;
     }
 }
+

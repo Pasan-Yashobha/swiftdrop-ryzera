@@ -42,3 +42,4 @@ class AssignmentStrategyFactoryTest {
                 .hasMessageContaining("No assignment strategy found");
     }
 }
+

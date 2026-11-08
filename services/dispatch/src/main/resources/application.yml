@@ -62,3 +62,4 @@ swiftdrop:
   security:
     jwks-uri: ${IDENTITY_JWKS_URI:http://localhost:8081/.well-known/jwks.json}
     cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:4201}
+

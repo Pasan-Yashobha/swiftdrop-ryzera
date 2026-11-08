@@ -21,3 +21,4 @@ public interface AssignmentRepository extends JpaRepository<Assignment, UUID> {
 
     boolean existsByParcelIdAndStatus(UUID parcelId, AssignmentStatus status);
 }
+

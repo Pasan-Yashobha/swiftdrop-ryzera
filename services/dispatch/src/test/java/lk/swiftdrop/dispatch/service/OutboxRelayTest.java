@@ -46,3 +46,4 @@ class OutboxRelayTest {
         assertThat(captor.getValue().getSentAt()).isNotNull();
     }
 }
+

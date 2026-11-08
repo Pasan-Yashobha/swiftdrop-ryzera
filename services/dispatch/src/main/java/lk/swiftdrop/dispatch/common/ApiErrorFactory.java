@@ -28,3 +28,4 @@ public class ApiErrorFactory {
         return create(code.status(), code, message, path, null);
     }
 }
+

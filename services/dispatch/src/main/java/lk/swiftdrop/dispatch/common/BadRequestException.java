@@ -11,3 +11,4 @@ public class BadRequestException extends ApiException {
         super(ErrorCode.VALIDATION_FAILED, message, details);
     }
 }
+

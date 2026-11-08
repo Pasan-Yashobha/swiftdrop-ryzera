@@ -15,3 +15,4 @@ public interface AssignmentStrategy {
 
     Optional<CourierWorkload> selectCourier(UnassignedParcel parcel, List<CourierWorkload> allCouriers);
 }
+

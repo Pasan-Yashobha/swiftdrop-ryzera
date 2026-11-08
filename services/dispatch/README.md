@@ -39,3 +39,4 @@ The Dispatch Service manages the unassigned parcel queue, monitors real-time cou
 | `POST` | `/assignments/{parcelId}/reassign` | Reassign parcel with mandatory audit reason | `DISPATCHER`, `ADMIN` |
 | `GET` | `/assignments` | Assignment audit history | `DISPATCHER`, `ADMIN` |
 | `GET` | `/stream` | Server-Sent Events stream for live board updates | `DISPATCHER`, `ADMIN` |
+

@@ -79,3 +79,4 @@ export class DispatchApi {
     return new EventSource(`${this.baseUrl}/stream`);
   }
 }
+

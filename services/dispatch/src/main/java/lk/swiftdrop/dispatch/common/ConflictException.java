@@ -9,3 +9,4 @@ public class ConflictException extends ApiException {
         super(ErrorCode.PARCEL_ALREADY_ASSIGNED, message);
     }
 }
+
