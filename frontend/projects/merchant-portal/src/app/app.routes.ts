@@ -24,12 +24,26 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/signup.page').then((m) => m.SignupPage),
   },
 
-  // Dedicated landing hub for non-merchant roles (Customer, Courier, Admin)
+  // Dedicated landing hub for non-merchant roles (Customer, Courier, Admin, Dispatcher)
   {
     path: 'welcome',
     title: 'Welcome to SwiftDrop',
     canActivate: [userAuthGuard],
     loadComponent: () => import('./features/welcome/welcome.page').then((m) => m.WelcomePage),
+  },
+
+  // Dispatcher Console (Member 6)
+  {
+    path: 'admin/dispatch',
+    title: 'Dispatcher Console',
+    canActivate: [userAuthGuard],
+    loadComponent: () =>
+      import('./features/dispatch/dispatch-console.page').then((m) => m.DispatchConsolePage),
+  },
+  {
+    path: 'dispatch',
+    redirectTo: 'admin/dispatch',
+    pathMatch: 'full',
   },
 
   // Everything below needs a signed-in merchant user. authGuard runs before any child guard.

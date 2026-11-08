@@ -1,0 +1,21 @@
+# Local development defaults (profile "dev").
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/dispatch_db}
+    username: ${SPRING_DATASOURCE_USERNAME:dispatch_svc}
+    password: ${SPRING_DATASOURCE_PASSWORD:dev_service_pw}
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:swiftdrop}
+    password: ${SPRING_RABBITMQ_PASSWORD:dev_rabbit_pw}
+
+management:
+  endpoint:
+    health:
+      show-details: always
+
+swiftdrop:
+  security:
+    # Dev fallback secret if JWKS is offline during local test
+    dev-hmac-secret: ${DEV_JWT_HMAC_SECRET:dev-only-hmac-secret-change-me-0123456789}
