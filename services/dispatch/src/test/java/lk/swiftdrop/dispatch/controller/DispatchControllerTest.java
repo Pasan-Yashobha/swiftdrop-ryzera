@@ -27,6 +27,7 @@ import lk.swiftdrop.dispatch.service.SseEmitterService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
@@ -44,6 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = DispatchController.class)
+@EnableConfigurationProperties(AppProperties.class)
 @Import({
         SecurityConfig.class,
         JwtRoleConverter.class,
@@ -53,8 +55,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ApiErrorFactory.class,
         ClockConfig.class,
         CorrelationIdFilter.class,
-        GlobalExceptionHandler.class,
-        AppProperties.class
+        GlobalExceptionHandler.class
 })
 class DispatchControllerTest {
 
