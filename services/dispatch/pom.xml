@@ -135,9 +135,8 @@
                         <exclude>**/domain/**</exclude>
                         <exclude>**/security/**</exclude>
                         <exclude>**/client/**</exclude>
+                        <exclude>**/common/**</exclude>
                         <exclude>**/*Properties*.class</exclude>
-                        <exclude>**/common/ApiError*.class</exclude>
-                        <exclude>**/common/CorrelationIdFilter.class</exclude>
                     </excludes>
                 </configuration>
                 <executions>
