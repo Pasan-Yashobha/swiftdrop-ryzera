@@ -38,9 +38,10 @@ jobs:
         if: steps.exists.outputs.found == 'true'
         working-directory: services/${{ matrix.service }}
         run: |
-          mvn -B verify || {
-            echo "::error title=Surefire Failures::$(find target/surefire-reports -name '*.txt' -exec head -n 40 {} + | tr '\n' ' ')"
-            find target/surefire-reports -name "*.txt" -exec cat {} +
+          mvn -B -e verify > /tmp/mvn_${{ matrix.service }}.log 2>&1 || {
+            ERR_MSG=$(tail -n 25 /tmp/mvn_${{ matrix.service }}.log | tr '\r\n' '  ')
+            echo "::error title=Maven Failure::${ERR_MSG}"
+            cat /tmp/mvn_${{ matrix.service }}.log
             exit 1
           }
 
