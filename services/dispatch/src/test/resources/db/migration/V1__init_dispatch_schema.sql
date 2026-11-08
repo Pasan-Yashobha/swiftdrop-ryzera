@@ -37,3 +37,4 @@ CREATE TABLE outbox (
 );
 
 CREATE INDEX idx_outbox_unsent ON outbox (created_at);
+

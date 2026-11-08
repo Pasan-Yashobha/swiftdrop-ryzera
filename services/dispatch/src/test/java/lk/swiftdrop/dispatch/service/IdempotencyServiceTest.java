@@ -38,3 +38,4 @@ class IdempotencyServiceTest {
         assertThat(cached).isEqualTo(payload);
     }
 }
+
