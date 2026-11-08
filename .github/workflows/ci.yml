@@ -37,7 +37,12 @@ jobs:
       - name: Build and test (with JaCoCo coverage)
         if: steps.exists.outputs.found == 'true'
         working-directory: services/${{ matrix.service }}
-        run: mvn -B verify
+        run: |
+          mvn -B -e verify > /tmp/mvn_${{ matrix.service }}.log 2>&1 || {
+            ERR_MSG=$(grep "\[ERROR\]" /tmp/mvn_${{ matrix.service }}.log | head -n 30 | tr '\r\n' '  ')
+            echo "::error title=Maven Failure::${ERR_MSG}"
+            exit 1
+          }
 
       - name: Upload coverage report
         if: steps.exists.outputs.found == 'true'
