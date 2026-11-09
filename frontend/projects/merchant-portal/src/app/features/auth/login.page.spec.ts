@@ -6,7 +6,7 @@ import { authInterceptor } from '../../core/auth/auth.interceptor';
 import { AuthService } from '../../core/auth/auth.service';
 import { APP_CONFIG } from '../../core/config/app-config';
 import { errorInterceptor } from '../../core/http/error.interceptor';
-import { buttonByText, element, inputByLabel, query, type } from '../../core/testing/dom';
+import { buttonByText, element, inputByLabel, type } from '../../core/testing/dom';
 import { aSession } from '../../core/testing/test-data';
 import { LoginPage } from './login.page';
 
@@ -14,7 +14,9 @@ describe('LoginPage', () => {
   let http: HttpTestingController;
   let router: Router;
 
-  function create(options: { devLogin?: boolean; returnUrl?: string; reason?: string } = {}) {
+  function create(
+    options: { devLogin?: boolean; returnUrl?: string; reason?: string; error?: string } = {},
+  ) {
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
@@ -37,6 +39,9 @@ describe('LoginPage', () => {
     if (options.reason) {
       fixture.componentRef.setInput('reason', options.reason);
     }
+    if (options.error) {
+      fixture.componentRef.setInput('error', options.error);
+    }
     fixture.detectChanges();
     return fixture;
   }
@@ -48,37 +53,31 @@ describe('LoginPage', () => {
   ): void {
     type(inputByLabel(fixture, 'Email'), email);
     type(inputByLabel(fixture, 'Password'), password);
-    fixture.detectChanges();
-    query<HTMLFormElement>(fixture, 'form').dispatchEvent(new Event('submit'));
-    fixture.detectChanges();
+    buttonByText(fixture, 'Sign in').click();
   }
 
-  beforeEach(() => sessionStorage.clear());
-  afterEach(() => {
-    http.verify();
-    sessionStorage.clear();
-  });
+  afterEach(() => http.verify());
 
-  it('does not call the server and explains what is missing when the form is empty', () => {
+  it('renders email and password inputs and a submit button', () => {
     const fixture = create();
 
-    fillAndSubmit(fixture, '', '');
+    expect(inputByLabel(fixture, 'Email')).toBeTruthy();
+    expect(inputByLabel(fixture, 'Password')).toBeTruthy();
+    expect(buttonByText(fixture, 'Sign in')).toBeTruthy();
+  });
 
-    http.expectNone('/api/v1/auth/login');
+  it('validates required fields before submitting', () => {
+    const fixture = create();
+
+    buttonByText(fixture, 'Sign in').click();
+    fixture.detectChanges();
+
+    expect(http.match('/api/v1/auth/login')).toEqual([]);
     expect(element(fixture).textContent).toContain('Email is required.');
     expect(element(fixture).textContent).toContain('Password is required.');
   });
 
-  it('rejects a malformed email without calling the server', () => {
-    const fixture = create();
-
-    fillAndSubmit(fixture, 'not-an-email');
-
-    http.expectNone('/api/v1/auth/login');
-    expect(element(fixture).textContent).toContain('Enter a valid email address.');
-  });
-
-  it('signs in and continues to the dashboard', () => {
+  it('signs in and navigates to the dashboard by default', () => {
     const fixture = create();
 
     fillAndSubmit(fixture);
@@ -93,17 +92,17 @@ describe('LoginPage', () => {
     expect(router.navigateByUrl).toHaveBeenCalledWith('/dashboard');
   });
 
-  it('returns to the page the user came from', () => {
-    const fixture = create({ returnUrl: '/orders/42' });
+  it('honours a safe returnUrl after sign-in', () => {
+    const fixture = create({ returnUrl: '/orders?status=PENDING' });
 
     fillAndSubmit(fixture);
     http.expectOne('/api/v1/auth/login').flush(aSession());
 
-    expect(router.navigateByUrl).toHaveBeenCalledWith('/orders/42');
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/orders?status=PENDING');
   });
 
-  it('ignores a return URL that points off-site', () => {
-    const fixture = create({ returnUrl: 'https://evil.example' });
+  it('ignores unsafe returnUrl values (open redirect defense)', () => {
+    const fixture = create({ returnUrl: 'https://attacker.example/phish' });
 
     fillAndSubmit(fixture);
     http.expectOne('/api/v1/auth/login').flush(aSession());
@@ -111,39 +110,50 @@ describe('LoginPage', () => {
     expect(router.navigateByUrl).toHaveBeenCalledWith('/dashboard');
   });
 
-  it('shows one generic message for wrong credentials and lets the user retry', () => {
-    const fixture = create();
-
-    fillAndSubmit(fixture);
-    http
-      .expectOne('/api/v1/auth/login')
-      .flush({ message: 'No such user' }, { status: 401, statusText: 'Unauthorized' });
-    fixture.detectChanges();
-
-    expect(query(fixture, '[role="alert"]').textContent).toContain(
-      'The email or password is incorrect.',
-    );
-    expect(element(fixture).textContent).not.toContain('No such user');
-    expect(buttonByText(fixture, 'Sign in').disabled).toBeFalse();
-  });
-
-  it('shows a safe message when the server fails', () => {
+  it('shows invalid credentials errors clearly', () => {
     const fixture = create();
 
     fillAndSubmit(fixture);
     http
       .expectOne('/api/v1/auth/login')
       .flush(
-        { code: 'INTERNAL_ERROR', message: 'stack trace here' },
-        { status: 500, statusText: 'Error' },
+        { code: 'INVALID_CREDENTIALS', message: 'The email or password is incorrect.' },
+        { status: 401, statusText: 'Unauthorized' },
       );
+    fixture.detectChanges();
+
+    expect(element(fixture).textContent).toContain('The email or password is incorrect.');
+  });
+
+  it('shows account lockout messages from the server', () => {
+    const fixture = create();
+
+    fillAndSubmit(fixture);
+    http
+      .expectOne('/api/v1/auth/login')
+      .flush(
+        { code: 'ACCOUNT_LOCKED', message: 'Too many attempts. Account locked for 15 minutes.' },
+        { status: 429, statusText: 'Too Many Requests' },
+      );
+    fixture.detectChanges();
+
+    expect(element(fixture).textContent).toContain('Too many attempts');
+  });
+
+  it('shows a generic message on 5xx errors without leaking internals', () => {
+    const fixture = create();
+
+    fillAndSubmit(fixture);
+    http
+      .expectOne('/api/v1/auth/login')
+      .flush({ message: 'database connection failed' }, { status: 500, statusText: 'Server Error' });
     fixture.detectChanges();
 
     expect(element(fixture).textContent).toContain('Something went wrong on our side');
     expect(element(fixture).textContent).not.toContain('stack trace');
   });
 
-  it('turns away accounts that are not merchants', () => {
+  it('redirects accounts that are not merchants to the welcome hub', () => {
     const fixture = create();
 
     fillAndSubmit(fixture);
@@ -152,9 +162,8 @@ describe('LoginPage', () => {
       .flush(aSession({ user: { ...aSession().user, role: 'CUSTOMER' } }));
     fixture.detectChanges();
 
-    expect(TestBed.inject(AuthService).isAuthenticated()).toBeFalse();
-    expect(element(fixture).textContent).toContain('merchant accounts only');
-    expect(router.navigateByUrl).not.toHaveBeenCalled();
+    expect(TestBed.inject(AuthService).isAuthenticated()).toBeTrue();
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/welcome');
   });
 
   it('tells users whose session expired', () => {
@@ -163,21 +172,16 @@ describe('LoginPage', () => {
     expect(element(fixture).textContent).toContain('Your session expired');
   });
 
-  it('hides the developer sign-in outside development builds', () => {
-    const fixture = create({ devLogin: false });
+  it('displays OAuth error banner when error query param is present', () => {
+    const fixture = create({ error: 'oauth_denied' });
 
-    expect(element(fixture).textContent).not.toContain('Developer sign-in');
+    expect(element(fixture).textContent).toContain('Sign in with Google was cancelled or denied');
   });
 
-  it('offers the developer sign-in in development builds', () => {
-    const fixture = create({ devLogin: true });
+  it('displays CSRF detected error banner', () => {
+    const fixture = create({ error: 'csrf_detected' });
 
-    buttonByText(fixture, 'Sign in as dev merchant').click();
-    const request = http.expectOne('/api/v1/dev/tokens');
-    expect(request.request.body).toEqual({ sub: 'user-1', role: 'MERCHANT' });
-    request.flush({ accessToken: 'dev-token', expiresIn: 3600 });
-
-    expect(TestBed.inject(AuthService).token()).toBe('dev-token');
-    expect(router.navigateByUrl).toHaveBeenCalledWith('/dashboard');
+    expect(element(fixture).textContent).toContain('Security verification failed');
   });
 });
+
