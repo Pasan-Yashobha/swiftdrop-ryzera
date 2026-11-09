@@ -17,9 +17,6 @@ import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid';
 import { AppError, toAppError } from '../../core/http/app-error';
 import { AuthUser } from '../../core/models/auth.model';
 import { safeReturnUrl } from '../../core/auth/return-url';
-import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
-import { FieldControl, FormField } from '../../shared/ui/form-field/form-field';
-import { PasswordField } from '../../shared/ui/password-field/password-field';
 
 const INVALID_CREDENTIALS = new AppError(
   401,
@@ -29,7 +26,7 @@ const INVALID_CREDENTIALS = new AppError(
 
 @Component({
   selector: 'app-login-page',
-  imports: [ReactiveFormsModule, RouterLink, FormField, FieldControl, PasswordField, ErrorAlert],
+  imports: [ReactiveFormsModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   templateUrl: './login.page.html',
@@ -58,6 +55,7 @@ export class LoginPage {
     rememberMe: new FormControl(true, { nonNullable: true }),
   });
 
+  protected readonly showPassword = signal(false);
   protected readonly busy = signal(false);
   protected readonly formError = signal<AppError | null>(null);
   protected readonly quickTrackStatus = signal<string | null>(null);

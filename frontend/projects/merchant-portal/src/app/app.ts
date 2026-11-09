@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, inject, viewChild } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
-import { distinctUntilChanged, filter, map, skip } from 'rxjs';
+import { distinctUntilChanged, filter, map, skip, startWith } from 'rxjs';
 import { AppHeader } from './layout/app-header';
 import { ToastOutlet } from './shared/ui/toast/toast-outlet';
 
@@ -16,13 +16,29 @@ import { ToastOutlet } from './shared/ui/toast/toast-outlet';
 export class App {
   protected readonly year = new Date().getFullYear();
 
-  private readonly main = viewChild.required<ElementRef<HTMLElement>>('main');
+  private readonly main = viewChild<ElementRef<HTMLElement>>('main');
+  private readonly router = inject(Router);
+
+  /** True when displaying auth split screens (/login, /signup) to eliminate outer nav header & footer. */
+  protected readonly isAuthRoute = toSignal(
+    this.router.events.pipe(
+      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+      map((event) => this.checkIsAuth(event.urlAfterRedirects)),
+      startWith(this.checkIsAuth(this.router.url)),
+    ),
+    { initialValue: this.checkIsAuth(this.router.url) },
+  );
+
+  private checkIsAuth(url: string): boolean {
+    const clean = (url || '').split(/[?#]/)[0];
+    return clean === '/login' || clean === '/signup';
+  }
 
   constructor() {
     // After each in-app page change, move focus to the page so keyboard and screen reader users start at the top.
     // Query and fragment changes stay on the same page (list filters, table of contents), so they keep focus.
-    inject(Router)
-      .events.pipe(
+    this.router.events
+      .pipe(
         filter((event) => event instanceof NavigationEnd),
         map((event) => event.urlAfterRedirects.split(/[?#]/)[0]),
         distinctUntilChanged(),
@@ -39,6 +55,6 @@ export class App {
   }
 
   private focusMain(): void {
-    this.main().nativeElement.focus({ preventScroll: true });
+    this.main()?.nativeElement.focus({ preventScroll: true });
   }
 }

@@ -1,6 +1,5 @@
-﻿<div class="auth-shell">
-
-  <div class="auth-split-card">
+<div class="auth-page">
+  <div class="auth-layout">
 
     <!-- Left Column: Operations Hero & Live Manifest Telemetry -->
     <aside class="auth-hero-panel">
@@ -66,99 +65,147 @@
 
     <!-- Right Column: Authentication Form Surface -->
     <main class="auth-form-panel">
-      <!-- Top Navigation Tabs -->
-      <nav class="auth-tabs" aria-label="Authentication Options">
-        <a routerLink="/login" class="auth-tab auth-tab--active">Log in</a>
-        <a routerLink="/signup" class="auth-tab">Sign up</a>
-      </nav>
+      <div class="auth-form-inner">
 
-      <h1 class="auth-form-title">Welcome back</h1>
+        <!-- Top Navigation Tabs -->
+        <nav class="auth-tabs" aria-label="Authentication Options">
+          <a routerLink="/login" class="auth-tab auth-tab--active">Log in</a>
+          <a routerLink="/signup" class="auth-tab">Sign up</a>
+        </nav>
 
-      @if (reason() === 'expired') {
-        <p class="alert alert--info" role="status">Your session expired. Please sign in again.</p>
-      }
+        <h1 class="auth-form-title">Welcome back</h1>
 
-      @if (oauthErrorMessage()) {
-        <p class="alert alert--danger" role="alert">{{ oauthErrorMessage() }}</p>
-      }
+        @if (reason() === 'expired') {
+          <div class="auth-alert auth-alert--info" role="status">Your session expired. Please sign in again.</div>
+        }
 
-      @if (auth.isAuthenticated() && !auth.isMerchant()) {
-        <div class="active-session-banner" role="status">
-          <div class="active-session-header">
-            <div class="session-avatar">{{ auth.user()?.fullName?.charAt(0) ?? 'U' }}</div>
-            <div class="session-info">
-              <div class="session-name-row">
-                <span class="session-name">{{ auth.user()?.fullName }}</span>
-                <span class="role-badge role-badge--{{ auth.user()?.role?.toLowerCase() }}">{{ auth.user()?.role }}</span>
+        @if (oauthErrorMessage()) {
+          <div class="auth-alert auth-alert--danger" role="alert">{{ oauthErrorMessage() }}</div>
+        }
+
+        @if (formError(); as err) {
+          <div class="auth-alert auth-alert--danger" role="alert">{{ err.message }}</div>
+        }
+
+        @if (auth.isAuthenticated() && !auth.isMerchant()) {
+          <div class="active-session-banner" role="status">
+            <div class="active-session-header">
+              <div class="session-avatar">{{ auth.user()?.fullName?.charAt(0) ?? 'U' }}</div>
+              <div class="session-info">
+                <div class="session-name-row">
+                  <span class="session-name">{{ auth.user()?.fullName }}</span>
+                  <span class="role-badge role-badge--{{ auth.user()?.role?.toLowerCase() }}">{{ auth.user()?.role }}</span>
+                </div>
+                <span class="session-email">{{ auth.user()?.email }}</span>
               </div>
-              <span class="muted small">{{ auth.user()?.email }}</span>
+            </div>
+            <p class="session-note">
+              Signed in as <strong>{{ auth.user()?.role }}</strong>.
+            </p>
+            <div class="session-actions">
+              <a routerLink="/welcome" class="btn btn-primary btn-sm">Go to {{ auth.user()?.role }} Hub &rarr;</a>
+              <button type="button" class="btn btn-ghost btn-sm" (click)="signOut()">Switch account</button>
             </div>
           </div>
-          <p class="small text-muted" style="margin: 0.5rem 0 0;">
-            Signed in as <strong>{{ auth.user()?.role }}</strong>.
-          </p>
-          <div style="display: flex; gap: var(--space-2); margin-top: 0.5rem; flex-wrap: wrap;">
-            <a routerLink="/welcome" class="btn btn-primary btn-sm">Go to {{ auth.user()?.role }} Hub &rarr;</a>
-            <button type="button" class="btn btn-ghost btn-sm" (click)="signOut()">Switch account</button>
+        }
+
+        <form class="auth-form auth-form--login" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+
+          <div class="form-group">
+            <label for="login-email" class="form-label">Email</label>
+            <input
+              id="login-email"
+              type="email"
+              class="form-input"
+              [class.form-input--error]="form.controls.email.touched && form.controls.email.invalid"
+              formControlName="email"
+              autocomplete="username"
+              placeholder="amal@example.com"
+            />
+            @if (form.controls.email.touched && form.controls.email.errors?.['required']) {
+              <p class="form-error">Email is required.</p>
+            } @else if (form.controls.email.touched && form.controls.email.errors?.['email']) {
+              <p class="form-error">Enter a valid email address.</p>
+            }
           </div>
-        </div>
-      }
 
-      <app-error-alert [error]="formError()" />
+          <div class="form-group">
+            <label for="login-password" class="form-label">Password</label>
+            <div class="password-input-group">
+              <input
+                id="login-password"
+                [type]="showPassword() ? 'text' : 'password'"
+                class="form-input"
+                [class.form-input--error]="form.controls.password.touched && form.controls.password.invalid"
+                formControlName="password"
+                autocomplete="current-password"
+                placeholder="••••••••••"
+              />
+              <button
+                type="button"
+                class="password-eye-btn"
+                [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'"
+                (click)="showPassword.set(!showPassword())"
+              >
+                @if (showPassword()) {
+                  <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                  </svg>
+                  <span class="visually-hidden">Hide password</span>
+                } @else {
+                  <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                  <span class="visually-hidden">Show password</span>
+                }
+              </button>
+            </div>
+            @if (form.controls.password.touched && form.controls.password.errors?.['required']) {
+              <p class="form-error">Password is required.</p>
+            }
+          </div>
 
-      <form class="auth-form auth-form--login" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+          <div class="auth-options-row">
+            <label class="auth-checkbox-label">
+              <input type="checkbox" formControlName="rememberMe" class="auth-checkbox" />
+              <span>Keep me signed in</span>
+            </label>
+            <a routerLink="/signup" class="auth-forgot-link">Forgot password?</a>
+          </div>
 
-        <app-form-field label="Email" [control]="form.controls.email">
-          <input
-            appFieldControl
-            type="email"
-            formControlName="email"
-            autocomplete="username"
-            placeholder="amal@example.com"
-          />
-        </app-form-field>
+          <button type="submit" class="auth-submit-btn" [disabled]="busy()">
+            @if (busy()) {
+              <span class="auth-spinner" aria-hidden="true"></span>
+              Signing in…
+            } @else {
+              Log in <span class="visually-hidden">(Sign in)</span>
+            }
+          </button>
 
-        <app-password-field label="Password" [control]="form.controls.password" />
+        </form>
 
-        <div class="auth-options-row">
-          <label class="auth-checkbox-label">
-            <input type="checkbox" formControlName="rememberMe" class="auth-checkbox" />
-            <span>Keep me signed in</span>
-          </label>
-          <a routerLink="/signup" class="auth-forgot-link">Forgot password?</a>
-        </div>
+        <div class="auth-divider"><span>or</span></div>
 
-        <button type="submit" class="auth-submit-btn" [disabled]="busy()">
-          @if (busy()) {
-            <span class="auth-spinner" aria-hidden="true"></span>
-            Signing in…
-          } @else {
-            Log in <span class="visually-hidden">(Sign in)</span>
-          }
-        </button>
+        <a class="btn-google" href="/api/v1/auth/google" aria-label="Continue with Google">
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+            <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z"/>
+            <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z"/>
+            <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z"/>
+            <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58Z"/>
+          </svg>
+          Continue with Google
+        </a>
 
-      </form>
+        <!-- Merchant Registration Banner from Stitch Design -->
+        <a routerLink="/signup" class="auth-merchant-promo">
+          <span>Selling online? <strong>Register your business</strong></span>
+          <span class="promo-badge">MERCHANT</span>
+        </a>
 
-      <div class="auth-divider"><span>or</span></div>
-
-      <a class="btn-google" href="/api/v1/auth/google" aria-label="Continue with Google">
-        <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-          <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z"/>
-          <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z"/>
-          <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z"/>
-          <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58Z"/>
-        </svg>
-        Continue with Google
-      </a>
-
-      <!-- Merchant Registration Banner from Stitch Design -->
-      <a routerLink="/signup" class="auth-merchant-promo">
-        <span>Selling online? <strong>Register your business</strong></span>
-        <span class="promo-badge">MERCHANT</span>
-      </a>
-
+      </div>
     </main>
 
   </div>
-
 </div>

@@ -21,9 +21,6 @@ import {
   phoneNumber,
   sameAsSibling,
 } from '../../shared/forms/validators';
-import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
-import { FieldControl, FormField } from '../../shared/ui/form-field/form-field';
-import { PasswordField } from '../../shared/ui/password-field/password-field';
 import { normalizePhone } from '../../shared/util/phone';
 
 const EMAIL_TAKEN = new AppError(
@@ -34,7 +31,7 @@ const EMAIL_TAKEN = new AppError(
 
 @Component({
   selector: 'app-signup-page',
-  imports: [ReactiveFormsModule, RouterLink, FormField, FieldControl, PasswordField, ErrorAlert],
+  imports: [ReactiveFormsModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   templateUrl: './signup.page.html',
@@ -72,6 +69,8 @@ export class SignupPage {
     agreeTerms: new FormControl(true, { nonNullable: true }),
   });
 
+  protected readonly showPassword = signal(false);
+  protected readonly showConfirmPassword = signal(false);
   protected readonly busy = signal(false);
   protected readonly error = signal<AppError | null>(null);
   protected readonly quickTrackStatus = signal<string | null>(null);
