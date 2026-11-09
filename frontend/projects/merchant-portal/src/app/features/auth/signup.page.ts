@@ -77,6 +77,16 @@ export class SignupPage {
   private readonly password = toSignal(this.form.controls.password.valueChanges, {
     initialValue: '',
   });
+  private readonly selectedRole = toSignal(this.form.controls.role.valueChanges, {
+    initialValue: this.form.controls.role.value,
+  });
+
+  /** Dynamic Google OAuth signup URL containing the selected account type. */
+  protected readonly googleSignupUrl = computed(() => {
+    const role = this.selectedRole();
+    return `/api/v1/auth/google?role=${encodeURIComponent(role)}`;
+  });
+
   /** The password rules with whether the current input satisfies each, shown as a live checklist. */
   protected readonly rules = computed(() =>
     PASSWORD_RULES.map((rule) => ({ label: rule.label, met: rule.test(this.password()) })),

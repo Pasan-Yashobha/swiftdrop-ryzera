@@ -156,4 +156,19 @@ describe('SignupPage', () => {
 
     expect(element(fixture).textContent).toContain('is not allowed');
   });
+
+  it('updates the Google signup link when the selected account type changes', () => {
+    const googleLink = query<HTMLAnchorElement>(fixture, 'a.btn-google');
+    expect(googleLink.getAttribute('href')).toBe('/api/v1/auth/google?role=MERCHANT');
+
+    fixture.componentInstance['form'].controls.role.setValue('COURIER');
+    fixture.detectChanges();
+
+    expect(googleLink.getAttribute('href')).toBe('/api/v1/auth/google?role=COURIER');
+
+    fixture.componentInstance['form'].controls.role.setValue('CUSTOMER');
+    fixture.detectChanges();
+
+    expect(googleLink.getAttribute('href')).toBe('/api/v1/auth/google?role=CUSTOMER');
+  });
 });

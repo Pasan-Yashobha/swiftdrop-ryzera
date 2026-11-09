@@ -21,6 +21,8 @@
         <java.version>21</java.version>
         <jacoco.version>0.8.13</jacoco.version>
         <jacoco.minimum>0.70</jacoco.minimum>
+        <!-- Flyway 11+ pulls google-cloud-storage which requires GitHub Packages auth in Docker. Flyway 10.x avoids this entirely. -->
+        <flyway.version>10.21.0</flyway.version>
     </properties>
 
     <dependencies>
