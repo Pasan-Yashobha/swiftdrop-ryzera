@@ -4,10 +4,14 @@
 # ---- Build stage ----
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
+# settings.xml redirects the Flyway GitHub Packages registry (requires auth) to
+# Maven Central so the Docker builder never needs a GitHub token.
+COPY .mvn/settings.xml .mvn/settings.xml
+# Cache dependencies first so code-only changes rebuild fast
 COPY pom.xml .
-RUN mvn -B -q dependency:go-offline
+RUN mvn -B -q dependency:go-offline -s .mvn/settings.xml
 COPY src ./src
-RUN mvn -B -q package -DskipTests
+RUN mvn -B -q package -DskipTests -s .mvn/settings.xml
 
 # ---- Runtime stage ----
 FROM eclipse-temurin:21-jre-alpine
