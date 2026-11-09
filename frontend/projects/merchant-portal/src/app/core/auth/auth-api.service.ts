@@ -26,6 +26,14 @@ export class AuthApiService {
   }
 
   /**
+   * Attempts to restore a session using the HttpOnly refreshToken cookie set by the backend
+   * after a Google OAuth redirect. Sends an empty body so the server reads the cookie directly.
+   */
+  refreshFromCookie(): Observable<AuthSession> {
+    return this.http.post<AuthSession>(`${this.base}/auth/refresh`, {}, { withCredentials: true });
+  }
+
+  /**
    * Development-only sign-in against merchant-service's dev token endpoint, for working on the portal
    * before Identity exists. The session it returns cannot be refreshed.
    */
