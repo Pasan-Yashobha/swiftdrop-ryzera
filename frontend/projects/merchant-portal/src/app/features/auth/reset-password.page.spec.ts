@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { API_BASE_URL } from '../../core/config/app-config';
-import { buttonByText, element, inputByLabel, query, type } from '../../core/testing/dom';
+import { buttonByText, element, inputByLabel, type } from '../../core/testing/dom';
 import { ResetPasswordPage } from './reset-password.page';
 
 describe('ResetPasswordPage', () => {
