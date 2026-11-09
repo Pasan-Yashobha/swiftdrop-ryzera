@@ -6,7 +6,7 @@ import { authInterceptor } from '../../core/auth/auth.interceptor';
 import { AuthService } from '../../core/auth/auth.service';
 import { APP_CONFIG } from '../../core/config/app-config';
 import { errorInterceptor } from '../../core/http/error.interceptor';
-import { buttonByText, element, inputByLabel, type } from '../../core/testing/dom';
+import { buttonByText, element, inputByLabel, query, type } from '../../core/testing/dom';
 import { aSession } from '../../core/testing/test-data';
 import { LoginPage } from './login.page';
 
@@ -182,6 +182,18 @@ describe('LoginPage', () => {
     const fixture = create({ error: 'csrf_detected' });
 
     expect(element(fixture).textContent).toContain('Security verification failed');
+  });
+
+  it('updates live tracking hint when quick track is submitted', () => {
+    const fixture = create();
+    const trackInput = query<HTMLInputElement>(fixture, '#quickTrackInputLogin');
+    trackInput.value = 'SD-9999-1234';
+    trackInput.dispatchEvent(new Event('input'));
+    buttonByText(fixture, 'Go').click();
+    fixture.detectChanges();
+
+    expect(element(fixture).textContent).toContain('SD-9999-1234');
+    expect(element(fixture).textContent).toContain('In Transit');
   });
 });
 

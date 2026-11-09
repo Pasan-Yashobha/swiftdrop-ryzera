@@ -70,11 +70,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     environment:
       SPRING_PROFILES_ACTIVE: ${IDENTITY_SPRING_PROFILES:-dev}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/identity_db
       SPRING_DATASOURCE_USERNAME: identity_svc
       SPRING_DATASOURCE_PASSWORD: ${SERVICE_DB_PASSWORD:-dev_service_pw}
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-mailpit}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-1025}
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-token}
       CORS_ALLOWED_ORIGINS: ${IDENTITY_CORS_ALLOWED_ORIGINS:-http://localhost:4201,http://localhost:4200}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}

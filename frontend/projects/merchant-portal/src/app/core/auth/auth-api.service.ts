@@ -21,6 +21,14 @@ export class AuthApiService {
     return this.http.post<AuthSession>(`${this.base}/auth/signup`, request);
   }
 
+  forgotPassword(email: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.base}/auth/forgot-password`, { email });
+  }
+
+  resetPassword(token: string, newPassword: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.base}/auth/reset-password`, { token, newPassword });
+  }
+
   refresh(refreshToken: string): Observable<AuthSession> {
     return this.http.post<AuthSession>(`${this.base}/auth/refresh`, { refreshToken });
   }

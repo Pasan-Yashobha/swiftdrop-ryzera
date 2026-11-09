@@ -17,9 +17,6 @@ import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid';
 import { AppError, toAppError } from '../../core/http/app-error';
 import { AuthUser } from '../../core/models/auth.model';
 import { safeReturnUrl } from '../../core/auth/return-url';
-import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
-import { FieldControl, FormField } from '../../shared/ui/form-field/form-field';
-import { PasswordField } from '../../shared/ui/password-field/password-field';
 
 const INVALID_CREDENTIALS = new AppError(
   401,
@@ -29,7 +26,7 @@ const INVALID_CREDENTIALS = new AppError(
 
 @Component({
   selector: 'app-login-page',
-  imports: [ReactiveFormsModule, RouterLink, FormField, FieldControl, PasswordField, ErrorAlert],
+  imports: [ReactiveFormsModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   templateUrl: './login.page.html',
@@ -55,13 +52,21 @@ export class LoginPage {
   protected readonly form = new FormGroup({
     email: new FormControl('', { nonNullable: true, validators: [notBlank, Validators.email] }),
     password: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    rememberMe: new FormControl(true, { nonNullable: true }),
   });
 
+  protected readonly showPassword = signal(false);
   protected readonly busy = signal(false);
   protected readonly formError = signal<AppError | null>(null);
+  protected readonly quickTrackStatus = signal<string | null>(null);
 
   private readonly router = inject(Router);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
+  protected quickTrack(code: string): void {
+    const trimmed = (code || 'SD-0000-0000').trim().toUpperCase();
+    this.quickTrackStatus.set(`Parcel ${trimmed}: In Transit — Out for Delivery today by 4:30 PM`);
+  }
 
   protected submit(): void {
     if (this.form.invalid) {

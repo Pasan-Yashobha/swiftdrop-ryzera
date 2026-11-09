@@ -1,11 +1,19 @@
 <a class="skip-link" href="#main" (click)="skipToContent($event)">Skip to main content</a>
-<app-header />
-<main id="main" #main class="container main" tabindex="-1">
-  <router-outlet />
-</main>
-<footer class="footer">
-  <div class="container">
-    <p class="muted small">SwiftDrop Merchant Portal &middot; &copy; {{ year }} SwiftDrop</p>
-  </div>
-</footer>
+
+@if (!isAuthRoute()) {
+  <app-header />
+  <main id="main" #main class="container main" tabindex="-1">
+    <router-outlet />
+  </main>
+  <footer class="footer">
+    <div class="container">
+      <p class="muted small">SwiftDrop Merchant Portal &middot; &copy; {{ year }} SwiftDrop</p>
+    </div>
+  </footer>
+} @else {
+  <main id="main" #main class="main main--fullscreen" tabindex="-1">
+    <router-outlet />
+  </main>
+}
+
 <app-toast-outlet />

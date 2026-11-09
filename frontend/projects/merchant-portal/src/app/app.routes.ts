@@ -23,6 +23,20 @@ export const routes: Routes = [
     canActivate: [guestGuard],
     loadComponent: () => import('./features/auth/signup.page').then((m) => m.SignupPage),
   },
+  {
+    path: 'forgot-password',
+    title: 'Forgot password',
+    canActivate: [guestGuard],
+    loadComponent: () =>
+      import('./features/auth/forgot-password.page').then((m) => m.ForgotPasswordPage),
+  },
+  {
+    path: 'reset-password',
+    title: 'Reset password',
+    canActivate: [guestGuard],
+    loadComponent: () =>
+      import('./features/auth/reset-password.page').then((m) => m.ResetPasswordPage),
+  },
 
   // Dedicated landing hub for non-merchant roles (Customer, Courier, Admin, Dispatcher)
   {
