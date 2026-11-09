@@ -214,6 +214,26 @@
   </div>
   }
 
+  <!-- ================= DISPATCHER PORTAL ================= -->
+  @case ('DISPATCHER') {
+  <div class="portal-grid">
+    <div class="card stack portal-card portal-card--primary" style="padding: var(--space-6);">
+      <div class="card-header-row">
+        <div>
+          <h2 class="card-title">Dispatcher Control Center</h2>
+          <p class="card-lead">Manage unassigned parcels queue and monitor real-time courier workload across island-wide delivery zones.</p>
+        </div>
+        <span class="status-indicator-admin">Dispatcher</span>
+      </div>
+      <div style="margin-top: var(--space-4);">
+        <a routerLink="/admin/dispatch" class="btn btn-primary" style="display: inline-block;">
+          Open Live Dispatcher Console &rarr;
+        </a>
+      </div>
+    </div>
+  </div>
+  }
+
   <!-- ================= ADMIN PORTAL ================= -->
   @case ('ADMIN') {
   <div class="portal-grid">
