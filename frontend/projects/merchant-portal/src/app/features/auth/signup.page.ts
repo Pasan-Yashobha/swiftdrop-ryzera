@@ -69,10 +69,17 @@ export class SignupPage {
       nonNullable: true,
       validators: [Validators.required, sameAsSibling('password')],
     }),
+    agreeTerms: new FormControl(true, { nonNullable: true }),
   });
 
   protected readonly busy = signal(false);
   protected readonly error = signal<AppError | null>(null);
+  protected readonly quickTrackStatus = signal<string | null>(null);
+
+  protected quickTrack(code: string): void {
+    const trimmed = (code || 'SD-0000-0000').trim().toUpperCase();
+    this.quickTrackStatus.set(`Parcel ${trimmed}: In Transit — Out for Delivery today by 4:30 PM`);
+  }
 
   private readonly password = toSignal(this.form.controls.password.valueChanges, {
     initialValue: '',
