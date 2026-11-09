@@ -31,7 +31,7 @@ export class App {
 
   private checkIsAuth(url: string): boolean {
     const clean = (url || '').split(/[?#]/)[0];
-    return clean === '/login' || clean === '/signup';
+    return clean === '/login' || clean === '/signup' || clean === '/forgot-password' || clean === '/reset-password';
   }
 
   constructor() {

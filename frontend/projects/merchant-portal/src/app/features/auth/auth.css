@@ -230,13 +230,55 @@
   width: 100%;
 }
 
-/* Tabs */
+/* Tabs & Navigation Header */
 .auth-tabs {
   display: flex;
   align-items: center;
   gap: 1.75rem;
   border-bottom: 2px solid #e5e7eb;
   margin-bottom: 1.75rem;
+}
+
+.auth-nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid #e5e7eb;
+  margin-bottom: 1.75rem;
+  padding-bottom: 0.65rem;
+}
+
+.auth-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #64748b;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.auth-back-link:hover {
+  color: #0f172a;
+}
+
+.auth-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.auth-nav-links a {
+  color: #64748b;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.auth-nav-links a:hover {
+  color: #0f172a;
 }
 
 .auth-tab {
@@ -309,6 +351,33 @@
   background: #eff6ff;
   border: 1px solid #bfdbfe;
   color: #1d4ed8;
+}
+
+.auth-alert--success {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+/* Input with Trailing Icon */
+.input-with-icon {
+  position: relative;
+  width: 100%;
+}
+
+.input-with-icon .form-input {
+  padding-right: 2.75rem;
+}
+
+.input-icon-trailing {
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
 }
 
 /* Form Layout & Native Inputs */
