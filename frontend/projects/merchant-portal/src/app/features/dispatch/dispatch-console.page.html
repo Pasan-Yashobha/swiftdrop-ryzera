@@ -1,0 +1,398 @@
+<div class="dispatch-layout">
+  <!-- Header / Navigation Bar -->
+  <header class="dispatch-navbar">
+    <div class="brand-group">
+      <div class="brand-logo">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="1" y="3" width="15" height="13" rx="2" />
+          <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+          <circle cx="5.5" cy="18.5" r="2.5" />
+          <circle cx="18.5" cy="18.5" r="2.5" />
+        </svg>
+      </div>
+      <div>
+        <h1 class="brand-title">Swift<span>Drop</span> Dispatcher Console</h1>
+        <span class="brand-subtitle">Real-Time Courier Assignment &amp; Workload Governance</span>
+      </div>
+    </div>
+
+    <div class="navbar-actions">
+      <div class="stream-indicator">
+        <span class="live-dot"></span>
+        <span class="live-text">Live Sync</span>
+      </div>
+      <button type="button" class="btn btn-outline btn-sm" (click)="refreshAll()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="23 4 23 10 17 10" />
+          <polyline points="1 20 1 14 7 14" />
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+        </svg>
+        Refresh
+      </button>
+      <a routerLink="/welcome" class="btn btn-ghost btn-sm">
+        Back to Hub
+      </a>
+    </div>
+  </header>
+
+  <!-- Global Feedback Banners -->
+  @if (errorMessage()) {
+  <div class="alert alert-error">
+    <div class="alert-content">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="8" x2="12" y2="12" />
+        <line x1="12" y1="16" x2="12.01" y2="16" />
+      </svg>
+      <span>{{ errorMessage() }}</span>
+    </div>
+    <button type="button" class="alert-close" (click)="clearAlerts()">&times;</button>
+  </div>
+  }
+
+  @if (successMessage()) {
+  <div class="alert alert-success">
+    <div class="alert-content">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+        <polyline points="22 4 12 14.01 9 11.01" />
+      </svg>
+      <span>{{ successMessage() }}</span>
+    </div>
+    <button type="button" class="alert-close" (click)="clearAlerts()">&times;</button>
+  </div>
+  }
+
+  <!-- View Switcher Tabs -->
+  <div class="console-tabs">
+    <button type="button" class="tab-btn" [class.tab-btn--active]="activeTab() === 'queue'"
+      (click)="activeTab.set('queue')">
+      Live Dispatch Board &amp; Queue ({{ unassignedParcels().length }} pending)
+    </button>
+    <button type="button" class="tab-btn" [class.tab-btn--active]="activeTab() === 'history'"
+      (click)="activeTab.set('history')">
+      Assignment History &amp; Reassignment ({{ assignmentHistory().length }})
+    </button>
+  </div>
+
+  <!-- TAB 1: Live Dispatch Two-Pane Grid -->
+  @if (activeTab() === 'queue') {
+  <div class="two-pane-container">
+    <!-- LEFT PANE: Unassigned Parcel Queue -->
+    <section class="pane pane-queue">
+      <div class="pane-header">
+        <div>
+          <h2 class="pane-title">Unassigned Parcels Queue</h2>
+          <p class="pane-subtitle">Parcels in CREATED state awaiting courier assignment (oldest first).</p>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" (click)="openAutoAssignDialog()"
+          [disabled]="unassignedParcels().length === 0">
+          Auto-Assign Parcels
+        </button>
+      </div>
+
+      <!-- Filters Row -->
+      <div class="filter-bar">
+        <div class="filter-field">
+          <label for="zoneFilter">Zone / Area:</label>
+          <input id="zoneFilter" type="text" [(ngModel)]="zoneFilter" (keyup.enter)="refreshParcels()"
+            placeholder="e.g. Colombo" class="input-sm" />
+        </div>
+        <div class="filter-field">
+          <label for="sizeFilter">Size:</label>
+          <select id="sizeFilter" [(ngModel)]="sizeFilter" (change)="refreshParcels()" class="select-sm">
+            <option value="">All Sizes</option>
+            <option value="SMALL">Small</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="LARGE">Large</option>
+          </select>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" (click)="refreshParcels()">Apply</button>
+      </div>
+
+      <!-- Instruction Hint -->
+      @if (selectedParcel()) {
+      <div class="instruction-banner">
+        <span>Selected: <strong>{{ selectedParcel()?.trackingNumber }}</strong>. Now click an eligible Courier card on the right to assign.</span>
+        <button type="button" class="btn-link" (click)="selectedParcel.set(null)">Deselect</button>
+      </div>
+      }
+
+      <!-- Parcel List -->
+      <div class="parcel-list">
+        @for (parcel of unassignedParcels(); track parcel.parcelId) {
+        <div class="parcel-card" [class.parcel-card--selected]="selectedParcel()?.parcelId === parcel.parcelId"
+          tabindex="0" role="button" (keydown.enter)="toggleParcelSelect(parcel)"
+          (click)="toggleParcelSelect(parcel)">
+          <div class="parcel-card-top">
+            <div class="tracking-pill">{{ parcel.trackingNumber }}</div>
+            <span class="size-badge">{{ parcel.size }} &bull; {{ parcel.weight }} kg</span>
+          </div>
+
+          <div class="parcel-card-body">
+            <div class="zone-info">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                <circle cx="12" cy="10" r="3" />
+              </svg>
+              <span>{{ parcel.pickupArea || 'Pickup Zone Specified' }}</span>
+            </div>
+            <span class="timestamp-meta">Created {{ parcel.createdAt | date:'shortTime' }}</span>
+          </div>
+
+          <!-- Privacy Expand Toggle -->
+          <div class="parcel-card-footer">
+            <button type="button" class="btn-text-link" (click)="toggleParcelExpand(parcel.parcelId, $event)">
+              {{ expandedParcelId() === parcel.parcelId ? 'Hide Address Details' : 'View Address (Privacy Protected)' }}
+            </button>
+          </div>
+
+          @if (expandedParcelId() === parcel.parcelId) {
+          <div class="parcel-expanded-details">
+            <div class="detail-row">
+              <span class="detail-lbl">Parcel UUID:</span>
+              <span class="detail-val code-font">{{ parcel.parcelId }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-lbl">Pickup Zone ID:</span>
+              <span class="detail-val code-font">{{ parcel.pickupZone || 'N/A' }}</span>
+            </div>
+            <p class="privacy-note">Recipient personal phone &amp; full street address are shielded until assignment completion.</p>
+          </div>
+          }
+        </div>
+        } @empty {
+        <div class="empty-state">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <path d="m9 12 2 2 4-4" />
+          </svg>
+          <p>No unassigned parcels in the queue.</p>
+        </div>
+        }
+      </div>
+    </section>
+
+    <!-- RIGHT PANE: Courier Workload Board -->
+    <section class="pane pane-couriers">
+      <div class="pane-header">
+        <div>
+          <h2 class="pane-title">Courier Workload Board</h2>
+          <p class="pane-subtitle">Real-time driver capacity (active deliveries out of max allowed).</p>
+        </div>
+      </div>
+
+      <div class="courier-grid">
+        @for (courier of courierWorkloads(); track courier.courierId) {
+        <div class="courier-card" [class.courier-card--offline]="!courier.available"
+          [class.courier-card--full]="courier.activeDeliveries >= courier.maxActive"
+          tabindex="0" role="button" (keydown.enter)="onCourierCardClick(courier)"
+          (click)="onCourierCardClick(courier)">
+          <div class="courier-card-header">
+            <div class="courier-identity">
+              <span class="courier-avatar">{{ courier.courierId.substring(0, 2).toUpperCase() }}</span>
+              <div>
+                <strong class="courier-code">Courier #{{ courier.courierId.substring(0, 8) }}</strong>
+                <span class="courier-zone">Zone: {{ courier.zoneId ? courier.zoneId.substring(0, 8) : 'All Island' }}</span>
+              </div>
+            </div>
+            <span class="status-chip" [class.status-chip--online]="courier.available"
+              [class.status-chip--offline]="!courier.available">
+              {{ courier.available ? 'Online' : 'Offline' }}
+            </span>
+          </div>
+
+          <!-- Capacity Progress Bar -->
+          <div class="workload-section">
+            <div class="workload-labels">
+              <span>Active Deliveries</span>
+              <strong>{{ courier.activeDeliveries }} / {{ courier.maxActive }}</strong>
+            </div>
+            <div class="workload-track">
+              <div class="workload-bar" [ngClass]="getLoadColorClass(courier.activeDeliveries, courier.maxActive)"
+                [style.width.%]="getLoadPercentage(courier.activeDeliveries, courier.maxActive)"></div>
+            </div>
+          </div>
+
+          <div class="courier-card-actions">
+            @if (selectedParcel()) {
+            <button type="button" class="btn btn-sm btn-action"
+              [disabled]="!courier.available || courier.activeDeliveries >= courier.maxActive">
+              Assign Selected Parcel
+            </button>
+            } @else {
+            <span class="idle-text">Select a parcel to assign</span>
+            }
+          </div>
+        </div>
+        } @empty {
+        <div class="empty-state">
+          <p>No active couriers found in the workload registry.</p>
+        </div>
+        }
+      </div>
+    </section>
+  </div>
+  }
+
+  <!-- TAB 2: Assignment History & Reassignment -->
+  @if (activeTab() === 'history') {
+  <section class="pane pane-full">
+    <div class="pane-header">
+      <div>
+        <h2 class="pane-title">Assignment History &amp; Reassignment Hub</h2>
+        <p class="pane-subtitle">Audit trail of parcel assignments and administrative reassignments.</p>
+      </div>
+      <button type="button" class="btn btn-outline btn-sm" (click)="refreshHistory()">Refresh History</button>
+    </div>
+
+    <div class="table-card">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Parcel ID</th>
+            <th>Courier ID</th>
+            <th>Strategy</th>
+            <th>Status</th>
+            <th>Assigned At</th>
+            <th>Reason / Note</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (assignment of assignmentHistory(); track assignment.assignmentId) {
+          <tr>
+            <td class="code-font">{{ assignment.parcelId }}</td>
+            <td class="code-font">{{ assignment.courierId }}</td>
+            <td><span class="badge badge-strategy">{{ assignment.strategy }}</span></td>
+            <td>
+              <span class="status-pill" [class.status-pill--active]="assignment.status === 'ACTIVE'"
+                [class.status-pill--reassigned]="assignment.status === 'REASSIGNED'">
+                {{ assignment.status }}
+              </span>
+            </td>
+            <td>{{ assignment.assignedAt | date:'medium' }}</td>
+            <td class="reason-cell">{{ assignment.reason || 'Initial Assignment' }}</td>
+            <td>
+              @if (assignment.status === 'ACTIVE') {
+              <button type="button" class="btn btn-outline btn-xs" (click)="openReassignModal(assignment)">
+                Reassign
+              </button>
+              }
+            </td>
+          </tr>
+          } @empty {
+          <tr>
+            <td colspan="7" class="text-center" style="padding: 2rem;">No assignment records recorded yet.</td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+  }
+
+  <!-- MODAL 1: Confirm Manual Assignment -->
+  @if (isAssignConfirmOpen()) {
+  <div class="modal-backdrop">
+    <div class="modal-card">
+      <h3 class="modal-title">Confirm Parcel Assignment</h3>
+      <p class="modal-desc">
+        Assign parcel <strong>{{ selectedParcel()?.trackingNumber }}</strong> to courier
+        <strong>#{{ selectedCourier()?.courierId?.substring(0, 8) }}</strong>?
+      </p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" (click)="closeModal()" [disabled]="isLoading()">Cancel</button>
+        <button type="button" class="btn btn-primary" (click)="confirmManualAssign()" [disabled]="isLoading()">
+          {{ isLoading() ? 'Assigning...' : 'Confirm Assignment' }}
+        </button>
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- MODAL 2: Auto-Assign Strategy Selector -->
+  @if (isAutoAssignOpen()) {
+  <div class="modal-backdrop">
+    <div class="modal-card">
+      <h3 class="modal-title">Automated Batch Assignment</h3>
+      <p class="modal-desc">
+        Select an assignment algorithm to process {{ unassignedParcels().length }} pending parcel(s) oldest first:
+      </p>
+
+      <div class="strategy-selector">
+        <label class="strategy-option">
+          <input type="radio" name="strategy" value="LEAST_LOADED" [(ngModel)]="selectedAutoStrategy" />
+          <div>
+            <strong>Least-Loaded Strategy</strong>
+            <p>Balances island-wide workload evenly by assigning to couriers with the lowest active delivery count.</p>
+          </div>
+        </label>
+        <label class="strategy-option">
+          <input type="radio" name="strategy" value="ZONE_BASED" [(ngModel)]="selectedAutoStrategy" />
+          <div>
+            <strong>Zone-Based Strategy</strong>
+            <p>Prioritizes drivers in the parcel pickup zone first, cascading to neighbouring zones if full.</p>
+          </div>
+        </label>
+      </div>
+
+      @if (autoAssignResult()) {
+      <div class="auto-result-box">
+        <div class="result-stat-row">
+          <span class="text-green">Assigned: {{ autoAssignResult()?.assigned?.length }}</span>
+          <span class="text-amber">Skipped: {{ autoAssignResult()?.skipped?.length }}</span>
+        </div>
+      </div>
+      }
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" (click)="closeModal()" [disabled]="isLoading()">Close</button>
+        <button type="button" class="btn btn-primary" (click)="confirmAutoAssign()" [disabled]="isLoading()">
+          {{ isLoading() ? 'Running Strategy...' : 'Execute Auto-Assign' }}
+        </button>
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- MODAL 3: Reassign Parcel Dialog -->
+  @if (isReassignOpen()) {
+  <div class="modal-backdrop">
+    <div class="modal-card">
+      <h3 class="modal-title">Reassign Parcel to New Courier</h3>
+      <p class="modal-desc">
+        Transferring assignment of parcel <strong class="code-font">{{ reassignTargetAssignment()?.parcelId }}</strong>.
+        An audit reason is required by security policy.
+      </p>
+
+      <div class="modal-field">
+        <label for="newCourier">Select New Courier:</label>
+        <select id="newCourier" [(ngModel)]="reassignNewCourierId" class="select-sm">
+          <option value="">-- Choose Eligible Courier --</option>
+          @for (c of courierWorkloads(); track c.courierId) {
+          @if (c.available && c.activeDeliveries < c.maxActive && c.courierId !== reassignTargetAssignment()?.courierId) {
+          <option [value]="c.courierId">
+            #{{ c.courierId.substring(0, 8) }} (Active: {{ c.activeDeliveries }}/{{ c.maxActive }})
+          </option>
+          }
+          }
+        </select>
+      </div>
+
+      <div class="modal-field">
+        <label for="reassignReason">Reason for Reassignment:</label>
+        <textarea id="reassignReason" [(ngModel)]="reassignReason" rows="3" class="input-sm"
+          placeholder="e.g. Courier vehicle breakdown, driver reported ill, wrong zone route"></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" (click)="closeModal()" [disabled]="isLoading()">Cancel</button>
+        <button type="button" class="btn btn-primary" (click)="confirmReassign()" [disabled]="isLoading()">
+          {{ isLoading() ? 'Reassigning...' : 'Confirm Reassign' }}
+        </button>
+      </div>
+    </div>
+  </div>
+  }
+</div>

@@ -125,6 +125,38 @@ services:
       - "8083:8080"
     networks: [ swiftdrop ]
 
+  dispatch:
+    build:
+      context: ./services/dispatch
+    restart: unless-stopped
+    stop_grace_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${DISPATCH_SPRING_PROFILES:-dev}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dispatch_db
+      SPRING_DATASOURCE_USERNAME: dispatch_svc
+      SPRING_DATASOURCE_PASSWORD: ${SERVICE_DB_PASSWORD:-dev_service_pw}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-swiftdrop}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev_rabbit_pw}
+      IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://host.docker.internal:8081/.well-known/jwks.json}
+      DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev-only-hmac-secret-change-me-0123456789}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-token}
+      CORS_ALLOWED_ORIGINS: ${DISPATCH_CORS_ALLOWED_ORIGINS:-http://localhost:4201,http://localhost:4200}
+      PARCEL_SERVICE_URL: ${PARCEL_SERVICE_URL:-http://parcel:8080}
+      PRICING_SERVICE_URL: ${PRICING_SERVICE_URL:-http://pricing:8080}
+      DISPATCH_MAX_ACTIVE_PER_COURIER: ${DISPATCH_MAX_ACTIVE_PER_COURIER:-8}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8084:8080"
+    networks: [ swiftdrop ]
+
   merchant-portal:
     build:
       context: ./frontend
