@@ -50,7 +50,6 @@ export const routes: Routes = [
   {
     path: 'admin/dispatch',
     title: 'Dispatcher Console',
-    canActivate: [userAuthGuard],
     loadComponent: () =>
       import('./features/dispatch/dispatch-console.page').then((m) => m.DispatchConsolePage),
   },
