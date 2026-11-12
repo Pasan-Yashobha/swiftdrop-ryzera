@@ -11,8 +11,8 @@ A different snapshot for an existing parcel returns 409. Concurrent duplicate re
 by PostgreSQL's unique parcel constraint and one transaction for metadata and PDF bytes.
 
 This milestone stores PDFs in PostgreSQL BYTEA. Private MinIO/S3 storage, receipt generation from
-RabbitMQ, receipt.generated publication, merchant invoices, and the Angular receipt viewer are
-subsequent integration steps. The checkout currently has no Parcel implementation or confirmed
+RabbitMQ and receipt.generated publication are subsequent integration steps (merchant invoices are
+described below). The checkout currently has no Parcel implementation or confirmed
 receipt event payload. Production creation must use trusted delivery data from that integration.
 
 ## Run locally
@@ -49,6 +49,48 @@ startup requires JWKS verification. The dev generation adapter exists only with 
 The list page size is between 1 and 100. Customer identity always comes from the signed JWT
 subject. Requests for another customer's metadata or PDF return 404. Downloads have
 `application/pdf`, an attachment filename, and `Cache-Control: no-store`.
+
+## Merchant invoices
+
+An A4 invoice lists the parcels delivered for one merchant in one billing period, one line per
+parcel, with a server-computed total. Admin creates invoices; a merchant reads only its own.
+
+| Method | Path | Access |
+|---|---|---|
+| POST | `/api/v1/invoices/generate` | Admin |
+| GET | `/api/v1/invoices?page=0&size=20` | Merchant's own invoices, or all for Admin |
+| GET | `/api/v1/invoices/{id}` | Invoice with its lines, owner or Admin |
+| GET | `/api/v1/invoices/{id}/download` | PDF, owner or Admin |
+
+Example request body (amounts are LKR with at most two decimals; there is no total field):
+
+```json
+{
+  "merchantId": "<merchant owner's user id (JWT subject)>",
+  "merchantName": "Ceylon Spice Traders",
+  "periodStart": "2026-10-01",
+  "periodEnd": "2026-10-31",
+  "lines": [
+    { "parcelId": "<uuid>", "trackingNumber": "SD-1001-0001",
+      "description": "Colombo to Kandy, Standard", "amount": 550.00 }
+  ]
+}
+```
+
+Rules:
+
+- The total is the sum of the lines, computed by the server. A request cannot contradict its own lines.
+- One invoice per merchant and period. Sending the same content again (any line order or decimal
+  scale) returns the existing invoice; different content for that merchant and period returns 409.
+- A parcel can be billed on one invoice only. A request containing an already-billed parcel returns 409
+  and stores nothing.
+- Up to 500 lines per invoice, each amount up to 9999999999.99. Long invoices continue on further
+  pages with the table header repeated and the total on the last page.
+- Ownership compares `merchantId` with the JWT subject. The Merchant service keeps its own merchant UUID
+  but tokens carry the owner's user id, so that is the value used here. Another merchant's invoice returns
+  404. Customers, couriers and dispatchers get 403.
+- The billing lines are supplied by Admin for now. Pulling them from Parcel and Merchant delivery data is
+  a later integration step, like the receipt event.
 
 The development adapter accepts the following snapshot. `customerId` must match the customer's
 JWT subject. Currency is LKR. The delivery timestamp must be in the past or present, all amounts
@@ -91,6 +133,9 @@ mvn -f services/document/pom.xml test
 
 Tests use a disposable PostgreSQL container. They cover PDF content, concurrent duplicate handling,
 snapshot conflicts, decimal normalization, monetary validation, maximum-size amounts, and ownership
-authorization. The test-generated PDF for visual review is `target/qa/receipt-sample.pdf`.
+authorization. The invoice tests add ownership and role rules, server-computed totals, retry and
+conflict handling, one-bill-per-parcel, concurrent duplicates, input validation, the 500-line limit and
+multi-page layout. The test-generated PDFs for visual review are `target/qa/receipt-sample.pdf` and
+`target/qa/invoice-sample.pdf`. `mvn verify` also enforces 70% line coverage.
 
 OpenPDF release information is at https://github.com/LibrePDF/OpenPDF/releases/tag/2.2.3.

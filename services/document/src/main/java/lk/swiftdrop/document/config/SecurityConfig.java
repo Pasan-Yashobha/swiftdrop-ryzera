@@ -31,6 +31,10 @@ public class SecurityConfig {
                     auth.requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                             .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/receipts/**")
                             .hasAnyRole("CUSTOMER", "ADMIN")
+                            .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/invoices/generate")
+                            .hasRole("ADMIN")
+                            .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/invoices/**")
+                            .hasAnyRole("MERCHANT", "ADMIN")
                             .anyRequest().denyAll();
                 })
                 .oauth2ResourceServer(resource -> resource.jwt(jwt ->
