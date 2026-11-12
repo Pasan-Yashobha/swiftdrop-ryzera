@@ -10,7 +10,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-swiftdrop}
       SERVICE_DB_PASSWORD: ${SERVICE_DB_PASSWORD:-dev_service_pw}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro

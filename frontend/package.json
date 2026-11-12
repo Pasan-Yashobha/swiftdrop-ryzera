@@ -6,12 +6,14 @@
     "ng": "ng",
     "start": "npm run start:merchant",
     "start:merchant": "ng serve merchant-portal --proxy-config proxy.conf.json",
-    "build": "ng build",
+    "build": "ng build merchant-portal && ng build pricing-portal",
     "build:merchant": "ng build merchant-portal",
     "watch": "ng build merchant-portal --watch --configuration development",
     "test": "ng test",
     "lint": "ng lint",
-    "format": "prettier --write \"projects/**/*.{ts,html,css}\""
+    "format": "prettier --write \"projects/**/*.{ts,html,css}\"",
+    "start:pricing": "ng serve pricing-portal",
+    "build:pricing": "ng build pricing-portal"
   },
   "prettier": {
     "printWidth": 100,

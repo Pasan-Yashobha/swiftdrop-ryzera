@@ -5,7 +5,8 @@
     "packageManager": "npm",
     "schematicCollections": [
       "angular-eslint"
-    ]
+    ],
+    "analytics": false
   },
   "newProjectRoot": "projects",
   "projects": {
@@ -115,6 +116,59 @@
             ],
             "eslintConfig": "projects/merchant-portal/eslint.config.js"
           }
+        }
+      }
+    },
+    "pricing-portal": {
+      "projectType": "application",
+      "root": "projects/pricing-portal",
+      "sourceRoot": "projects/pricing-portal/src",
+      "prefix": "app",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "browser": "projects/pricing-portal/src/main.ts",
+            "polyfills": [
+              "zone.js"
+            ],
+            "tsConfig": "projects/pricing-portal/tsconfig.app.json",
+            "styles": [
+              "projects/pricing-portal/src/styles.css"
+            ]
+          },
+          "configurations": {
+            "production": {
+              "outputHashing": "all",
+              "optimization": {
+                "fonts": false
+              },
+              "fileReplacements": [
+                {
+                  "replace": "projects/pricing-portal/src/environment.ts",
+                  "with": "projects/pricing-portal/src/environment.production.ts"
+                }
+              ]
+            },
+            "development": {
+              "optimization": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "options": {
+            "port": 4205,
+            "proxyConfig": "projects/pricing-portal/proxy.conf.json"
+          },
+          "configurations": {
+            "development": {
+              "buildTarget": "pricing-portal:build:development"
+            }
+          },
+          "defaultConfiguration": "development"
         }
       }
     }
