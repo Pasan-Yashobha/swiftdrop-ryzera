@@ -1,0 +1,7 @@
+# Local credentials match Docker Compose. Identity tokens are shared with Pricing in dev.
+DEV_JWT_HMAC_SECRET: ${DOCUMENT_DEV_JWT_HMAC_SECRET:dev-only-hmac-secret-change-me-0123456789}
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/document_db}
+    username: ${SPRING_DATASOURCE_USERNAME:document_svc}
+    password: ${SPRING_DATASOURCE_PASSWORD:dev_service_pw}
