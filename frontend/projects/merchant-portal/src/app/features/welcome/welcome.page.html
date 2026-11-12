@@ -1,0 +1,335 @@
+<div class="welcome-container">
+  <!-- Brand Top Bar -->
+  <header class="welcome-topbar">
+    <div class="welcome-brand">
+      <span class="brand-icon" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path d="M12 2 L20 8 L16 8 L22 14 L14 14 L18 20 L6 12 L10 12 L4 6 Z" fill="currentColor" />
+        </svg>
+      </span>
+      <span class="brand-name">Swift<span>Drop</span></span>
+      <span class="brand-badge">Central Identity Hub</span>
+    </div>
+
+    <div class="topbar-actions">
+      <button type="button" class="btn btn-ghost btn-sm" (click)="signOut()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          <polyline points="16 17 21 12 16 7" />
+          <line x1="21" y1="12" x2="9" y2="12" />
+        </svg>
+        Sign out
+      </button>
+    </div>
+  </header>
+
+  <!-- User Identity Hero Card -->
+  <section class="user-hero-card">
+    <div class="hero-avatar">
+      {{ user()?.fullName?.charAt(0) ?? 'U' }}
+    </div>
+    <div class="hero-details">
+      <div class="hero-greeting">
+        <h1>Welcome, {{ user()?.fullName }}!</h1>
+        <span class="role-pill-badge role-pill-badge--{{ role().toLowerCase() }}">
+          {{ role() }}
+        </span>
+      </div>
+      <p class="hero-subtitle">
+        Signed in with <strong>{{ user()?.email }}</strong> &bull; Authenticated via SwiftDrop Identity Service
+      </p>
+    </div>
+  </section>
+
+  <!-- Role-Specific Dynamic Content -->
+  @switch (role()) {
+  <!-- ================= CUSTOMER PORTAL ================= -->
+  @case ('CUSTOMER') {
+  <div class="portal-grid">
+    <!-- Main Interactive Feature: Live Tracking -->
+    <div class="card stack portal-card portal-card--primary">
+      <div class="card-header-row">
+        <div>
+          <h2 class="card-title">Package Tracking Simulator</h2>
+          <p class="card-lead">Track incoming deliveries in real time across the island.</p>
+        </div>
+        <span class="status-indicator-live">Live Demo</span>
+      </div>
+
+      <div class="search-box-row">
+        <input #trackInput type="text" class="input-tracking" value="SWD-9042-LK" placeholder="e.g. SWD-9042-LK"
+          (keyup.enter)="trackPackage(trackInput.value)" />
+        <button type="button" class="btn btn-primary" (click)="trackPackage(trackInput.value)">
+          Track Parcel
+        </button>
+      </div>
+
+      @if (trackingResult(); as res) {
+      <div class="tracking-result-box stack">
+        <div class="tracking-summary">
+          <div>
+            <span class="tracking-code">{{ res.code }}</span>
+            <div class="tracking-status-badge">{{ res.status }}</div>
+          </div>
+          <div class="tracking-eta">
+            <span class="eta-label">Estimated Delivery</span>
+            <span class="eta-value">{{ res.eta }}</span>
+          </div>
+        </div>
+
+        <!-- Stepper Timeline -->
+        <div class="tracking-stepper">
+          @for (step of res.steps; track $index) {
+          <div class="step-item" [class.step-item--done]="step.done" [class.step-item--current]="step.current">
+            <div class="step-circle">
+              @if (step.done && !step.current) {
+              ✓
+              } @else if (step.current) {
+              ●
+              } @else {
+              ○
+              }
+            </div>
+            <span class="step-label">{{ step.label }}</span>
+          </div>
+          }
+        </div>
+      </div>
+      }
+    </div>
+
+    <!-- Sidebar / Info Cards -->
+    <div class="stack side-stack">
+      <!-- Saved Delivery Address -->
+      <div class="card stack">
+        <h3 class="card-title-sm">Delivery Address</h3>
+        <div class="address-preview">
+          <span class="address-name">Primary Residence</span>
+          <p class="address-text">No. 42, Galle Road, Colombo 03, Sri Lanka</p>
+          <span class="phone-text">+94 77 123 4567</span>
+        </div>
+      </div>
+
+      <!-- Microservice Note -->
+      <div class="architecture-callout">
+        <div class="callout-header">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="16" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12.01" y2="8" />
+          </svg>
+          <strong>Member 2 — Shared Identity Architecture</strong>
+        </div>
+        <p class="small">
+          Your <strong>CUSTOMER</strong> session is authenticated via Central Identity (Port 8081).
+          Teammates building the SwiftDrop Consumer Mobile App and Public Tracking Web Portal use this exact OAuth/JWT
+          session.
+        </p>
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- ================= COURIER PORTAL ================= -->
+  @case ('COURIER') {
+  <div class="portal-grid">
+    <!-- Main Interactive Feature: Courier Dispatch -->
+    <div class="card stack portal-card portal-card--primary">
+      <div class="card-header-row">
+        <div>
+          <h2 class="card-title">Courier Dispatch & Route Hub</h2>
+          <p class="card-lead">Driver shift telemetry, route manifests, and pickup scanning.</p>
+        </div>
+        <button type="button" class="btn btn-sm" [class.btn-duty-on]="courierDuty() === 'ONLINE'"
+          [class.btn-duty-off]="courierDuty() === 'OFFLINE'" (click)="toggleCourierDuty()">
+          {{ courierDuty() === 'ONLINE' ? '🟢 On Duty (Online)' : '🟡 On Break (Offline)' }}
+        </button>
+      </div>
+
+      <div class="courier-stats-grid">
+        <div class="stat-box">
+          <span class="stat-number">14</span>
+          <span class="stat-title">Assigned Packages</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-number">9</span>
+          <span class="stat-title">Delivered Today</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-number">5</span>
+          <span class="stat-title">Pending Dropoffs</span>
+        </div>
+      </div>
+
+      <div class="route-manifest-card stack">
+        <h3 class="card-title-sm">Active Manifest: Route #CMB-SOUTH-04</h3>
+        <ul class="manifest-list">
+          <li class="manifest-item">
+            <span class="manifest-time">10:15 AM</span>
+            <span class="manifest-dest">Bambalapitiya Junction — Package #SWD-4102</span>
+            <span class="badge-done">Completed</span>
+          </li>
+          <li class="manifest-item">
+            <span class="manifest-time">11:30 AM</span>
+            <span class="manifest-dest">Kollupitiya Supermarket — Package #SWD-8912</span>
+            <span class="badge-done">Completed</span>
+          </li>
+          <li class="manifest-item manifest-item--next">
+            <span class="manifest-time">02:00 PM</span>
+            <span class="manifest-dest">Havelock City Tower 2 — Package #SWD-9042</span>
+            <span class="badge-pending">Next Stop</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Sidebar / Info Cards -->
+    <div class="stack side-stack">
+      <div class="card stack">
+        <h3 class="card-title-sm">Driver Equipment</h3>
+        <div class="address-preview">
+          <span class="address-name">Registered Vehicle</span>
+          <p class="address-text">Honda Dio (WP-BC-7890)</p>
+          <span class="phone-text">License Class: Motorcycle & Light Goods</span>
+        </div>
+      </div>
+
+      <div class="architecture-callout">
+        <div class="callout-header">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="16" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12.01" y2="8" />
+          </svg>
+          <strong>Courier Mobile Authentication</strong>
+        </div>
+        <p class="small">
+          Courier accounts authenticate directly against the <code>services/identity</code> microservice with role
+          <code>COURIER</code>.
+          Drivers use the SwiftDrop Courier Flutter/Android App to scan barcode labels.
+        </p>
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- ================= DISPATCHER PORTAL ================= -->
+  @case ('DISPATCHER') {
+  <div class="portal-grid">
+    <div class="card stack portal-card portal-card--primary" style="padding: var(--space-6);">
+      <div class="card-header-row">
+        <div>
+          <h2 class="card-title">Dispatcher Control Center</h2>
+          <p class="card-lead">Manage unassigned parcels queue and monitor real-time courier workload across island-wide delivery zones.</p>
+        </div>
+        <span class="status-indicator-admin">Dispatcher</span>
+      </div>
+      <div style="margin-top: var(--space-4);">
+        <a routerLink="/admin/dispatch" class="btn btn-primary" style="display: inline-block;">
+          Open Live Dispatcher Console &rarr;
+        </a>
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- ================= ADMIN PORTAL ================= -->
+  @case ('ADMIN') {
+  <div class="portal-grid">
+    <div class="card stack portal-card portal-card--primary">
+      <div class="card-header-row">
+        <div>
+          <h2 class="card-title">Platform Administration & Identity Telemetry</h2>
+          <p class="card-lead">Superuser controls for microservices, key rotation, and RBAC governance.</p>
+        </div>
+        <span class="status-indicator-admin">Superuser</span>
+      </div>
+
+      <div class="admin-metrics-grid">
+        <div class="admin-tile">
+          <span class="tile-label">Identity Service</span>
+          <span class="tile-val-green">Online (8081)</span>
+          <span class="tile-sub">Spring Boot 3.4 &amp; Java 21</span>
+        </div>
+        <div class="admin-tile">
+          <span class="tile-label">Cryptographic Algorithm</span>
+          <span class="tile-val">RS256 (2048-bit)</span>
+          <span class="tile-sub">Asymmetric Keypair Rotation</span>
+        </div>
+        <div class="admin-tile">
+          <span class="tile-label">PostgreSQL Database</span>
+          <span class="tile-val-green">Port 5433 Connected</span>
+          <span class="tile-sub">4 Roles (RBAC Active)</span>
+        </div>
+        <div class="admin-tile">
+          <span class="tile-label">Password Protection</span>
+          <span class="tile-val">BCrypt (Cost 12)</span>
+          <span class="tile-sub">Account Lockout Policy</span>
+        </div>
+      </div>
+
+      <div class="stack" style="gap: var(--space-2); margin-top: var(--space-3);">
+        <h3 class="card-title-sm">Quick Service Health Endpoints:</h3>
+        <div class="cluster" style="gap: var(--space-3);">
+          <a href="http://localhost:8081/actuator/health" target="_blank" rel="noopener noreferrer"
+            class="endpoint-pill">
+            /actuator/health ↗
+          </a>
+          <a href="http://localhost:8081/.well-known/jwks.json" target="_blank" rel="noopener noreferrer"
+            class="endpoint-pill">
+            /.well-known/jwks.json ↗
+          </a>
+          <a href="http://localhost:8081/actuator/prometheus" target="_blank" rel="noopener noreferrer"
+            class="endpoint-pill">
+            /actuator/prometheus ↗
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="stack side-stack">
+      <div class="architecture-callout">
+        <div class="callout-header">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+          <strong>Administrator Access Granted</strong>
+        </div>
+        <p class="small">
+          You hold the <code>ADMIN</code> security role. This grants authority to audit access logs, review merchant
+          business applications, and enforce platform security policies.
+        </p>
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- ================= MERCHANT DEFAULT ================= -->
+  @case ('MERCHANT') {
+  <div class="card stack portal-card" style="text-align: center; padding: var(--space-7);">
+    <h2 class="card-title">Welcome, Merchant!</h2>
+    <p class="card-lead" style="max-width: 32rem; margin: 0 auto;">
+      You have an active Merchant business account. Click below to proceed to your business dashboard.
+    </p>
+    <div style="margin-top: var(--space-4);">
+      <a routerLink="/dashboard" class="btn btn-primary" style="display: inline-block;">
+        Open Merchant Portal Dashboard &rarr;
+      </a>
+    </div>
+  </div>
+  }
+  }
+
+  <!-- Footer Navigation Options -->
+  <footer class="welcome-footer">
+    <div class="footer-actions">
+      <button type="button" class="btn btn-outline" (click)="signOut()">
+        Sign out &amp; Switch Account
+      </button>
+      <a routerLink="/signup" class="btn btn-ghost" (click)="signOut()">
+        Create a Different Role Account
+      </a>
+    </div>
+  </footer>
+</div>

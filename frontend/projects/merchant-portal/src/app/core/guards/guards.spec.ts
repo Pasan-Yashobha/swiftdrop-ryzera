@@ -70,10 +70,10 @@ describe('route guards', () => {
       expect(target(await run(authGuard, '/orders/42'))).toBe('/login?returnUrl=%2Forders%2F42');
     });
 
-    it('does not accept users with another role', async () => {
+    it('redirects non-merchant authenticated users to the welcome hub', async () => {
       signIn('ADMIN');
 
-      expect(target(await run(authGuard))).toContain('/login');
+      expect(target(await run(authGuard))).toBe('/welcome');
     });
   });
 
@@ -88,10 +88,10 @@ describe('route guards', () => {
       expect(target(await run(guestGuard))).toBe('/dashboard');
     });
 
-    it('lets a non-merchant account reach the login page to sign out', async () => {
+    it('sends signed-in non-merchant accounts to the welcome hub', async () => {
       signIn('ADMIN');
 
-      expect(await run(guestGuard)).toBeTrue();
+      expect(target(await run(guestGuard))).toBe('/welcome');
     });
   });
 

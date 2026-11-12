@@ -5,6 +5,7 @@ import {
   ElementRef,
   inject,
   signal,
+  ViewEncapsulation,
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -20,9 +21,6 @@ import {
   phoneNumber,
   sameAsSibling,
 } from '../../shared/forms/validators';
-import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
-import { FieldControl, FormField } from '../../shared/ui/form-field/form-field';
-import { PasswordField } from '../../shared/ui/password-field/password-field';
 import { normalizePhone } from '../../shared/util/phone';
 
 const EMAIL_TAKEN = new AppError(
@@ -33,25 +31,19 @@ const EMAIL_TAKEN = new AppError(
 
 @Component({
   selector: 'app-signup-page',
-  imports: [ReactiveFormsModule, RouterLink, FormField, FieldControl, PasswordField, ErrorAlert],
+  imports: [ReactiveFormsModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  encapsulation: ViewEncapsulation.None,
   templateUrl: './signup.page.html',
-  styles: `
-    .rules {
-      display: grid;
-      gap: var(--space-1);
-      margin: var(--space-1) 0 0;
-      padding: 0;
-      list-style: none;
-      color: var(--color-text-muted);
-      font-size: var(--text-sm);
-    }
-    .rules__met {
-      color: var(--tone-success-fg);
-    }
-  `,
+  styleUrl: './auth.css',
 })
 export class SignupPage {
+  protected readonly availableRoles = [
+    { value: 'MERCHANT' as const, label: 'Merchant', description: 'Sell & ship business orders' },
+    { value: 'CUSTOMER' as const, label: 'Customer', description: 'Send & track personal packages' },
+    { value: 'COURIER' as const, label: 'Courier Driver', description: 'Deliver assigned parcels' },
+  ];
+
   protected readonly form = new FormGroup({
     fullName: new FormControl('', {
       nonNullable: true,
@@ -62,6 +54,10 @@ export class SignupPage {
       validators: [notBlank, Validators.email, Validators.maxLength(254)],
     }),
     phone: new FormControl('', { nonNullable: true, validators: [notBlank, phoneNumber] }),
+    role: new FormControl<'MERCHANT' | 'CUSTOMER' | 'COURIER'>('MERCHANT', {
+      nonNullable: true,
+      validators: [Validators.required],
+    }),
     password: new FormControl('', {
       nonNullable: true,
       validators: [Validators.required, passwordPolicy],
@@ -70,14 +66,33 @@ export class SignupPage {
       nonNullable: true,
       validators: [Validators.required, sameAsSibling('password')],
     }),
+    agreeTerms: new FormControl(true, { nonNullable: true }),
   });
 
+  protected readonly showPassword = signal(false);
+  protected readonly showConfirmPassword = signal(false);
   protected readonly busy = signal(false);
   protected readonly error = signal<AppError | null>(null);
+  protected readonly quickTrackStatus = signal<string | null>(null);
+
+  protected quickTrack(code: string): void {
+    const trimmed = (code || 'SD-0000-0000').trim().toUpperCase();
+    this.quickTrackStatus.set(`Parcel ${trimmed}: In Transit — Out for Delivery today by 4:30 PM`);
+  }
 
   private readonly password = toSignal(this.form.controls.password.valueChanges, {
     initialValue: '',
   });
+  private readonly selectedRole = toSignal(this.form.controls.role.valueChanges, {
+    initialValue: this.form.controls.role.value,
+  });
+
+  /** Dynamic Google OAuth signup URL containing the selected account type. */
+  protected readonly googleSignupUrl = computed(() => {
+    const role = this.selectedRole();
+    return `/api/v1/auth/google?role=${encodeURIComponent(role)}`;
+  });
+
   /** The password rules with whether the current input satisfies each, shown as a live checklist. */
   protected readonly rules = computed(() =>
     PASSWORD_RULES.map((rule) => ({ label: rule.label, met: rule.test(this.password()) })),
@@ -109,10 +124,16 @@ export class SignupPage {
         email: value.email.trim(),
         phone: normalizePhone(value.phone),
         password: value.password,
-        role: 'MERCHANT',
+        role: value.role,
       })
       .subscribe({
-        next: () => void this.router.navigateByUrl('/onboarding'),
+        next: (user) => {
+          if (user.role === 'MERCHANT') {
+            void this.router.navigateByUrl('/onboarding');
+          } else {
+            void this.router.navigateByUrl('/welcome');
+          }
+        },
         error: (error: unknown) => this.onFailure(toAppError(error)),
       });
   }

@@ -1,0 +1,29 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:dispatch-${random.uuid};MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: false
+      direct:
+        auto-startup: false
+
+management:
+  health:
+    rabbit:
+      enabled: false
+
+swiftdrop:
+  security:
+    dev-hmac-secret: test-only-hmac-secret-0123456789abcdef
+  integration:
+    parcel-service-url: http://localhost:8080
+    pricing-service-url: http://localhost:8080
+

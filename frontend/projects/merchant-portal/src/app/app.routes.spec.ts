@@ -70,6 +70,12 @@ describe('app routes', () => {
     expect(TestBed.inject(Router).url).toBe('/login?returnUrl=%2Forders%2F42');
   });
 
+  it('sends anonymous visitors away from the welcome page to login', async () => {
+    await harness.navigateByUrl('/welcome');
+
+    expect(TestBed.inject(Router).url).toBe('/login');
+  });
+
   it('shows the login and signup pages to anonymous visitors', async () => {
     await harness.navigateByUrl('/signup');
 
