@@ -9,7 +9,7 @@ WORKDIR /workspace
 COPY .mvn/settings.xml .mvn/settings.xml
 # Cache dependencies first so code-only changes rebuild fast
 COPY pom.xml .
-RUN mvn -B -q dependency:go-offline -s .mvn/settings.xml
+RUN mvn -B -q dependency:go-offline dependency:resolve-plugins -s .mvn/settings.xml
 COPY src ./src
 RUN mvn -B -q package -DskipTests -s .mvn/settings.xml
 
