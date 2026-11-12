@@ -6,19 +6,25 @@ import { EstimatePage } from './estimate-page';
 import { ManagementPage } from './management-page';
 import { PromoPage } from './promo-page';
 import { ReceiptsPage } from './receipts-page';
+import { InvoicesPage } from './invoices-page';
 
-type Tab = 'estimate' | 'zones' | 'rates' | 'promos' | 'receipts';
+type Tab = 'estimate' | 'zones' | 'rates' | 'promos' | 'receipts' | 'invoices';
 
 @Component({
   selector: 'app-root',
-  imports: [FormsModule, EstimatePage, ManagementPage, PromoPage, ReceiptsPage],
+  imports: [FormsModule, EstimatePage, ManagementPage, PromoPage, ReceiptsPage, InvoicesPage],
   template: `
     <header>
       <a class="brand" href="/">Swift<span>Drop</span></a>
       @if (api.token()) {
         <nav aria-label="Pricing navigation">
           @if (api.role() === 'MERCHANT') {
-            <span class="nav-current">Fee estimate</span>
+            <button [class.current]="tab() !== 'invoices'" (click)="tab.set('estimate')">
+              Fee estimate
+            </button>
+            <button [class.current]="tab() === 'invoices'" (click)="tab.set('invoices')">
+              Invoices
+            </button>
           } @else if (api.role() !== 'ADMIN') {
             <button [class.current]="tab() !== 'receipts'" (click)="tab.set('estimate')">
               Fee estimate
@@ -36,6 +42,9 @@ type Tab = 'estimate' | 'zones' | 'rates' | 'promos' | 'receipts';
             </button>
             <button [class.current]="tab() === 'receipts'" (click)="tab.set('receipts')">
               Receipts
+            </button>
+            <button [class.current]="tab() === 'invoices'" (click)="tab.set('invoices')">
+              Invoices
             </button>
           }
         </nav>
@@ -85,6 +94,8 @@ type Tab = 'estimate' | 'zones' | 'rates' | 'promos' | 'receipts';
       </main>
     } @else if (tab() === 'receipts' && api.role() !== 'MERCHANT') {
       <app-receipts />
+    } @else if (tab() === 'invoices' && (api.role() === 'MERCHANT' || api.role() === 'ADMIN')) {
+      <app-invoices />
     } @else if (api.role() === 'ADMIN') {
       @if (tab() === 'promos') {
         <app-promos />

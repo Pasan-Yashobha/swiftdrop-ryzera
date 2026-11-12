@@ -428,6 +428,34 @@ dd {
   padding: 24px 0;
   overflow: hidden;
 }
+.invoice-results {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+.invoice-line {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--mist);
+  margin-bottom: 12px;
+}
+.invoice-line input {
+  font-size: 14px;
+  padding: 10px;
+}
+.invoice-line .wide,
+.invoice-line .remove-line {
+  grid-column: 1 / -1;
+}
+.invoice-line .remove-line {
+  justify-self: start;
+}
+.lines-total {
+  padding: 0 24px;
+  margin: 12px 0 0;
+}
 .table-panel h2 {
   padding: 0 24px;
 }

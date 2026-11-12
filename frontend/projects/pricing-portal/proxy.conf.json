@@ -1,5 +1,6 @@
 {
   "/api/v1/receipts": { "target": "http://localhost:8087", "secure": false },
+  "/api/v1/invoices": { "target": "http://localhost:8087", "secure": false },
   "/api/v1/dev/receipts": { "target": "http://localhost:8087", "secure": false },
   "/api": { "target": "http://localhost:8086", "secure": false }
 }

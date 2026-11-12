@@ -90,6 +90,38 @@ export interface ReceiptSnapshot {
   discountAmount: number;
   totalAmount: number;
 }
+/** Invoice summary returned by the Document Service (port 8087). */
+export interface Invoice {
+  id: string;
+  invoiceNo: string;
+  merchantId: string;
+  merchantName: string;
+  periodStart: string;
+  periodEnd: string;
+  totalAmount: number;
+  currency: string;
+  lineCount: number;
+  generatedAt: string;
+}
+export interface InvoiceLine {
+  lineNo: number;
+  parcelId: string;
+  trackingNumber: string;
+  description: string;
+  amount: number;
+}
+export interface InvoiceDetail {
+  invoice: Invoice;
+  lines: InvoiceLine[];
+}
+/** Billing lines sent by Admin. There is no total: the server adds the lines up. */
+export interface InvoiceInput {
+  merchantId: string;
+  merchantName: string;
+  periodStart: string;
+  periodEnd: string;
+  lines: { parcelId: string; trackingNumber: string; description: string; amount: number }[];
+}
 interface Page<T> {
   items: T[];
   totalElements: number;
@@ -161,11 +193,18 @@ export class PricingApi {
    * send the in-memory token, so the Document Service would answer 401.
    */
   downloadReceipt(id: string): Promise<Blob> {
-    return firstValueFrom(
-      this.http.get(`/api/v1/receipts/${id}/download`, {
-        ...this.options(),
-        responseType: 'blob',
-      }),
-    );
+    return this.downloadPdf(`/api/v1/receipts/${id}/download`);
+  }
+
+  downloadInvoice(id: string): Promise<Blob> {
+    return this.downloadPdf(`/api/v1/invoices/${id}/download`);
+  }
+
+  getInvoice(id: string): Promise<InvoiceDetail> {
+    return firstValueFrom(this.http.get<InvoiceDetail>(`/api/v1/invoices/${id}`, this.options()));
+  }
+
+  private downloadPdf(url: string): Promise<Blob> {
+    return firstValueFrom(this.http.get(url, { ...this.options(), responseType: 'blob' }));
   }
 }
