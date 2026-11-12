@@ -157,6 +157,47 @@ services:
       - "8084:8080"
     networks: [ swiftdrop ]
 
+  pricing:
+    build:
+      context: ./services/pricing
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${PRICING_SPRING_PROFILES:-dev}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/pricing_db
+      SPRING_DATASOURCE_USERNAME: pricing_svc
+      SPRING_DATASOURCE_PASSWORD: ${SERVICE_DB_PASSWORD:-dev_service_pw}
+      IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://host.docker.internal:8081/.well-known/jwks.json}
+      DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev-only-hmac-secret-change-me-0123456789}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      # PRICING_PORT lets you run the container next to a copy started from the IDE (port 8086).
+      - "${PRICING_PORT:-8086}:8080"
+    networks: [ swiftdrop ]
+
+  document:
+    build:
+      context: ./services/document
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${DOCUMENT_SPRING_PROFILES:-dev}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/document_db
+      SPRING_DATASOURCE_USERNAME: document_svc
+      SPRING_DATASOURCE_PASSWORD: ${SERVICE_DB_PASSWORD:-dev_service_pw}
+      IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://host.docker.internal:8081/.well-known/jwks.json}
+      DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev-only-hmac-secret-change-me-0123456789}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${DOCUMENT_PORT:-8087}:8080"
+    networks: [ swiftdrop ]
+
   merchant-portal:
     build:
       context: ./frontend

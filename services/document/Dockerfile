@@ -1,21 +1,24 @@
-# Multi-stage Dockerfile for every Spring Boot service (Java 21, Maven).
-# Copy this file to services/<name>/Dockerfile. Build context = the service folder.
+# Document Service image. Build context = this folder (services/document).
+# Based on templates/Dockerfile.service.
 
 # ---- Build stage ----
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
+# settings.xml redirects the Flyway GitHub Packages registry (requires auth) to
+# Maven Central so the Docker builder never needs a GitHub token.
+COPY .mvn/settings.xml .mvn/settings.xml
 # Cache dependencies first so code-only changes rebuild fast
 COPY pom.xml .
-RUN mvn -B -q dependency:go-offline
+RUN mvn -B -q dependency:go-offline -s .mvn/settings.xml
 COPY src ./src
-RUN mvn -B -q package -DskipTests
+RUN mvn -B -q package -DskipTests -s .mvn/settings.xml
 
 # ---- Runtime stage ----
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 # Run as a non-root user
 RUN addgroup -S app && adduser -S app -G app
-COPY --from=build /workspace/target/*.jar app.jar
+COPY --from=build /workspace/target/document-service.jar app.jar
 USER app
 ENV SERVER_PORT=8080
 EXPOSE 8080
