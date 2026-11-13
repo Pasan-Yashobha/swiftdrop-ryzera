@@ -44,3 +44,4 @@
 | **D3** | Token Issuer | Merchant Service | Merchant Service issues client-credentials JWTs signed with shared secret. |
 | **D4** | Webhook Retry | 5s, 30s, 2m, 10m, 30m | Aligned with RabbitMQ exchange topology. |
 | **D5** | Sandbox Mode | In-Service Simulation | Returns `SBX-` tracking IDs without side effects on physical couriers. |
+
