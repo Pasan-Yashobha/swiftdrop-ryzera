@@ -10,6 +10,7 @@ import lk.swiftdrop.dispatch.dto.CourierWorkloadResponse;
 import lk.swiftdrop.dispatch.dto.ManualAssignRequest;
 import lk.swiftdrop.dispatch.dto.ReassignRequest;
 import lk.swiftdrop.dispatch.dto.UnassignedParcel;
+import lk.swiftdrop.dispatch.dto.UpdateCapacityRequest;
 import lk.swiftdrop.dispatch.security.CurrentUser;
 import lk.swiftdrop.dispatch.service.AssignmentService;
 import lk.swiftdrop.dispatch.service.IdempotencyService;
@@ -17,9 +18,11 @@ import lk.swiftdrop.dispatch.service.SseEmitterService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -62,6 +65,17 @@ public class DispatchController {
     @GetMapping("/couriers/workload")
     public List<CourierWorkloadResponse> getCourierWorkloads() {
         return assignmentService.getCourierWorkloads();
+    }
+
+    /**
+     * Admin-only capacity override for a courier (e.g. van driver).
+     */
+    @PutMapping("/couriers/{courierId}/capacity")
+    @PreAuthorize("hasRole('ADMIN')")
+    public CourierWorkloadResponse updateCourierCapacity(
+            @PathVariable UUID courierId,
+            @Valid @RequestBody UpdateCapacityRequest request) {
+        return assignmentService.updateCourierCapacity(courierId, request.maxActive());
     }
 
     /**

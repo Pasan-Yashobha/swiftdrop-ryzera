@@ -114,9 +114,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private ResponseEntity<Object> respond(HttpStatusCode status, ErrorCode code, String message, WebRequest request,
                                            List<ApiError.Detail> details, HttpHeaders headers) {
-        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpHeaders responseHeaders = new HttpHeaders();
+        if (headers != null) {
+            responseHeaders.putAll(headers);
+        }
+        responseHeaders.setContentType(MediaType.APPLICATION_JSON);
         ApiError body = errors.create(status, code, message, path(request), details);
-        return new ResponseEntity<>(body, headers, status);
+        return new ResponseEntity<>(body, responseHeaders, status);
     }
 
     private String path(WebRequest request) {

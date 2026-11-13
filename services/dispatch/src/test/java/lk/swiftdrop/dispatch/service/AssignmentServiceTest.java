@@ -33,6 +33,7 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -215,6 +216,28 @@ class AssignmentServiceTest {
         assertThat(response.assigned().get(0).parcelId()).isEqualTo(p1);
         assertThat(response.skipped()).hasSize(1);
         assertThat(response.skipped().get(0).parcelId()).isEqualTo(p2);
+    }
+
+    @Test
+    @DisplayName("Admin capacity override successfully updates maxActive and broadcasts event")
+    void updateCourierCapacitySuccess() {
+        CourierWorkload courier = new CourierWorkload(courierId, null, 2, 8, true, null);
+        when(workloadRepository.findByIdForUpdate(courierId)).thenReturn(Optional.of(courier));
+        when(workloadRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var response = assignmentService.updateCourierCapacity(courierId, 15);
+
+        assertThat(response.maxActive()).isEqualTo(15);
+        assertThat(courier.getMaxActive()).isEqualTo(15);
+        verify(workloadRepository).save(courier);
+        verify(sseEmitterService).broadcast(eq("workload.changed"), any());
+    }
+
+    @Test
+    @DisplayName("Capacity override with non-positive value fails")
+    void updateCourierCapacityNonPositiveFails() {
+        assertThatThrownBy(() -> assignmentService.updateCourierCapacity(courierId, 0))
+                .isInstanceOf(BadRequestException.class);
     }
 }
 
