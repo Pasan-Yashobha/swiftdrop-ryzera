@@ -29,7 +29,7 @@ The root local `.env` file should contain `POSTGRES_PORT=5433` so Docker publish
 that port. Database `document_db` and role `document_svc` are created by the team's initialization
 script for fresh Docker volumes. Flyway creates the receipt table on startup.
 
-The service runs on port 8087. Health is available at `http://localhost:8087/actuator/health`.
+The service runs on port 8092. Health is available at `http://localhost:8092/actuator/health`.
 
 For deployment supply `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and
 `SPRING_DATASOURCE_PASSWORD`, along with `IDENTITY_JWKS_URI` and optionally `JWT_ISSUER`.
@@ -115,13 +115,13 @@ plus size plus Express minus discount.
 Obtain a local Admin JWT from the running Pricing service to test the adapter.
 
 ```powershell
-$admin = Invoke-RestMethod -Method Post -Uri http://localhost:8086/api/v1/dev/tokens `
+$admin = Invoke-RestMethod -Method Post -Uri http://localhost:8085/api/v1/dev/tokens `
   -ContentType application/json -Body '{"sub":"document-demo-admin","role":"ADMIN"}'
 $headers = @{ Authorization = "Bearer " + $admin.accessToken }
 # Save the example snapshot above as receipt.json in your local working directory.
-$receipt = Invoke-RestMethod -Method Post -Uri http://localhost:8087/api/v1/dev/receipts `
+$receipt = Invoke-RestMethod -Method Post -Uri http://localhost:8092/api/v1/dev/receipts `
   -Headers $headers -ContentType application/json -Body (Get-Content receipt.json -Raw)
-Invoke-WebRequest -Uri ("http://localhost:8087/api/v1/receipts/" + $receipt.id + "/download") `
+Invoke-WebRequest -Uri ("http://localhost:8092/api/v1/receipts/" + $receipt.id + "/download") `
   -Headers $headers -OutFile "$env:TEMP/swiftdrop-receipt.pdf"
 ```
 

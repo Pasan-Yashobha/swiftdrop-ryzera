@@ -1,0 +1,38 @@
+/* Shared look of the native <dialog> based components (confirm, template editor and delivery details). */
+.dialog {
+  width: min(32rem, calc(100vw - 2rem));
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-lg);
+}
+
+.dialog::backdrop {
+  background: var(--color-overlay);
+}
+
+.dialog[open] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.dialog__message {
+  color: var(--color-text-muted);
+}
+
+.dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+/* Larger dialogs (template editor, delivery details) scroll inside the viewport. */
+.dialog--wide {
+  width: min(48rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}

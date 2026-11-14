@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { environment } from '../environment';
 import { PricingApi, Receipt, ReceiptSnapshot, errorMessage } from './pricing-api';
 
-const DOCUMENT_HINT = 'the Document Service is running on port 8087';
+const DOCUMENT_HINT = 'the Document Service is running on port 8092';
 
 /**
  * Lists delivery receipts from the Document Service and downloads their PDFs.

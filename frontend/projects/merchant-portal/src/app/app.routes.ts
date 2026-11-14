@@ -104,6 +104,18 @@ export const routes: Routes = [
     ],
   },
 
+  // Public parcel tracking (Member 8): anyone with a tracking number, no sign-in, full-screen layout.
+  {
+    path: 'track',
+    title: 'Track a parcel',
+    loadComponent: () => import('./features/tracking/track.page').then((m) => m.TrackPage),
+  },
+  {
+    path: 'track/:trackingNo',
+    title: 'Track a parcel',
+    loadComponent: () => import('./features/tracking/track.page').then((m) => m.TrackPage),
+  },
+
   // Everything below needs a signed-in merchant user. authGuard runs before any child guard.
   {
     path: '',

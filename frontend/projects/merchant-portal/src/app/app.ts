@@ -35,7 +35,10 @@ export class App {
     return role === 'CUSTOMER' || role === 'MERCHANT';
   });
 
-  /** True when displaying auth split screens (/login, /signup) to eliminate outer nav header & footer. */
+  /**
+   * True for full-screen pages that bring their own layout, so the outer nav header & footer are hidden:
+   * the auth split screens (/login, /signup, ...) and the public tracking page (/track).
+   */
   protected readonly isAuthRoute = toSignal(
     this.router.events.pipe(
       filter((event): event is NavigationEnd => event instanceof NavigationEnd),
@@ -47,7 +50,14 @@ export class App {
 
   private checkIsAuth(url: string): boolean {
     const clean = (url || '').split(/[?#]/)[0];
-    return clean === '/login' || clean === '/signup' || clean === '/forgot-password' || clean === '/reset-password';
+    return (
+      clean === '/login' ||
+      clean === '/signup' ||
+      clean === '/forgot-password' ||
+      clean === '/reset-password' ||
+      clean === '/track' ||
+      clean.startsWith('/track/')
+    );
   }
 
   constructor() {

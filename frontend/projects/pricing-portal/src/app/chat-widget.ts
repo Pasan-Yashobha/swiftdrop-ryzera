@@ -2,7 +2,7 @@ import { Component, ElementRef, inject, signal, viewChild } from '@angular/core'
 import { FormsModule } from '@angular/forms';
 import { PricingApi, ToolTrace, errorMessage } from './pricing-api';
 
-const ASSISTANT_HINT = 'the Assistant Service is running on port 8088';
+const ASSISTANT_HINT = 'the Assistant Service is running on port 8093';
 const MAX_CHARS = 1000;
 
 /**

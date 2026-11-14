@@ -66,7 +66,7 @@ export interface Promo extends PromoInput {
   usedCount: number;
   active: boolean;
 }
-/** Receipt metadata returned by the Document Service (port 8087). */
+/** Receipt metadata returned by the Document Service (port 8092). */
 export interface Receipt {
   id: string;
   receiptNo: string;
@@ -90,7 +90,7 @@ export interface ReceiptSnapshot {
   discountAmount: number;
   totalAmount: number;
 }
-/** Invoice summary returned by the Document Service (port 8087). */
+/** Invoice summary returned by the Document Service (port 8092). */
 export interface Invoice {
   id: string;
   invoiceNo: string;
@@ -139,7 +139,7 @@ export interface ChatReply {
   toolCalls: ToolTrace[];
 }
 
-export function errorMessage(error: unknown, service = 'Pricing is running on port 8086'): string {
+export function errorMessage(error: unknown, service = 'Pricing is running on port 8085'): string {
   if (error instanceof HttpErrorResponse) {
     if (error.status === 401) return 'Your session has expired. Sign out and connect again.';
     if (error.status === 403) return 'This action requires a different account role.';
@@ -216,7 +216,7 @@ export class PricingApi {
     return firstValueFrom(this.http.get<InvoiceDetail>(`/api/v1/invoices/${id}`, this.options()));
   }
 
-  /** Sends one chat message to the Assistant Service (port 8088) as the signed-in user. */
+  /** Sends one chat message to the Assistant Service (port 8093) as the signed-in user. */
   chat(message: string, conversationId: string | null): Promise<ChatReply> {
     return firstValueFrom(
       this.http.post<ChatReply>(

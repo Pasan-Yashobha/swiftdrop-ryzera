@@ -16,7 +16,7 @@ The local `.env` file must also contain `POSTGRES_PORT=5433` to publish Docker P
 The default port for teammates without this override is 5432. The database is `pricing_db`, owned by
 `pricing_svc`. Development defaults match Docker Compose. Flyway applies the schema migrations at startup.
 
-Pricing listens on port 8086. Its health endpoint is `http://localhost:8086/actuator/health`.
+Pricing listens on port 8085. Its health endpoint is `http://localhost:8085/actuator/health`.
 
 In another terminal, from the repository root, start the Pricing UI.
 
@@ -26,7 +26,7 @@ npm ci
 npm run start:pricing
 ```
 
-Open `http://localhost:4205`. The Angular development proxy forwards `/api` requests to port 8086.
+Open `http://localhost:4205`. The Angular development proxy forwards `/api` requests to port 8085.
 
 Choose Administrator and connect a development account to manage zones and rate cards.
 Sign out and choose Customer or Merchant to estimate a fee. Local tokens stay in memory and expire

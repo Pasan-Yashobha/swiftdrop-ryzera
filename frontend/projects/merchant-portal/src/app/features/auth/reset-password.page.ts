@@ -19,6 +19,7 @@ import {
   passwordPolicy,
   sameAsSibling,
 } from '../../shared/forms/validators';
+import { openTrackingPage } from '../../core/tracking/quick-track';
 
 @Component({
   selector: 'app-reset-password-page',
@@ -69,8 +70,8 @@ export class ResetPasswordPage {
   }
 
   protected quickTrack(code: string): void {
-    const trimmed = (code || 'SD-0000-0000').trim().toUpperCase();
-    this.quickTrackStatus.set(`Parcel ${trimmed}: In Transit — Out for Delivery today by 4:30 PM`);
+    // Opens the public tracking page (Member 8); only an impossible number leaves a hint here.
+    this.quickTrackStatus.set(openTrackingPage(this.router, code));
   }
 
   protected submit(): void {

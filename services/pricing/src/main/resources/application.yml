@@ -14,7 +14,7 @@ spring:
 
 
 server:
-  port: ${SERVER_PORT:8086}
+  port: ${SERVER_PORT:8085}
   error:
     include-message: never
     include-stacktrace: never

@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { environment } from '../environment';
 import { Invoice, InvoiceDetail, InvoiceInput, PricingApi, errorMessage } from './pricing-api';
 
-const DOCUMENT_HINT = 'the Document Service is running on port 8087';
+const DOCUMENT_HINT = 'the Document Service is running on port 8092';
 const MAX_FORM_LINES = 50;
 
 interface DraftLine {

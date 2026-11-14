@@ -44,7 +44,7 @@ class ChatServiceTest {
         var properties = new AssistantProperties(
                 new AssistantProperties.Gemini("key", "model", "http://unused", 5),
                 new AssistantProperties.Downstream("http://pricing", null, "/t/{trackingNumber}", null, "/h?limit={limit}"),
-                new AssistantProperties.Chat("http://localhost:8088", 100, rounds, maxHistoryTurns, perMinute, 30));
+                new AssistantProperties.Chat("http://localhost:8093", 100, rounds, maxHistoryTurns, perMinute, 30));
         return new ChatService(llm, tools, new ConversationStore(clock, properties), new MessageRateLimiter(clock, properties),
                 new ObjectMapper(), properties);
     }

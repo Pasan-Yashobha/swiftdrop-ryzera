@@ -22,7 +22,7 @@ public record AssistantProperties(@DefaultValue Gemini gemini, @DefaultValue Dow
      * Downstream services. A blank tracking or parcel URL means the real service is not connected yet,
      * and the tool returns clearly labelled sample data instead.
      */
-    public record Downstream(@DefaultValue("http://localhost:8086") String pricingUrl, String trackingUrl,
+    public record Downstream(@DefaultValue("http://localhost:8085") String pricingUrl, String trackingUrl,
                              @DefaultValue("/api/v1/tracking/{trackingNumber}") String trackingPath,
                              String parcelUrl,
                              @DefaultValue("/api/v1/parcels/history?limit={limit}") String historyPath) { }

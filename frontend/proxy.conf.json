@@ -4,43 +4,48 @@
     "secure": false,
     "changeOrigin": true
   },
+  "/api/v1/public/tracking": {
+    "target": "http://localhost:8087",
+    "secure": false,
+    "changeOrigin": true
+  },
   "/api/v1/pricing": {
-    "target": "http://localhost:8086",
+    "target": "http://localhost:8085",
     "secure": false,
     "changeOrigin": true
   },
   "/api/v1/admin/zones": {
-    "target": "http://localhost:8086",
+    "target": "http://localhost:8085",
     "secure": false,
     "changeOrigin": true
   },
   "/api/v1/admin/rate-cards": {
-    "target": "http://localhost:8086",
+    "target": "http://localhost:8085",
     "secure": false,
     "changeOrigin": true
   },
   "/api/v1/admin/promo-codes": {
-    "target": "http://localhost:8086",
+    "target": "http://localhost:8085",
     "secure": false,
     "changeOrigin": true
   },
   "/api/v1/receipts": {
-    "target": "http://localhost:8087",
+    "target": "http://localhost:8092",
     "secure": false,
     "changeOrigin": true
   },
   "/api/v1/invoices": {
-    "target": "http://localhost:8087",
+    "target": "http://localhost:8092",
     "secure": false,
     "changeOrigin": true
   },
   "/api/v1/dev/receipts": {
-    "target": "http://localhost:8087",
+    "target": "http://localhost:8092",
     "secure": false,
     "changeOrigin": true
   },
   "/api/v1/assistant": {
-    "target": "http://localhost:8088",
+    "target": "http://localhost:8093",
     "secure": false,
     "changeOrigin": true
   },

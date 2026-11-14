@@ -1,7 +1,7 @@
 # SwiftDrop Assistant Service
 
 An AI chat assistant for customers, built on the Model Context Protocol (MCP). Java 21, Spring Boot 3.5.16,
-Spring AI 1.1.8 (MCP server) and Google Gemini. Port 8088 locally, 8080 inside Docker.
+Spring AI 1.1.8 (MCP server) and Google Gemini. Port 8093 locally, 8080 inside Docker.
 
 ## How it works
 
@@ -67,18 +67,18 @@ user), 503 (model not configured or its usage limit reached; tools unavailable),
 |---|---|---|
 | `GEMINI_API_KEY` | none | Google AI Studio key. Keep it in your local `.env`, never in Git |
 | `GEMINI_MODEL` | none | A current Gemini model name from AI Studio. Not hard-coded because names change. `gemini-flash-lite-latest` worked well in testing (about 2 s, correct tool calls); the larger Flash models were overloaded at the time, and `gemini-2.5-flash` is already retired |
-| `PRICING_SERVICE_URL` | `http://localhost:8086` | Pricing service |
+| `PRICING_SERVICE_URL` | `http://localhost:8085` | Pricing service |
 | `ASSISTANT_TRACKING_URL`, `ASSISTANT_PARCEL_URL` | blank | Tracking and Parcel services; blank means sample data |
 | `IDENTITY_JWKS_URI` | none | Identity public keys. Required unless using the `dev` profile |
 | `DEV_JWT_HMAC_SECRET` | dev default | Dev profile only; the same secret as Pricing's dev tokens |
-| `SERVER_PORT` | 8088 | HTTP port |
+| `SERVER_PORT` | 8093 | HTTP port |
 
 Without both `GEMINI_API_KEY` and `GEMINI_MODEL`, chat answers 503 "The AI model is not configured on this server
 yet", and the MCP tools still work. The model is chosen in `LlmConfig`: another model is another `LlmClient`.
 
 ## Run locally
 
-From the repository root, in PowerShell, with Pricing running on 8086:
+From the repository root, in PowerShell, with Pricing running on 8085:
 
 ```powershell
 $env:GEMINI_API_KEY = "<your key>"
@@ -89,9 +89,9 @@ mvn -f services/assistant/pom.xml spring-boot:run "-Dspring-boot.run.profiles=de
 Get a token from Pricing's dev endpoint (the same HS256 secret) and chat:
 
 ```powershell
-$t = (Invoke-RestMethod -Method Post http://localhost:8086/api/v1/dev/tokens -ContentType application/json `
+$t = (Invoke-RestMethod -Method Post http://localhost:8085/api/v1/dev/tokens -ContentType application/json `
   -Body '{"sub":"pricing-demo-customer","role":"CUSTOMER"}').accessToken
-Invoke-RestMethod -Method Post http://localhost:8088/api/v1/assistant/chat -ContentType application/json `
+Invoke-RestMethod -Method Post http://localhost:8093/api/v1/assistant/chat -ContentType application/json `
   -Headers @{ Authorization = "Bearer $t" } -Body '{"message":"How much to send 2 kg from Colombo to Kandy?"}'
 ```
 

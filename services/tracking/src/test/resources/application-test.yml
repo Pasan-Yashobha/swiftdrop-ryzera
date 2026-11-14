@@ -1,0 +1,18 @@
+# Profile "test": no Redis and no broker needed. The in-memory store and direct broadcaster from
+# testsupport/InMemoryTrackingConfig replace the Redis beans; listeners are not started (tests call the consumer).
+spring:
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: false
+        retry:
+          enabled: false
+
+swiftdrop:
+  tracking:
+    redis-enabled: false
+    cors-allowed-origins: http://localhost:4200
+    sse:
+      # Tests send their own heartbeats when they need one.
+      heartbeat-interval-ms: 3600000
+      max-connections-per-parcel: 5

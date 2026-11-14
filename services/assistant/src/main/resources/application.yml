@@ -13,7 +13,7 @@ spring:
           mcp-endpoint: /mcp
 
 server:
-  port: ${SERVER_PORT:8088}
+  port: ${SERVER_PORT:8093}
   error:
     include-message: never
     include-stacktrace: never
@@ -35,7 +35,7 @@ assistant:
     base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
     timeout-seconds: 30
   downstream:
-    pricing-url: ${PRICING_SERVICE_URL:http://localhost:8086}
+    pricing-url: ${PRICING_SERVICE_URL:http://localhost:8085}
     tracking-url: ${TRACKING_SERVICE_URL:}
     parcel-url: ${PARCEL_SERVICE_URL:}
   chat:
