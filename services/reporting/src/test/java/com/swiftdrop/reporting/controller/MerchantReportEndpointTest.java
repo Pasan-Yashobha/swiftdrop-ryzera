@@ -35,6 +35,9 @@ class MerchantReportEndpointTest {
     @MockBean
     private ReportQueryService reportQueryService;
 
+    @MockBean
+    private org.springframework.security.oauth2.jwt.JwtDecoder jwtDecoder;
+
     @Test
     @DisplayName("T6: Non-merchant role (COURIER) is rejected with 403 Forbidden")
     @WithMockUser(roles = "COURIER")

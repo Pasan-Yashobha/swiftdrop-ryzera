@@ -34,6 +34,9 @@ class AdminReportEndpointTest {
     @MockBean
     private ReportQueryService reportQueryService;
 
+    @MockBean
+    private org.springframework.security.oauth2.jwt.JwtDecoder jwtDecoder;
+
     @Test
     @DisplayName("T6: Unauthenticated request returns 401 Unauthorized")
     void testUnauthenticatedReturns401() throws Exception {
