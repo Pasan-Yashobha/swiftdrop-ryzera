@@ -1,9 +1,10 @@
 # Local development defaults (profile "dev"). Never use these values outside a developer machine.
 # Matches the Redis and RabbitMQ containers started by the root docker-compose.yml.
-# docker-compose sets SERVER_PORT=8080 inside the container; from the IDE the service listens on 8088.
+# docker-compose sets SERVER_PORT=8080 inside the container; from the IDE the service listens on 8087
+# (the port the API gateway expects; 8088 is the Notification Service).
 
 server:
-  port: ${SERVER_PORT:8088}
+  port: ${SERVER_PORT:8087}
 
 spring:
   data:

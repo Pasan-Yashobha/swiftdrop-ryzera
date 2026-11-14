@@ -48,7 +48,7 @@ class EventToPushIntegrationTest {
         Instant t0 = Instant.now().minus(Duration.ofHours(1));
         consumer.onMessage(Events.created(trackingNo, UUID.randomUUID().toString(), 1, t0).message());
 
-        URI uri = URI.create("http://localhost:" + port + "/api/v1/tracking/" + trackingNo + "/stream");
+        URI uri = URI.create("http://localhost:" + port + "/api/v1/public/tracking/" + trackingNo + "/stream");
         try (SseTestClient client = SseTestClient.connect(uri)) {
             assertThat(client.status()).isEqualTo(200);
             assertThat(client.contentType()).startsWith("text/event-stream");
@@ -72,7 +72,7 @@ class EventToPushIntegrationTest {
             assertThat(client.events()).extracting(SseEvent::id).doesNotHaveDuplicates();
 
             // Polling fallback: the same read model, so the same version and status.
-            ResponseEntity<String> polled = rest.getForEntity("/api/v1/tracking/" + trackingNo, String.class);
+            ResponseEntity<String> polled = rest.getForEntity("/api/v1/public/tracking/" + trackingNo, String.class);
             JsonNode polledJson = Events.MAPPER.readTree(polled.getBody());
             JsonNode lastPushed = json(last(client.events()));
             assertThat(polledJson.get("version").asLong()).isEqualTo(lastPushed.get("version").asLong());
@@ -82,7 +82,7 @@ class EventToPushIntegrationTest {
 
     @Test
     void aStreamForAnUnknownParcelIsRefused() throws Exception {
-        URI uri = URI.create("http://localhost:" + port + "/api/v1/tracking/SD-8000-0404/stream");
+        URI uri = URI.create("http://localhost:" + port + "/api/v1/public/tracking/SD-8000-0404/stream");
         try (SseTestClient client = SseTestClient.connect(uri)) {
             assertThat(client.status()).isEqualTo(404);
             assertThat(client.contentType()).startsWith("application/json");

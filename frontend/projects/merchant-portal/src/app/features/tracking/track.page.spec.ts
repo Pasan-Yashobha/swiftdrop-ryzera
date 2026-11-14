@@ -44,7 +44,7 @@ describe('TrackPage (public tracking)', () => {
   async function open(trackingNo: string, parcel: PublicTracking | null = aTracking()): Promise<void> {
     await harness.navigateByUrl(`/track/${trackingNo}`, TrackPage);
     harness.detectChanges();
-    const request = http.expectOne(`/api/v1/tracking/${trackingNo.toUpperCase()}`);
+    const request = http.expectOne(`/api/v1/public/tracking/${trackingNo.toUpperCase()}`);
     if (parcel) {
       request.flush(parcel);
     } else {
@@ -146,7 +146,7 @@ describe('TrackPage (public tracking)', () => {
     harness.detectChanges();
     expect(text('.notice')).toContain('Finding SD-9999-9999');
 
-    http.expectOne('/api/v1/tracking/SD-9999-9999').flush(aTracking({ trackingNo: 'SD-9999-9999' }));
+    http.expectOne('/api/v1/public/tracking/SD-9999-9999').flush(aTracking({ trackingNo: 'SD-9999-9999' }));
     harness.detectChanges();
     expect(text('#status-heading')).toBe('Out for delivery');
   });
@@ -157,7 +157,7 @@ describe('TrackPage (public tracking)', () => {
     page().querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
     harness.detectChanges();
 
-    http.expectOne('/api/v1/tracking/SD-9999-9999').flush(aTracking({ trackingNo: 'SD-9999-9999' }));
+    http.expectOne('/api/v1/public/tracking/SD-9999-9999').flush(aTracking({ trackingNo: 'SD-9999-9999' }));
     harness.detectChanges();
     expect(text('#status-heading')).toBe('Out for delivery');
     expect(TestBed.inject(Router).url).toBe('/track/SD-9999-9999');
@@ -175,7 +175,7 @@ describe('TrackPage (public tracking)', () => {
     harness.detectChanges();
 
     expect(TestBed.inject(Router).url).toBe('/track/SD-1000-0001');
-    http.expectOne('/api/v1/tracking/SD-1000-0001').flush(aTracking({ trackingNo: 'SD-1000-0001' }));
+    http.expectOne('/api/v1/public/tracking/SD-1000-0001').flush(aTracking({ trackingNo: 'SD-1000-0001' }));
   });
 
   it('refuses an impossible number in the search box', async () => {

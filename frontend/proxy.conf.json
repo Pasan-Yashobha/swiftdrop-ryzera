@@ -4,8 +4,8 @@
     "secure": false,
     "changeOrigin": true
   },
-  "/api/v1/tracking": {
-    "target": "http://localhost:8088",
+  "/api/v1/public/tracking": {
+    "target": "http://localhost:8087",
     "secure": false,
     "changeOrigin": true
   },

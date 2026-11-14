@@ -42,7 +42,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> {
                     auth.dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll();
-                    auth.requestMatchers(HttpMethod.GET, "/api/v1/tracking/**").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/api/v1/public/tracking/**", "/api/v1/tracking/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**",
                             "/actuator/prometheus").permitAll();
                     if (dev) {

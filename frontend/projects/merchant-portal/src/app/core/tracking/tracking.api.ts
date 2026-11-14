@@ -26,7 +26,7 @@ export const EVENT_SOURCE_FACTORY = new InjectionToken<EventSourceFactory>('EVEN
   factory: () => (url: string) => new EventSource(url),
 });
 
-/** Public tracking endpoints (no sign-in). */
+/** Public tracking endpoints (no sign-in), under the API gateway's public prefix /api/v1/public. */
 @Injectable({ providedIn: 'root' })
 export class TrackingApi {
   private readonly http = inject(HttpClient);
@@ -43,6 +43,6 @@ export class TrackingApi {
   }
 
   private url(trackingNo: string): string {
-    return `${this.base}/tracking/${encodeURIComponent(trackingNo)}`;
+    return `${this.base}/public/tracking/${encodeURIComponent(trackingNo)}`;
   }
 }

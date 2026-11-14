@@ -1,7 +1,8 @@
 # Tracking Service and Public Tracking Page: contract (Member 8)
 
 Backend: `services/tracking`. Frontend: the public tracking page and the shared real-time hook (Angular).
-Anything marked **ASSUMED** is owned by another member and was guessed; it is isolated in one class
+Design notes and the three diagrams (real-time architecture, tracking sequence, components) are in
+[`DESIGN.md`](DESIGN.md). Anything marked **ASSUMED** is owned by another member and was guessed; it is isolated in one class
 (`event/EventMapper`) so it can be changed in one place. Please tell M8 if your events differ.
 
 ## 1. Scope (work split)
@@ -13,7 +14,7 @@ hook shared with the customer app. Tests: event-to-push integration, public endp
 ## 2. Stack and conventions
 
 Same as the other services: Java 21, Spring Boot 3.5.x, Maven, package `lk.swiftdrop.tracking`, artifact
-`lk.swiftdrop:tracking-service`, port 8080 in the container and **8088 on the host**, Actuator `health` + `prometheus`,
+`lk.swiftdrop:tracking-service`, port 8080 in the container and **8087 on the host** (the gateway's port for tracking; 8088 is notification), Actuator `health` + `prometheus`,
 JaCoCo line coverage >= 70% on `mvn verify`, standard error body (`timestamp, status, error, code, message, path,
 correlationId`), `X-Correlation-Id` read, echoed and put in the MDC. No database: the read model is Redis only.
 
@@ -21,8 +22,11 @@ correlationId`), `X-Correlation-Id` read, echoed and put in the MDC. No database
 
 | Method and path | Response |
 |---|---|
-| `GET /api/v1/tracking/{trackingNo}` | `200 PublicTrackingResponse`, `Cache-Control: no-store`. `400 INVALID_TRACKING_NUMBER`, `404 TRACKING_NOT_FOUND`, `503 SERVICE_UNAVAILABLE` (Redis down). |
-| `GET /api/v1/tracking/{trackingNo}/stream` | `text/event-stream`. First event = current state, then one event per change. Errors as JSON (404 etc.), `503 STREAM_LIMIT_REACHED` when the instance is full (the client polls instead). |
+| `GET /api/v1/public/tracking/{trackingNo}` | `200 PublicTrackingResponse`, `Cache-Control: no-store`. `400 INVALID_TRACKING_NUMBER`, `404 TRACKING_NOT_FOUND`, `503 SERVICE_UNAVAILABLE` (Redis down). |
+| `GET /api/v1/public/tracking/{trackingNo}/stream` | `text/event-stream`. First event = current state, then one event per change. Errors as JSON (404 etc.), `503 STREAM_LIMIT_REACHED` when the instance is full (the client polls instead). |
+
+`/api/v1/public/**` is the gateway's public prefix (no token). The same two endpoints also answer under
+`/api/v1/tracking/...`, which the gateway routes for signed-in users (for example the customer app's live view).
 
 Tracking numbers are case-insensitive, letters, digits and inner dashes, 6 to 32 characters (`SD-2641-7788`,
 `SD24000123`, `SBX123456789`).
@@ -116,17 +120,24 @@ Rules:
 
 ## 6. What other members need to do
 
-* **M1 (gateway)**: route `GET /api/v1/tracking/**` to `tracking:8080` without authentication (public); do not buffer
-  `text/event-stream` responses and allow long-lived connections (at least 30 minutes, or let the client reconnect);
-  rate-limit `/api/v1/tracking/**` per IP. Never route `/api/v1/dev/**`.
-* **M4 (parcel)**: include `trackingNo`, `parcelId` and `sequence` in `parcel.created` and every `parcel.status.*`;
-  city names (and coordinates if you have them) for pickup and dropoff in `parcel.created`. Use the failure codes above.
-* **M6 (dispatch)**: include `trackingNo` (or `parcelId`) and `courierId` in `parcel.assigned` / `parcel.reassigned`.
-* **M7 (courier)**: publish `courier.location.updated` with `courierId`, `lat`, `lng`, `recordedAt`.
-* **M9 (broker)**: add `tracking.q` with the arguments above and the two bindings to `definitions.json`.
-* **M4 / customer app**: track a parcel with the shared real-time hook (section 8) rather than polling, and link
-  "Track" buttons to `/track/<trackingNo>`. The merchant service already builds `trackingUrl` from
-  `PUBLIC_TRACKING_URL` (default `http://localhost:4200/track`).
+Status after merging `dev` (gateway, event catalogue and RabbitMQ definitions are in):
+
+* **M1 (gateway)**: `/api/v1/public/tracking/**` (public, 5 req/s per IP) and `/api/v1/tracking/**` (signed-in live
+  streams, no circuit breaker) already route here. **Still needed:** a route for `/api/v1/public/tracking/*/stream`,
+  placed before `tracking-public`, with the per-IP public limiter and **no circuit breaker** (its 30 s time limit ends
+  every live stream). Until then the public page falls back to polling every 15 s when it goes through the gateway.
+* **M4 (parcel)**: in `parcel.created`, add `pickupCity, pickupLat, pickupLng, dropoffCity, dropoffLat, dropoffLng`
+  (city level only, never a street address) and `size, weightKg, serviceType`. Add a per-parcel `sequence` (1, 2, 3...)
+  to every parcel event. Send `failureReason` as one of the codes above. Optional: `hub` in `parcel.status.*`. Without
+  the towns there is no route or map on the page; without the rest the details card stays empty.
+* **M7 (courier)**: publish `courier.location.updated` with `courierId, lat, lng, recordedAt` about every 30 s while a
+  courier is on a delivery. Without it there is no courier on the map and the ETA uses the schedule.
+* **M9 (events)**: add the fields above and `courier.location.updated` to `docs/events/catalogue.md` (city-level data,
+  no personal data). Done by M8: `tracking.q` / `tracking.q.dlq` and the bindings in `infra/rabbitmq/definitions.json`,
+  and the queue row in the catalogue.
+* **Customer app / M9 notifications**: link "Track" buttons and messages to `/track/<trackingNo>`; the merchant and
+  notification services already build it from `PUBLIC_TRACKING_URL` (default `http://localhost:4200/track`). Track a
+  parcel in an app with the shared real-time hook (section 8) rather than polling.
 
 ## 7. Dev tools (profile `dev` only)
 
@@ -163,6 +174,7 @@ An unknown number is looked up again every 5 s for 2 minutes (`lookingAgain()`, 
 reaches the Tracking Service a moment after it is created. `refresh()` ("Try again", or Track with the same number)
 shows `loading` again and restarts those look-ups.
 
-Routing of `/api/v1/tracking`: the dev server proxies it to `localhost:8088` (`proxy.conf.json`); the portal container's
-nginx sends it to `TRACKING_UPSTREAM` (default `http://tracking:8080`) with buffering off for the event stream. Once the
-API gateway (M1) exists, point both at the gateway instead.
+Routing of `/api/v1/public/tracking`: the dev server proxies it to `localhost:8087` (`proxy.conf.json`); the portal
+container's nginx sends it to `TRACKING_UPSTREAM` (default `http://tracking:8080`) with buffering off for the event
+stream. Once the gateway has the public stream route (section 6), point both at the gateway (`localhost:8080`,
+`http://gateway:8080`) instead.

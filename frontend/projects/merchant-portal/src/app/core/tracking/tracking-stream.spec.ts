@@ -8,7 +8,7 @@ import { injectTrackingStream, TrackingStream } from './tracking-stream';
 
 describe('TrackingStream (shared real-time tracking hook)', () => {
   const NO = 'SD-2641-7788';
-  const URL = `/api/v1/tracking/${NO}`;
+  const URL = `/api/v1/public/tracking/${NO}`;
   let http: HttpTestingController;
   let stream: TrackingStream;
 
@@ -227,7 +227,7 @@ describe('TrackingStream (shared real-time tracking hook)', () => {
     stream.watch('SD-1000-0001');
     expect(first.closed).toBeTrue();
     expect(stream.parcel()).toBeNull();
-    http.expectOne('/api/v1/tracking/SD-1000-0001').flush(aTracking({ trackingNo: 'SD-1000-0001' }));
+    http.expectOne('/api/v1/public/tracking/SD-1000-0001').flush(aTracking({ trackingNo: 'SD-1000-0001' }));
     expect(stream.parcel()?.trackingNo).toBe('SD-1000-0001');
   });
 
@@ -272,6 +272,6 @@ describe('tracking numbers', () => {
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
     const api = TestBed.inject(TrackingApi);
 
-    expect(api.streamUrl('SD-1/../x')).toBe('/api/v1/tracking/SD-1%2F..%2Fx/stream');
+    expect(api.streamUrl('SD-1/../x')).toBe('/api/v1/public/tracking/SD-1%2F..%2Fx/stream');
   });
 });

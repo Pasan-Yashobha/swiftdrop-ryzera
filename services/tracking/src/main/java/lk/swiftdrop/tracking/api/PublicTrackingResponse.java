@@ -8,7 +8,7 @@ import java.util.List;
  * What anyone holding a tracking number may see: status, five-stop transit line, history, ETA, city-level origin
  * and destination, parcel size and, while it is on its way, the courier's approximate position.
  * There is deliberately no field for names, phone numbers, e-mail addresses, street addresses or internal ids.
- * Used for both {@code GET /api/v1/tracking/{trackingNo}} and every SSE {@code tracking} event.
+ * Used for both {@code GET /api/v1/public/tracking/{trackingNo}} and every SSE {@code tracking} event.
  *
  * @param status      public status (ASSIGNED is shown as CREATED)
  * @param tone        PROGRESS, ATTENTION, DONE or EXCEPTION

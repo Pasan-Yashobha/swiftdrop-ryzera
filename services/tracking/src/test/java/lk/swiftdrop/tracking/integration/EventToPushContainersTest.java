@@ -86,9 +86,9 @@ class EventToPushContainersTest {
 
         rabbit.send(EXCHANGE, "parcel.created", created.message());
         await().atMost(Duration.ofSeconds(20)).until(() ->
-                rest.getForEntity("/api/v1/tracking/" + trackingNo, String.class).getStatusCode().is2xxSuccessful());
+                rest.getForEntity("/api/v1/public/tracking/" + trackingNo, String.class).getStatusCode().is2xxSuccessful());
 
-        URI uri = URI.create("http://localhost:" + port + "/api/v1/tracking/" + trackingNo + "/stream");
+        URI uri = URI.create("http://localhost:" + port + "/api/v1/public/tracking/" + trackingNo + "/stream");
         try (SseTestClient client = SseTestClient.connect(uri)) {
             await().atMost(Duration.ofSeconds(10)).until(() -> !client.events().isEmpty());
 

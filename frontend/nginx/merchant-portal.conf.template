@@ -6,7 +6,7 @@
 #   API_UPSTREAM  base URL of the API, without a path or trailing slash, e.g. http://merchant:8080. Only then does
 #                 proxy_pass (which uses a variable) forward the request URI unchanged: /api/v1/merchants/me
 #                 reaches the API as /api/v1/merchants/me.
-#   TRACKING_UPSTREAM  base URL of the Tracking Service (Member 8), e.g. http://tracking:8080, for /api/v1/tracking/
+#   TRACKING_UPSTREAM  base URL of the Tracking Service (Member 8), e.g. http://tracking:8080, for /api/v1/public/tracking/
 #   DNS_RESOLVER  DNS server nginx uses to look the upstream up at request time (Docker's is 127.0.0.11)
 
 server {
@@ -43,7 +43,7 @@ server {
 
     # Public parcel tracking (Member 8). The /stream endpoints are server-sent events: no buffering, long reads.
     # The longer prefix wins over /api/ below, so these requests go to the Tracking Service, not the merchant API.
-    location ^~ /api/v1/tracking/ {
+    location ^~ /api/v1/public/tracking/ {
         resolver ${DNS_RESOLVER} valid=10s ipv6=off;
         set $tracking_upstream "${TRACKING_UPSTREAM}";
         proxy_pass $tracking_upstream;

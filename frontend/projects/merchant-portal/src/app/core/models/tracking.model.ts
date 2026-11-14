@@ -1,6 +1,6 @@
 /**
  * Public tracking view served by the Tracking Service (Member 8), see docs/tracking-service/CONTRACT.md section 3.
- * The same shape is returned by GET /api/v1/tracking/{trackingNo} and carried by every SSE "tracking" event.
+ * The same shape is returned by GET /api/v1/public/tracking/{trackingNo} and carried by every SSE "tracking" event.
  * It never contains names, phone numbers, addresses or internal ids.
  */
 export type TrackingStatus =

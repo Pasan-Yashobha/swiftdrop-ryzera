@@ -89,17 +89,17 @@ class PublicTrackingPrivacyTest {
                 .message());
         consumer.onMessage(Events.location(COURIER_ID, 7.2812345, 80.6123456, Instant.now()).message());
 
-        MvcResult stream = mvc.perform(get("/api/v1/tracking/" + NO + "/stream").accept(MediaType.TEXT_EVENT_STREAM))
+        MvcResult stream = mvc.perform(get("/api/v1/public/tracking/" + NO + "/stream").accept(MediaType.TEXT_EVENT_STREAM))
                 .andExpect(request().asyncStarted())
                 .andReturn();
-        String onTheWay = mvc.perform(get("/api/v1/tracking/" + NO))
+        String onTheWay = mvc.perform(get("/api/v1/public/tracking/" + NO))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
 
         consumer.onMessage(Events.status("failed", NO, 4, T0.plusSeconds(180))
                 .data("failureReason", "Nimali Perera not home, phone 0771234567 no answer")
                 .message());
-        String failed = mvc.perform(get("/api/v1/tracking/" + NO))
+        String failed = mvc.perform(get("/api/v1/public/tracking/" + NO))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         String streamed = stream.getResponse().getContentAsString(StandardCharsets.UTF_8);

@@ -21,13 +21,15 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  * Public tracking by number, no login. Both endpoints read the Redis read model only, so a burst of tracking
  * traffic never reaches the Parcel database.
  * <ul>
- *   <li>{@code GET /api/v1/tracking/{trackingNo}}: current state; also the polling fallback.</li>
- *   <li>{@code GET /api/v1/tracking/{trackingNo}/stream}: server-sent events, first the current state, then one
- *       {@code tracking} event per change.</li>
+ *   <li>{@code GET /api/v1/public/tracking/{trackingNo}}: current state; also the polling fallback.</li>
+ *   <li>{@code GET /api/v1/public/tracking/{trackingNo}/stream}: server-sent events, first the current state, then
+ *       one {@code tracking} event per change.</li>
  * </ul>
+ * {@code /api/v1/public/**} is the API gateway's public prefix (Member 1). The same endpoints also answer under
+ * {@code /api/v1/tracking}, the prefix the gateway routes for signed-in users' live streams.
  */
 @RestController
-@RequestMapping("/api/v1/tracking")
+@RequestMapping({"/api/v1/public/tracking", "/api/v1/tracking"})
 public class PublicTrackingController {
 
     private static final String NOT_FOUND_MESSAGE = "No parcel was found with this tracking number";
