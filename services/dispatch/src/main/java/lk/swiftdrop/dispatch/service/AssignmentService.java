@@ -11,7 +11,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import lk.swiftdrop.dispatch.client.ParcelClient;
+import lk.swiftdrop.dispatch.common.BadRequestException;
 import lk.swiftdrop.dispatch.common.ConflictException;
+import lk.swiftdrop.dispatch.common.CorrelationIdFilter;
 import lk.swiftdrop.dispatch.common.ErrorCode;
 import lk.swiftdrop.dispatch.common.NotFoundException;
 import lk.swiftdrop.dispatch.common.UnprocessableEntityException;
@@ -101,7 +103,7 @@ public class AssignmentService {
         CourierWorkload savedWorkload = workloadRepository.save(workload);
 
         // 6. Record outbox event for reliable publishing
-        String payload = createEventPayload(Map.of(
+        String payload = createEventPayload("parcel.assigned", parcelId, Map.of(
                 "parcelId", parcelId.toString(),
                 "courierId", courierId.toString(),
                 "strategy", "MANUAL",
@@ -177,7 +179,7 @@ public class AssignmentService {
                     CourierWorkload savedWorkload = workloadRepository.save(lockedWorkload);
 
                     // Outbox event
-                    String payload = createEventPayload(Map.of(
+                    String payload = createEventPayload("parcel.assigned", parcel.parcelId(), Map.of(
                             "parcelId", parcel.parcelId().toString(),
                             "courierId", chosenCourierId.toString(),
                             "strategy", strategyType.name(),
@@ -253,10 +255,12 @@ public class AssignmentService {
         CourierWorkload savedNewWorkload = workloadRepository.save(newCourierWorkload);
 
         // 7. Write outbox event
-        String payload = createEventPayload(Map.of(
+        String payload = createEventPayload("parcel.reassigned", parcelId, Map.of(
                 "parcelId", parcelId.toString(),
-                "oldCourierId", oldCourierId.toString(),
+                "courierId", newCourierId.toString(),
                 "newCourierId", newCourierId.toString(),
+                "oldCourierId", oldCourierId.toString(),
+                "previousCourierId", oldCourierId.toString(),
                 "reason", reason,
                 "reassignedBy", assignedBy.toString()
         ));
@@ -309,6 +313,23 @@ public class AssignmentService {
                 .toList();
     }
 
+    /**
+     * Admin-only capacity override for a courier (e.g. van driver).
+     */
+    @Transactional
+    public CourierWorkloadResponse updateCourierCapacity(UUID courierId, int maxActive) {
+        if (maxActive <= 0) {
+            throw new BadRequestException("maxActive capacity must be greater than zero");
+        }
+        CourierWorkload workload = workloadRepository.findByIdForUpdate(courierId)
+                .orElseThrow(() -> new NotFoundException("Courier " + courierId + " not found"));
+        workload.setMaxActive(maxActive);
+        CourierWorkload saved = workloadRepository.save(workload);
+        log.info("Admin updated capacity for courier {} to {}", courierId, maxActive);
+        sseEmitterService.broadcast("workload.changed", CourierWorkloadResponse.from(saved));
+        return CourierWorkloadResponse.from(saved);
+    }
+
     private void seedDefaultCouriers() {
         UUID zoneColombo = UUID.fromString("00000000-0000-0000-0000-000000000001");
         UUID zoneKandy = UUID.fromString("00000000-0000-0000-0000-000000000002");
@@ -331,9 +352,20 @@ public class AssignmentService {
                 zoneColombo, 0, 8, false, null)); // Offline courier
     }
 
-    private String createEventPayload(Map<String, String> data) {
+    private String createEventPayload(String eventType, UUID aggregateId, Map<String, Object> data) {
         try {
-            return objectMapper.writeValueAsString(data);
+            Map<String, Object> envelope = Map.of(
+                    "eventId", UUID.randomUUID().toString(),
+                    "eventType", eventType,
+                    "version", 1,
+                    "occurredAt", Instant.now().toString(),
+                    "producer", "dispatch-service",
+                    "correlationId", CorrelationIdFilter.currentOrNew(),
+                    "aggregateId", aggregateId.toString(),
+                    "data", data,
+                    "payload", data
+            );
+            return objectMapper.writeValueAsString(envelope);
         } catch (JsonProcessingException e) {
             return "{}";
         }

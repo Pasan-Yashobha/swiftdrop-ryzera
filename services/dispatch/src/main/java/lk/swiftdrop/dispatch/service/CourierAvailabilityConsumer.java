@@ -61,6 +61,28 @@ public class CourierAvailabilityConsumer {
                 workload.setZoneId(zoneId);
             }
 
+            // Specification requirement: an event older than the last assignment to that courier never lowers the count
+            Instant eventTime = null;
+            if (root.has("occurredAt")) {
+                try {
+                    eventTime = Instant.parse(root.get("occurredAt").asText());
+                } catch (Exception ignored) {
+                }
+            } else if (data.has("occurredAt")) {
+                try {
+                    eventTime = Instant.parse(data.get("occurredAt").asText());
+                } catch (Exception ignored) {
+                }
+            }
+
+            if (workload.getLastAssignedAt() != null && eventTime != null && eventTime.isBefore(workload.getLastAssignedAt())) {
+                if (activeDeliveries < workload.getActiveDeliveries()) {
+                    log.info("Ignoring lower activeDeliveries from stale event (occurredAt {} is before lastAssignedAt {})",
+                            eventTime, workload.getLastAssignedAt());
+                    activeDeliveries = workload.getActiveDeliveries();
+                }
+            }
+
             workload.updateStatus(available, activeDeliveries);
             CourierWorkload saved = workloadRepository.save(workload);
 
