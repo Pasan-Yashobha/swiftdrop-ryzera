@@ -29,10 +29,12 @@ public class InvoiceRepository {
                                String hash, byte[] pdf, Instant generatedAt) {
         int inserted = jdbc.sql("""
                 INSERT INTO invoice (id, invoice_no, merchant_id, merchant_name, period_start, period_end,
-                    total_amount, currency, line_count, snapshot_hash, pdf_content, generated_at)
-                VALUES (:id, :number, :merchant, :name, :start, :end, :total, 'LKR', :count, :hash, :pdf, :generated)
+                    total_amount, currency, line_count, snapshot_hash, pdf_content, generated_at, merchant_service_id)
+                VALUES (:id, :number, :merchant, :name, :start, :end, :total, 'LKR', :count, :hash, :pdf, :generated,
+                    :merchantService)
                 ON CONFLICT (merchant_id, period_start, period_end) DO NOTHING
                 """)
+                .param("merchantService", request.merchantServiceId(), java.sql.Types.OTHER)
                 .param("id", id).param("number", invoiceNo).param("merchant", request.merchantId())
                 .param("name", request.merchantName()).param("start", request.periodStart())
                 .param("end", request.periodEnd()).param("total", total).param("count", request.lines().size())
@@ -53,7 +55,7 @@ public class InvoiceRepository {
                         + "WHERE merchant_id = :merchant AND period_start = :start AND period_end = :end")
                 .param("merchant", request.merchantId()).param("start", request.periodStart())
                 .param("end", request.periodEnd())
-                .query((row, index) -> new StoredInvoice(metadata(row), row.getString("snapshot_hash"))).single();
+                .query((row, index) -> new StoredInvoice(metadata(row), row.getString("snapshot_hash"), inserted == 1)).single();
     }
 
     public Optional<InvoiceDetail> findVisible(UUID id, String userId, boolean admin) {
@@ -98,6 +100,7 @@ public class InvoiceRepository {
                 row.getTimestamp("generated_at").toInstant());
     }
 
-    public record StoredInvoice(InvoiceMetadata metadata, String hash) { }
+    /** {@code created} is false when the merchant already had an invoice for this period and it was returned. */
+    public record StoredInvoice(InvoiceMetadata metadata, String hash, boolean created) { }
     public record PdfDownload(String invoiceNo, byte[] bytes) { }
 }

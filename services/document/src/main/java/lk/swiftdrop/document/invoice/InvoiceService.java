@@ -13,6 +13,8 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.StringJoiner;
 import java.util.UUID;
+import lk.swiftdrop.document.messaging.DocumentEvents;
+import lk.swiftdrop.document.messaging.OutboxService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -31,11 +33,13 @@ public class InvoiceService {
     private final InvoiceRepository invoices;
     private final InvoicePdfGenerator pdfs;
     private final Clock clock;
+    private final OutboxService outbox;
 
-    public InvoiceService(InvoiceRepository invoices, InvoicePdfGenerator pdfs, Clock clock) {
+    public InvoiceService(InvoiceRepository invoices, InvoicePdfGenerator pdfs, Clock clock, OutboxService outbox) {
         this.invoices = invoices;
         this.pdfs = pdfs;
         this.clock = clock;
+        this.outbox = outbox;
     }
 
     /**
@@ -65,6 +69,10 @@ public class InvoiceService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "An invoice already exists for this merchant and period with different content");
         }
+        if (stored.created()) {
+            outbox.enqueue(DocumentEvents.INVOICE_GENERATED, stored.metadata().id().toString(), null,
+                    DocumentEvents.invoiceGenerated(stored.metadata(), request.merchantServiceId()));
+        }
         return stored.metadata();
     }
 
@@ -90,6 +98,8 @@ public class InvoiceService {
         canonical.add(data.merchantId().length() + ":" + data.merchantId())
                 .add(data.merchantName().length() + ":" + data.merchantName())
                 .add(data.periodStart().toString()).add(data.periodEnd().toString());
+        // added only when given, so invoices made before this field existed keep the same fingerprint
+        if (data.merchantServiceId() != null) canonical.add("merchantService:" + data.merchantServiceId());
         data.lines().stream().sorted(Comparator.comparing(InvoiceRequest.Line::parcelId)).forEach(line ->
                 canonical.add(line.parcelId() + "," + line.trackingNumber() + ","
                         + line.description().length() + ":" + line.description() + ","

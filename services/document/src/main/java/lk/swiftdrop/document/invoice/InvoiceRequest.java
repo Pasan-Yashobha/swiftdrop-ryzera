@@ -20,9 +20,19 @@ public record InvoiceRequest(
         @NotBlank @Size(max = 200) String merchantName,
         @NotNull LocalDate periodStart,
         @NotNull LocalDate periodEnd,
-        @NotEmpty @Size(max = MAX_LINES) List<@NotNull @Valid Line> lines) {
+        @NotEmpty @Size(max = MAX_LINES) List<@NotNull @Valid Line> lines,
+        UUID merchantServiceId) {
 
     public static final int MAX_LINES = 500;
+
+    /**
+     * Without the merchant's id in the Merchant service. {@code invoice.generated} then has no {@code merchantId},
+     * so it cannot be delivered to the merchant's webhook (webhooks look a merchant up by that id).
+     */
+    public InvoiceRequest(String merchantId, String merchantName, LocalDate periodStart, LocalDate periodEnd,
+                          List<Line> lines) {
+        this(merchantId, merchantName, periodStart, periodEnd, lines, null);
+    }
 
     public record Line(
             @NotNull UUID parcelId,

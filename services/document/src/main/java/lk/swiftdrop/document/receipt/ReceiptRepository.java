@@ -19,7 +19,7 @@ public class ReceiptRepository {
 
     public StoredReceipt store(UUID id, String receiptNo, ReceiptRequest snapshot, String hash,
                                 byte[] pdf, Instant generatedAt) {
-        jdbc.sql("""
+        int inserted = jdbc.sql("""
                 INSERT INTO receipt (id, receipt_no, parcel_id, customer_id, tracking_number,
                     delivered_at, amount_total, currency, snapshot_hash, pdf_content, generated_at)
                 VALUES (:id, :number, :parcel, :customer, :tracking, :delivered, :total, 'LKR', :hash, :pdf, :generated)
@@ -31,7 +31,13 @@ public class ReceiptRepository {
                 .param("hash", hash).param("pdf", pdf).param("generated", Timestamp.from(generatedAt)).update();
         return jdbc.sql("SELECT " + METADATA + ", snapshot_hash FROM receipt WHERE parcel_id = :parcel")
                 .param("parcel", snapshot.parcelId())
-                .query((row, index) -> new StoredReceipt(metadata(row), row.getString("snapshot_hash"))).single();
+                .query((row, index) -> new StoredReceipt(metadata(row), row.getString("snapshot_hash"), inserted == 1)).single();
+    }
+
+    /** For other services (Notification attaches the PDF to an email): no ownership check, the caller is trusted. */
+    public Optional<PdfDownload> findPdfById(UUID id) {
+        return jdbc.sql("SELECT receipt_no, pdf_content FROM receipt WHERE id = :id").param("id", id)
+                .query((row, index) -> new PdfDownload(row.getString("receipt_no"), row.getBytes("pdf_content"))).optional();
     }
 
     public Optional<ReceiptMetadata> findVisibleByParcel(UUID parcelId, String userId, boolean admin) {
@@ -65,6 +71,7 @@ public class ReceiptRepository {
                 row.getString("currency"), row.getTimestamp("generated_at").toInstant());
     }
 
-    public record StoredReceipt(ReceiptMetadata metadata, String hash) { }
+    /** {@code created} is false when this parcel already had a receipt and the stored one was returned. */
+    public record StoredReceipt(ReceiptMetadata metadata, String hash, boolean created) { }
     public record PdfDownload(String receiptNo, byte[] bytes) { }
 }

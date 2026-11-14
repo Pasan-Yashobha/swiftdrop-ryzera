@@ -185,11 +185,21 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: ${DOCUMENT_SPRING_PROFILES:-dev}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/document_db
       SPRING_DATASOURCE_USERNAME: document_svc
       SPRING_DATASOURCE_PASSWORD: ${SERVICE_DB_PASSWORD:-dev_service_pw}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-swiftdrop}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev_rabbit_pw}
+      # Shared secret for service-to-service calls (the Notification service fetches receipt PDFs with it).
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-token}
+      # Blank = never ask Parcel; the delivered event must then carry customer, tracking number and price breakdown.
+      DOCUMENT_PARCEL_URL: ${DOCUMENT_PARCEL_URL:-}
       IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://host.docker.internal:8081/.well-known/jwks.json}
       DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev-only-hmac-secret-change-me-0123456789}
     extra_hosts:

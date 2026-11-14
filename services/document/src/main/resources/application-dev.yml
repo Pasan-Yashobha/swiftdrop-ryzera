@@ -5,3 +5,13 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/document_db}
     username: ${SPRING_DATASOURCE_USERNAME:document_svc}
     password: ${SPRING_DATASOURCE_PASSWORD:dev_service_pw}
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:swiftdrop}
+    password: ${SPRING_RABBITMQ_PASSWORD:dev_rabbit_pw}
+
+document:
+  security:
+    # Matches the other services' compose default. Development only: real deployments must set INTERNAL_API_TOKEN.
+    internal-token: ${INTERNAL_API_TOKEN:dev-internal-token}

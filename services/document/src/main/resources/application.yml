@@ -11,6 +11,9 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+  rabbitmq:
+    # Broker settings are bound from SPRING_RABBITMQ_*. Publisher confirms let the relay know the broker has the event.
+    publisher-confirm-type: correlated
 
 server:
   port: ${SERVER_PORT:8087}
@@ -26,3 +29,10 @@ management:
   endpoint:
     health:
       show-details: never
+
+document:
+  security:
+    internal-token: ${INTERNAL_API_TOKEN:}
+  downstream:
+    # Blank = never ask Parcel; the delivered event must then carry everything the receipt needs.
+    parcel-url: ${DOCUMENT_PARCEL_URL:}

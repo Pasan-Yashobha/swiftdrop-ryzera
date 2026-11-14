@@ -11,8 +11,8 @@ A different snapshot for an existing parcel returns 409. Concurrent duplicate re
 by PostgreSQL's unique parcel constraint and one transaction for metadata and PDF bytes.
 
 This milestone stores PDFs in PostgreSQL BYTEA. Private MinIO/S3 storage, receipt generation from
-RabbitMQ and receipt.generated publication are subsequent integration steps (merchant invoices are
-described below). The checkout currently has no Parcel implementation or confirmed
+Receipts are also made from `parcel.status.delivered` events and announced with `receipt.generated`
+(see Events below); merchant invoices are described after the API table. The checkout currently has no Parcel implementation or confirmed
 receipt event payload. Production creation must use trusted delivery data from that integration.
 
 ## Run locally
@@ -125,11 +125,39 @@ Invoke-WebRequest -Uri ("http://localhost:8087/api/v1/receipts/" + $receipt.id +
   -Headers $headers -OutFile "$env:TEMP/swiftdrop-receipt.pdf"
 ```
 
+## Events (RabbitMQ)
+
+The full contract, with JSON examples, is in [docs/events/document-service-events.md](../../docs/events/document-service-events.md).
+
+- **Consumes** `parcel.status.delivered` from queue `document.receipts.q` and makes the receipt. Duplicates are
+  skipped by `eventId`. A message that can never be handled (bad JSON, missing field, invalid data, unknown
+  parcel) goes straight to `document.receipts.dlq`; a temporary failure (database or Parcel service down) is tried
+  3 times, then goes to the DLQ. The receipt, the "processed" mark and the outgoing event are one transaction.
+- **Publishes** `receipt.generated` and `invoice.generated` through a transactional outbox: the event is written in
+  the same transaction as the receipt or invoice, and a relay publishes it with the broker's confirm, retrying with a
+  growing pause during a broker outage, so nothing is lost. Amounts travel as decimal strings.
+- **Internal API** `GET /internal/receipts/{id}/pdf` with the header `X-Internal-Token`: the Notification service
+  fetches the PDF to attach it to the receipt email. A user's JWT does not open it.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `SPRING_RABBITMQ_HOST/PORT/USERNAME/PASSWORD` | localhost, 5672, `swiftdrop`, dev password (dev profile) | Broker |
+| `INTERNAL_API_TOKEN` | `dev-internal-token` (dev profile only) | Shared secret for `/internal/**`; with none set, no internal call is accepted |
+| `DOCUMENT_PARCEL_URL` | blank | Parcel service, asked for details the event lacks; blank means never ask |
+| `document.messaging.enabled` | `true` | `false` turns the consumer and relay off (the outbox is still written) |
+
+**Pending with Member 4:** the field names of the delivered event (`customerId`, `pricing`, ...) are a proposal,
+read in one class, `DeliveredParcelMapper`.
+
 ## Verify
 
 ```powershell
-mvn -f services/document/pom.xml test
+mvn -f services/document/pom.xml verify
 ```
+
+The broker tests start a real RabbitMQ and PostgreSQL in Docker (Docker must be running). They publish delivered
+events and check the receipt, the `receipt.generated` event, duplicates, the dead-letter paths, the three attempts and
+the queue settings.
 
 Tests use a disposable PostgreSQL container. They cover PDF content, concurrent duplicate handling,
 snapshot conflicts, decimal normalization, monetary validation, maximum-size amounts, and ownership
