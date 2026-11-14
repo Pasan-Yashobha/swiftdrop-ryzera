@@ -11,6 +11,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/ro
 import { filter } from 'rxjs';
 import { AuthService } from '../core/auth/auth.service';
 import { MerchantStore } from '../core/merchant/merchant.store';
+import { UserRole } from '../core/models/auth.model';
 import { StatusBadge } from '../shared/ui/status-badge/status-badge';
 
 interface NavLink {
@@ -26,6 +27,7 @@ const GUEST_LINKS: readonly NavLink[] = [
 const APPROVED_LINKS: readonly NavLink[] = [
   { path: '/dashboard', label: 'Dashboard' },
   { path: '/orders', label: 'Orders' },
+  { path: '/estimate', label: 'Fee estimate' },
   { path: '/developers/keys', label: 'API keys' },
   { path: '/developers/webhooks', label: 'Webhooks' },
   { path: '/developers/docs', label: 'API docs' },
@@ -40,6 +42,24 @@ const UNAPPROVED_LINKS: readonly NavLink[] = [
 const ONBOARDING_LINKS: readonly NavLink[] = [
   { path: '/onboarding', label: 'Register your business' },
 ];
+
+const HOME_LINK: NavLink = { path: '/welcome', label: 'Home' };
+
+/** Navigation for accounts that are not merchants; merchants use the status-based lists above. */
+const ROLE_LINKS: Readonly<Record<Exclude<UserRole, 'MERCHANT'>, readonly NavLink[]>> = {
+  CUSTOMER: [
+    HOME_LINK,
+    { path: '/estimate', label: 'Fee estimate' },
+    { path: '/receipts', label: 'Receipts' },
+  ],
+  ADMIN: [
+    HOME_LINK,
+    { path: '/admin/dispatch', label: 'Dispatch' },
+    { path: '/receipts', label: 'Receipts' },
+  ],
+  DISPATCHER: [HOME_LINK, { path: '/admin/dispatch', label: 'Dispatch' }],
+  COURIER: [HOME_LINK],
+};
 
 /** Brand, role / merchant-status chip and the navigation, which collapses behind a menu button on phones. */
 @Component({
@@ -58,6 +78,10 @@ export class AppHeader {
   protected readonly links = computed<readonly NavLink[]>(() => {
     if (!this.auth.isAuthenticated()) {
       return GUEST_LINKS;
+    }
+    const role = this.auth.role();
+    if (role && role !== 'MERCHANT') {
+      return ROLE_LINKS[role];
     }
     const status = this.store.status();
     if (status === null) {

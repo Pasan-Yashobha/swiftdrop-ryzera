@@ -1,0 +1,7 @@
+.dev-panel summary {
+  font-weight: 600;
+}
+
+.dev-panel[open] summary {
+  margin-bottom: var(--space-4);
+}

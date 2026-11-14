@@ -6,6 +6,7 @@ import {
   registeredMerchantGuard,
   statusPageGuard,
 } from './core/guards/merchant-status.guard';
+import { roleGuard } from './core/guards/role.guard';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
@@ -57,6 +58,20 @@ export const routes: Routes = [
     path: 'dispatch',
     redirectTo: 'admin/dispatch',
     pathMatch: 'full',
+  },
+
+  // Pricing, receipts and the AI assistant (Member 5). Each page is open to specific roles only.
+  {
+    path: 'estimate',
+    title: 'Fee estimate',
+    canActivate: [roleGuard('CUSTOMER', 'MERCHANT')],
+    loadComponent: () => import('./features/pricing/estimate.page').then((m) => m.EstimatePage),
+  },
+  {
+    path: 'receipts',
+    title: 'Receipts',
+    canActivate: [roleGuard('CUSTOMER', 'ADMIN')],
+    loadComponent: () => import('./features/documents/receipts.page').then((m) => m.ReceiptsPage),
   },
 
   // Everything below needs a signed-in merchant user. authGuard runs before any child guard.

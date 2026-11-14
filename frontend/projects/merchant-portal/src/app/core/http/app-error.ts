@@ -90,6 +90,14 @@ function asApiError(body: unknown): Partial<ApiError> | null {
     return null;
   }
   const candidate = body as Record<string, unknown>;
+  if (typeof candidate['message'] !== 'string' && typeof candidate['detail'] === 'string') {
+    // Spring ProblemDetail (RFC 9457), used by the Pricing, Document and Assistant services.
+    return {
+      code: typeof candidate['code'] === 'string' ? candidate['code'] : 'REQUEST_FAILED',
+      message: candidate['detail'],
+      details: [],
+    };
+  }
   if (typeof candidate['code'] !== 'string' || typeof candidate['message'] !== 'string') {
     return null;
   }

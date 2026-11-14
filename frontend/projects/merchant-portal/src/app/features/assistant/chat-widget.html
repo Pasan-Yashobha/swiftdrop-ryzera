@@ -1,0 +1,79 @@
+@if (open()) {
+  <section class="chat-panel" role="dialog" aria-label="SwiftDrop assistant">
+    <header class="chat-head">
+      <div>
+        <strong>SwiftDrop assistant</strong>
+        <span class="small">Fees, tracking and delivery history</span>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" [disabled]="busy()" (click)="newChat()">
+        New chat
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm" aria-label="Close assistant" (click)="toggle()">
+        ✕
+      </button>
+    </header>
+
+    <div class="chat-log" #log aria-live="polite">
+      @for (line of lines(); track $index) {
+        <div class="bubble" [class.bubble--mine]="line.from === 'user'">
+          <p>{{ line.text }}</p>
+          @if (line.tools.length) {
+            <ul class="tools" aria-label="Tools used">
+              @for (call of line.tools; track $index) {
+                <li [class.tools__failed]="call.failed">
+                  Tool used: <span class="mono">{{ call.tool }}</span>
+                  <small>{{ describe(call) }}</small>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      } @empty {
+        <div class="stack chat-empty">
+          <p class="muted small">Try one of these:</p>
+          @for (example of examples; track example) {
+            <button type="button" class="btn btn-sm" [disabled]="busy()" (click)="send(example)">
+              {{ example }}
+            </button>
+          }
+        </div>
+      }
+      @if (busy()) {
+        <p class="bubble muted" role="status">Thinking…</p>
+      }
+    </div>
+
+    @if (error()) {
+      <p class="alert alert--danger chat-error" role="alert">{{ error() }}</p>
+    }
+
+    <form class="chat-input" (ngSubmit)="send(draft())">
+      <label class="visually-hidden" for="chat-message">Message</label>
+      <textarea
+        id="chat-message"
+        name="message"
+        rows="2"
+        [maxlength]="maxChars"
+        placeholder="How much to send 2 kg from Colombo to Kandy?"
+        [ngModel]="draft()"
+        (ngModelChange)="draft.set($event)"
+        (keydown.enter)="onEnter($event)"
+      ></textarea>
+      <div class="chat-input__row">
+        <small class="muted">{{ draft().length }} / {{ maxChars }}</small>
+        <button type="submit" class="btn btn-primary btn-sm" [disabled]="busy() || !draft().trim()">
+          Send
+        </button>
+      </div>
+    </form>
+  </section>
+}
+
+<button
+  type="button"
+  class="btn btn-primary chat-launcher"
+  [attr.aria-expanded]="open()"
+  (click)="toggle()"
+>
+  {{ open() ? 'Close assistant' : 'Ask SwiftDrop' }}
+</button>

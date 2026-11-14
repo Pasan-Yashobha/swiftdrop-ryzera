@@ -10,6 +10,9 @@
       <p class="muted small">SwiftDrop Merchant Portal &middot; &copy; {{ year }} SwiftDrop</p>
     </div>
   </footer>
+  @if (canChat()) {
+    <app-chat-widget />
+  }
 } @else {
   <main id="main" #main class="main main--fullscreen" tabindex="-1">
     <router-outlet />

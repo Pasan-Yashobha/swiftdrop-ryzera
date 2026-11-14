@@ -1,0 +1,130 @@
+<div class="page">
+  <div class="page__header">
+    <div>
+      <h1>Delivery fee estimate</h1>
+      <p class="page__lead">See the exact price of a delivery before you book it.</p>
+    </div>
+  </div>
+
+  <div class="estimate-layout">
+    <form class="card stack" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      @if (zonesLoading()) {
+        <app-spinner label="Loading delivery zones" />
+      } @else if (zonesError(); as zonesError) {
+        <app-error-alert [error]="zonesError" [retryable]="true" (retry)="loadZones()" />
+      } @else if (zones().length === 0) {
+        <p class="alert alert--info">No delivery zones are open yet. Please try again later.</p>
+      }
+
+      <div class="grid-2">
+        <app-form-field label="Pick up from" [control]="form.controls.originZone">
+          <select appFieldControl [formControl]="form.controls.originZone">
+            <option value="">Choose a zone</option>
+            @for (zone of zones(); track zone.id) {
+              <option [value]="zone.code">{{ zone.name }}</option>
+            }
+          </select>
+        </app-form-field>
+        <app-form-field label="Deliver to" [control]="form.controls.destinationZone">
+          <select appFieldControl [formControl]="form.controls.destinationZone">
+            <option value="">Choose a zone</option>
+            @for (zone of zones(); track zone.id) {
+              <option [value]="zone.code">{{ zone.name }}</option>
+            }
+          </select>
+        </app-form-field>
+      </div>
+
+      <div class="grid-2">
+        <app-form-field
+          label="Weight (kg)"
+          [control]="form.controls.weightKg"
+          [hint]="'Up to ' + maxWeight + ' kg'"
+        >
+          <input
+            appFieldControl
+            type="number"
+            inputmode="decimal"
+            min="0.001"
+            [max]="maxWeight"
+            step="0.001"
+            [formControl]="form.controls.weightKg"
+          />
+        </app-form-field>
+        <app-form-field label="Parcel size" [control]="form.controls.sizeClass">
+          <select appFieldControl [formControl]="form.controls.sizeClass">
+            @for (size of sizes; track size) {
+              <option [value]="size">{{ sizeLabel(size) }}</option>
+            }
+          </select>
+        </app-form-field>
+      </div>
+
+      <div class="grid-2">
+        <app-form-field label="Delivery speed" [control]="form.controls.deliveryType">
+          <select appFieldControl [formControl]="form.controls.deliveryType">
+            <option value="STANDARD">Standard</option>
+            <option value="EXPRESS">Express</option>
+          </select>
+        </app-form-field>
+        <app-form-field
+          label="Promo code (optional)"
+          [control]="form.controls.promoCode"
+          [messages]="{ pattern: 'Use letters, numbers, - or _ only.' }"
+        >
+          <input
+            appFieldControl
+            type="text"
+            autocomplete="off"
+            placeholder="SAVE10"
+            [formControl]="form.controls.promoCode"
+          />
+        </app-form-field>
+      </div>
+
+      <app-error-alert [error]="error()" />
+
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit" [disabled]="submitting() || zonesLoading()">
+          {{ submitting() ? 'Calculating…' : 'Get estimate' }}
+        </button>
+      </div>
+    </form>
+
+    <section class="card stack quote-card" aria-live="polite" aria-label="Fee breakdown">
+      @if (quote(); as quote) {
+        <h2>{{ quote.originZone }} → {{ quote.destinationZone }}</h2>
+        <p class="muted small">
+          {{ quote.strategyUsed === 'EXPRESS' ? 'Express' : 'Standard' }} delivery
+        </p>
+        <dl class="details">
+          <dt>Base fee</dt>
+          <dd>{{ quote.amounts.baseAmount | money: quote.currency }}</dd>
+          <dt>Weight charge</dt>
+          <dd>{{ quote.amounts.weightAmount | money: quote.currency }}</dd>
+          <dt>Size charge</dt>
+          <dd>{{ quote.amounts.sizeAmount | money: quote.currency }}</dd>
+          @if (quote.amounts.expressAmount > 0) {
+            <dt>Express</dt>
+            <dd>{{ quote.amounts.expressAmount | money: quote.currency }}</dd>
+          }
+          @if (quote.amounts.discountAmount > 0) {
+            <dt>Discount ({{ quote.promoCode }})</dt>
+            <dd class="discount">− {{ quote.amounts.discountAmount | money: quote.currency }}</dd>
+          }
+        </dl>
+        <p class="quote-total">
+          <span>Total</span>
+          <strong>{{ quote.amounts.totalAmount | money: quote.currency }}</strong>
+        </p>
+        <p class="muted small">
+          Quote <span class="mono">{{ quote.quoteId }}</span> · valid until
+          {{ quote.expiresAt | date: 'shortTime' }}
+        </p>
+      } @else {
+        <h2>Your estimate</h2>
+        <p class="muted">Choose a route and parcel details to see the fee breakdown.</p>
+      }
+    </section>
+  </div>
+</div>

@@ -65,6 +65,26 @@ describe('fromHttpError', () => {
     expect(error.message).toBe('You do not have permission to do that.');
   });
 
+  it('reads the safe detail sentence from a Spring ProblemDetail body', () => {
+    const error = fromHttpError(
+      failure(409, {
+        type: 'about:blank',
+        title: 'Conflict',
+        status: 409,
+        detail: 'A different receipt already exists for this parcel',
+      }),
+    );
+
+    expect(error.code).toBe('REQUEST_FAILED');
+    expect(error.message).toBe('A different receipt already exists for this parcel');
+  });
+
+  it('still hides ProblemDetail text for 5xx responses', () => {
+    const error = fromHttpError(failure(502, { title: 'Bad Gateway', detail: 'upstream trace' }));
+
+    expect(error.message).not.toContain('upstream trace');
+  });
+
   it('ignores malformed details entries', () => {
     const error = fromHttpError(
       failure(400, {
