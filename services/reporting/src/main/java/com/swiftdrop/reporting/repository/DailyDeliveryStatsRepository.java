@@ -20,7 +20,7 @@ public interface DailyDeliveryStatsRepository extends JpaRepository<DailyDeliver
             INSERT INTO daily_delivery_stats (stat_date, created_count)
             VALUES (:day, 1)
             ON CONFLICT (stat_date) DO UPDATE
-              SET created_count = daily_delivery_stats.created_count + 1
+              SET created_count = created_count + 1
             """, nativeQuery = true)
     void incrementCreated(@Param("day") LocalDate day);
 
@@ -29,7 +29,7 @@ public interface DailyDeliveryStatsRepository extends JpaRepository<DailyDeliver
             INSERT INTO daily_delivery_stats (stat_date, delivered_count)
             VALUES (:day, 1)
             ON CONFLICT (stat_date) DO UPDATE
-              SET delivered_count = daily_delivery_stats.delivered_count + 1
+              SET delivered_count = delivered_count + 1
             """, nativeQuery = true)
     void incrementDelivered(@Param("day") LocalDate day);
 
@@ -38,7 +38,7 @@ public interface DailyDeliveryStatsRepository extends JpaRepository<DailyDeliver
             INSERT INTO daily_delivery_stats (stat_date, failed_count)
             VALUES (:day, 1)
             ON CONFLICT (stat_date) DO UPDATE
-              SET failed_count = daily_delivery_stats.failed_count + 1
+              SET failed_count = failed_count + 1
             """, nativeQuery = true)
     void incrementFailed(@Param("day") LocalDate day);
 
@@ -47,7 +47,7 @@ public interface DailyDeliveryStatsRepository extends JpaRepository<DailyDeliver
             INSERT INTO daily_delivery_stats (stat_date, rescheduled_count)
             VALUES (:day, 1)
             ON CONFLICT (stat_date) DO UPDATE
-              SET rescheduled_count = daily_delivery_stats.rescheduled_count + 1
+              SET rescheduled_count = rescheduled_count + 1
             """, nativeQuery = true)
     void incrementRescheduled(@Param("day") LocalDate day);
 
@@ -56,7 +56,7 @@ public interface DailyDeliveryStatsRepository extends JpaRepository<DailyDeliver
             INSERT INTO daily_delivery_stats (stat_date, returned_count)
             VALUES (:day, 1)
             ON CONFLICT (stat_date) DO UPDATE
-              SET returned_count = daily_delivery_stats.returned_count + 1
+              SET returned_count = returned_count + 1
             """, nativeQuery = true)
     void incrementReturned(@Param("day") LocalDate day);
 
@@ -65,7 +65,7 @@ public interface DailyDeliveryStatsRepository extends JpaRepository<DailyDeliver
             INSERT INTO daily_delivery_stats (stat_date, cancelled_count)
             VALUES (:day, 1)
             ON CONFLICT (stat_date) DO UPDATE
-              SET cancelled_count = daily_delivery_stats.cancelled_count + 1
+              SET cancelled_count = cancelled_count + 1
             """, nativeQuery = true)
     void incrementCancelled(@Param("day") LocalDate day);
 

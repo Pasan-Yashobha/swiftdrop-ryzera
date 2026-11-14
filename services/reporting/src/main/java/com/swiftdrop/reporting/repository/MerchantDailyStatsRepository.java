@@ -19,7 +19,7 @@ public interface MerchantDailyStatsRepository
             INSERT INTO merchant_daily_stats (stat_date, merchant_id, created_count)
             VALUES (:day, :merchantId, 1)
             ON CONFLICT (stat_date, merchant_id) DO UPDATE
-              SET created_count = merchant_daily_stats.created_count + 1
+              SET created_count = created_count + 1
             """, nativeQuery = true)
     void incrementCreated(@Param("day") LocalDate day, @Param("merchantId") UUID merchantId);
 
@@ -28,7 +28,7 @@ public interface MerchantDailyStatsRepository
             INSERT INTO merchant_daily_stats (stat_date, merchant_id, delivered_count)
             VALUES (:day, :merchantId, 1)
             ON CONFLICT (stat_date, merchant_id) DO UPDATE
-              SET delivered_count = merchant_daily_stats.delivered_count + 1
+              SET delivered_count = delivered_count + 1
             """, nativeQuery = true)
     void incrementDelivered(@Param("day") LocalDate day, @Param("merchantId") UUID merchantId);
 
@@ -37,7 +37,7 @@ public interface MerchantDailyStatsRepository
             INSERT INTO merchant_daily_stats (stat_date, merchant_id, failed_count)
             VALUES (:day, :merchantId, 1)
             ON CONFLICT (stat_date, merchant_id) DO UPDATE
-              SET failed_count = merchant_daily_stats.failed_count + 1
+              SET failed_count = failed_count + 1
             """, nativeQuery = true)
     void incrementFailed(@Param("day") LocalDate day, @Param("merchantId") UUID merchantId);
 

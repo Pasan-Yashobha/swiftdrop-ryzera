@@ -24,7 +24,7 @@ public interface ProcessedEventRepository
     @Query(value = """
             INSERT INTO processed_event (event_id, consumer)
             VALUES (:eventId, :consumer)
-            ON CONFLICT DO NOTHING
+            ON CONFLICT (event_id, consumer) DO NOTHING
             """, nativeQuery = true)
     int insertIfAbsent(@Param("eventId") UUID eventId,
                        @Param("consumer") String consumer);
