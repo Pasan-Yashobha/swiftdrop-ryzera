@@ -1,25 +1,23 @@
-# Stage 1: Build
-FROM eclipse-temurin:21-jdk-alpine AS builder
+# Multi-stage Dockerfile for Reporting Service (Java 21, Maven).
+# Build context = services/reporting.
+
+# ---- Build stage ----
+FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
-
-COPY .mvn .mvn
-COPY mvnw pom.xml ./
-RUN ./mvnw dependency:go-offline -B
-
+# Cache dependencies first so code-only changes rebuild fast
+COPY pom.xml .
+RUN mvn -B -q dependency:go-offline
 COPY src ./src
-RUN ./mvnw clean package -DskipTests
+RUN mvn -B -q package -DskipTests
 
-# Stage 2: Runtime
+# ---- Runtime stage ----
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-
-# Non-root user for security
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-USER appuser:appgroup
-
-COPY --from=builder /workspace/target/*.jar app.jar
-
-ENV SERVER_PORT=8084
-EXPOSE 8084
-
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Run as a non-root user
+RUN addgroup -S app && adduser -S app -G app
+COPY --from=build /workspace/target/*.jar app.jar
+USER app
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD wget -qO- http://localhost:8080/actuator/health || exit 1
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]
