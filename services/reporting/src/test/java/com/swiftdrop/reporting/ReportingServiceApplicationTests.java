@@ -12,7 +12,7 @@ class ReportingServiceApplicationTests extends AbstractIntegrationTest {
 
 	@Container
 	@ServiceConnection
-	static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16");
+	static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
 
 	@Test
 	void contextLoads() {
