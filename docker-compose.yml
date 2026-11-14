@@ -288,6 +288,8 @@ services:
       SPRING_DATASOURCE_USERNAME: pricing_svc
       SPRING_DATASOURCE_PASSWORD: ${SERVICE_DB_PASSWORD:-dev_service_pw}
       IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://host.docker.internal:8081/.well-known/jwks.json}
+      # Shared service secret: the Parcel service accepts quotes with it (POST /internal/quotes/{id}/accept).
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-token}
       DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev-only-hmac-secret-change-me-0123456789}
     extra_hosts:
       - "host.docker.internal:host-gateway"

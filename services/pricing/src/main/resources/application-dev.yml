@@ -5,3 +5,7 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/pricing_db}
     username: ${SPRING_DATASOURCE_USERNAME:pricing_svc}
     password: ${SPRING_DATASOURCE_PASSWORD:dev_service_pw}
+pricing:
+  security:
+    # The team's shared development value (the same default as Document, Identity and Notification).
+    internal-token: ${INTERNAL_API_TOKEN:dev-internal-token}

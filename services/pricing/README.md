@@ -74,15 +74,47 @@ The additional amount is itemized as `expressAmount`. Existing cards require an 
 the multiplier before Express is available. Multipliers must be at least 1 and have at most two decimal places.
 Use `"deliveryType": "EXPRESS"` to request that strategy.
 Each quote records its authenticated owner and amount snapshot and expires after 15 minutes.
-The quote does not yet create or confirm a parcel booking.
+The Parcel service accepts the quote when a booking is confirmed (see below).
 
 Add an optional `promoCode` field to the estimate request to apply a discount. Codes are case-insensitive.
 The promo must be enabled, within its Sri Lanka date range, below its optional redemption limit, and
 meet the minimum fare before discount. Percentage and fixed LKR discounts apply to the subtotal
 including Express, round HALF_UP, and cannot make the total negative. Quote snapshots retain the
-promo ID, code, and discount amount. Repeated estimates do not consume redemption uses. Atomic
-redemption and revalidation must be integrated with Parcel booking confirmation before enforcing
-usage limits for live bookings.
+promo ID, code, and discount amount. Repeated estimates do not consume redemption uses; a use is
+counted only when the quote is accepted at booking.
+
+## Internal API: accepting a quote at booking
+
+Agreed with Member 4. The Parcel service calls this once a booking is confirmed. It is protected by the shared
+service secret in the `X-Internal-Token` header (`INTERNAL_API_TOKEN`; the dev profile defaults to
+`dev-internal-token`, and with no token configured nothing is accepted). User JWTs are not accepted here.
+
+```
+POST /internal/quotes/{quoteId}/accept
+X-Internal-Token: <shared secret>
+{ "parcelId": "uuid" }            (body optional)
+```
+
+```json
+{ "quoteId": "uuid", "parcelId": "uuid", "acceptedAt": "2026-11-11T20:00:00Z",
+  "originZone": "COLOMBO", "destinationZone": "KANDY", "strategyUsed": "STANDARD",
+  "promoCode": "SAVE10", "currency": "LKR",
+  "pricing": { "baseAmount": 300.00, "weightAmount": 200.00, "sizeAmount": 50.00,
+               "expressAmount": 0.00, "discountAmount": 55.00, "totalAmount": 495.00 } }
+```
+
+| Answer | Meaning |
+|---|---|
+| 200 | Accepted. A retry of the same quote returns the same snapshot and does not use the promo again. |
+| 401 | Missing or wrong `X-Internal-Token` |
+| 404 | Unknown quote |
+| 409 | The promo code can no longer be used (used up, disabled or out of date), or the quote was already accepted for a different parcel: request a new estimate |
+| 410 | The quote is older than 15 minutes: request a new estimate |
+
+Store the `pricing` object with the parcel and send it unchanged in `parcel.status.delivered`: the Document
+service makes the receipt from exactly these fields (`docs/events/document-service-events.md`).
+The quote row is locked while it is accepted, so simultaneous or retried calls cannot use a promo twice, and the
+promo use is a single conditional update, so the last use of a code cannot be taken by two bookings.
 
 For a local demo, create `SAVE10` with type PERCENT, value 10, minimum fare 0, and a start date of
 today or earlier. The Standard demo quote becomes LKR 495. With Express multiplier 1.25, it becomes

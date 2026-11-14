@@ -13,6 +13,11 @@ spring:
     enabled: true
 
 
+pricing:
+  security:
+    # Shared secret other services send in X-Internal-Token to call /internal/** (blank = nothing is accepted).
+    internal-token: ${INTERNAL_API_TOKEN:}
+
 server:
   port: ${SERVER_PORT:8085}
   error:
