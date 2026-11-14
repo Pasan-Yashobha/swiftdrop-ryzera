@@ -1,0 +1,2 @@
+# Local development only. Matches the Docker Compose defaults; Pricing's dev token endpoint issues tokens with this secret.
+DEV_JWT_HMAC_SECRET: ${ASSISTANT_DEV_JWT_HMAC_SECRET:dev-only-hmac-secret-change-me-0123456789}

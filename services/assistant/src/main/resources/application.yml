@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: assistant-service
+  ai:
+    mcp:
+      server:
+        name: swiftdrop-assistant
+        version: 0.1.0
+        type: SYNC
+        # Streamable HTTP is the current MCP transport; the older SSE one is deprecated.
+        protocol: STREAMABLE
+        streamable-http:
+          mcp-endpoint: /mcp
+
+server:
+  port: ${SERVER_PORT:8088}
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+assistant:
+  gemini:
+    # Without both of these the chat endpoint answers 503 "model not configured"; the tools still work.
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:}
+    base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
+    timeout-seconds: 30
+  downstream:
+    pricing-url: ${PRICING_SERVICE_URL:http://localhost:8086}
+    tracking-url: ${TRACKING_SERVICE_URL:}
+    parcel-url: ${PARCEL_SERVICE_URL:}
+  chat:
+    # The MCP endpoint the chat loop calls. Leave blank: it is this same service, on the port it really bound to.
+    mcp-url: ${ASSISTANT_MCP_URL:}
+    max-message-chars: 1000
+    max-tool-rounds: 4
+    max-history-turns: 10
+    messages-per-minute: 10
+    conversation-ttl-minutes: 30

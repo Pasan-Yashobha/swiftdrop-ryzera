@@ -198,6 +198,27 @@ services:
       - "${DOCUMENT_PORT:-8087}:8080"
     networks: [ swiftdrop ]
 
+  assistant:
+    build:
+      context: ./services/assistant
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: ${ASSISTANT_SPRING_PROFILES:-dev}
+      IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://host.docker.internal:8081/.well-known/jwks.json}
+      DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev-only-hmac-secret-change-me-0123456789}
+      PRICING_SERVICE_URL: ${PRICING_SERVICE_URL:-http://pricing:8080}
+      # Blank = the tool answers with clearly labelled sample data until the Tracking / Parcel services exist.
+      TRACKING_SERVICE_URL: ${ASSISTANT_TRACKING_URL:-}
+      PARCEL_SERVICE_URL: ${ASSISTANT_PARCEL_URL:-}
+      # Set these in your local .env (never committed). Without both, chat answers 503 and the MCP tools still work.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${ASSISTANT_PORT:-8088}:8080"
+    networks: [ swiftdrop ]
+
   merchant-portal:
     build:
       context: ./frontend
