@@ -29,13 +29,13 @@ Chat widget  --POST /api/v1/assistant/chat (user's JWT)-->  ChatService
 | Tool | What it does | Backed by |
 |---|---|---|
 | `estimate_fee` | Fee in LKR between two zones for a weight, size, delivery type and optional promo | Pricing `POST /api/v1/pricing/estimate` (real) |
-| `track_parcel` | Status and history of a parcel by tracking number | Tracking service (sample data until connected) |
+| `track_parcel` | Status and history of a parcel by tracking number | Tracking service (Member 8), `GET /api/v1/public/tracking/{trackingNo}`, no token needed |
 | `get_history` | The signed-in user's recent parcels | Parcel service (sample data until connected) |
 
 Tools never throw. A bad input or a failing service comes back as `{"error": "..."}` with a sentence the model
 relays; for an unknown zone, `estimate_fee` lists the real zone codes so the model can correct itself.
 
-**Sample data.** While `ASSISTANT_TRACKING_URL` or `ASSISTANT_PARCEL_URL` is blank, those two tools answer with
+**Sample data.** While the Tracking or Parcel URL is blank, those two tools answer with
 sample data marked `"demo": true`, and the assistant is told to say so. Set the URL (and, if needed,
 `assistant.downstream.tracking-path` / `history-path`) to switch to the real service. The answer is passed to the
 model as it is, limited to 4000 characters, so no response shape had to be agreed to connect it.
@@ -68,7 +68,8 @@ user), 503 (model not configured or its usage limit reached; tools unavailable),
 | `GEMINI_API_KEY` | none | Google AI Studio key. Keep it in your local `.env`, never in Git |
 | `GEMINI_MODEL` | none | A current Gemini model name from AI Studio. Not hard-coded because names change. `gemini-flash-lite-latest` worked well in testing (about 2 s, correct tool calls); the larger Flash models were overloaded at the time, and `gemini-2.5-flash` is already retired |
 | `PRICING_SERVICE_URL` | `http://localhost:8085` | Pricing service |
-| `ASSISTANT_TRACKING_URL`, `ASSISTANT_PARCEL_URL` | blank | Tracking and Parcel services; blank means sample data |
+| `TRACKING_SERVICE_URL` (compose: `ASSISTANT_TRACKING_URL`) | blank locally, `http://tracking:8080` in compose | Tracking service; blank means sample data. Locally: `http://localhost:8087` |
+| `PARCEL_SERVICE_URL` (compose: `ASSISTANT_PARCEL_URL`) | blank | Parcel service; blank means sample data (Parcel is not built yet) |
 | `IDENTITY_JWKS_URI` | none | Identity public keys. Required unless using the `dev` profile |
 | `DEV_JWT_HMAC_SECRET` | dev default | Dev profile only; the same secret as Pricing's dev tokens |
 | `SERVER_PORT` | 8093 | HTTP port |
@@ -123,4 +124,4 @@ also enforces 70% line coverage.
   an `assistant_db`, which `infra/postgres/init/01-init-databases.sh` does not create yet.
 - Metrics (`ai_tool_calls_total` and others from the design) and a Prometheus endpoint.
 - The chat widget in the Angular app.
-- Real Tracking and Parcel connections: they wait for those services.
+- The real Parcel connection for `get_history`: it waits for the Parcel service (Member 4).

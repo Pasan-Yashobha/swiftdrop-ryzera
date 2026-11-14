@@ -130,7 +130,7 @@ class McpToolsIntegrationTest {
 
     @Test
     void trackParcelCallsTrackingWithoutSendingAnyToken() {
-        DOWNSTREAM.on("GET", "/api/v1/tracking/SD-1234-5678", 200, "{\"trackingNumber\":\"SD-1234-5678\",\"status\":\"IN_TRANSIT\"}");
+        DOWNSTREAM.on("GET", "/api/v1/public/tracking/SD-1234-5678", 200, "{\"trackingNumber\":\"SD-1234-5678\",\"status\":\"IN_TRANSIT\"}");
         try (var client = new McpTestClient(port, TestTokens.bearer("customer-1", "CUSTOMER"))) {
             JsonNode answer = client.call("track_parcel", args("trackingNumber", "SD-1234-5678"));
             assertThat(answer.get("data").get("status").asText()).isEqualTo("IN_TRANSIT");
@@ -147,7 +147,7 @@ class McpToolsIntegrationTest {
             assertThat(DOWNSTREAM.calls()).isEmpty();
             assertThat(client.call("track_parcel", args("trackingNumber", "SD-0000-0000")).get("error").asText())
                     .contains("No parcel was found");
-            DOWNSTREAM.on("GET", "/api/v1/tracking/SD-1111-1111", 500, "{}");
+            DOWNSTREAM.on("GET", "/api/v1/public/tracking/SD-1111-1111", 500, "{}");
             assertThat(client.call("track_parcel", args("trackingNumber", "SD-1111-1111")).get("error").asText())
                     .contains("not available right now");
         }
@@ -155,7 +155,7 @@ class McpToolsIntegrationTest {
 
     @Test
     void trackParcelCutsAVeryLargeAnswerDownToASafeSize() {
-        DOWNSTREAM.on("GET", "/api/v1/tracking/SD-2222-2222", 200, "{\"events\":\"" + "x".repeat(9000) + "\"}");
+        DOWNSTREAM.on("GET", "/api/v1/public/tracking/SD-2222-2222", 200, "{\"events\":\"" + "x".repeat(9000) + "\"}");
         try (var client = new McpTestClient(port, TestTokens.bearer("customer-1", "CUSTOMER"))) {
             JsonNode answer = client.call("track_parcel", args("trackingNumber", "SD-2222-2222"));
             assertThat(answer.get("truncated").asBoolean()).isTrue();
