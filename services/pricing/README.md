@@ -18,22 +18,19 @@ The default port for teammates without this override is 5432. The database is `p
 
 Pricing listens on port 8085. Its health endpoint is `http://localhost:8085/actuator/health`.
 
-In another terminal, from the repository root, start the Pricing UI.
+The screens live in the shared Angular apps. In another terminal, from the repository root:
 
 ```powershell
 cd frontend
 npm ci
-npm run start:pricing
+npm run start:merchant   # http://localhost:4200: fee estimate for Customer and Merchant
+npm run start:admin      # http://localhost:4202: zones, rate cards and promo codes for Admin
 ```
 
-Open `http://localhost:4205`. The Angular development proxy forwards `/api` requests to port 8085.
+Each app's development proxy forwards the Pricing paths to port 8085.
 
-Choose Administrator and connect a development account to manage zones and rate cards.
-Sign out and choose Customer or Merchant to estimate a fee. Local tokens stay in memory and expire
-after one hour. Reloading the page requires reconnecting. The development token endpoint exists only
-when the backend runs with the `dev` profile. Production frontend builds hide that helper.
-Production authentication needs the team's Identity integration. Existing bearer tokens can be supplied
-through the access-token form.
+Sign in with an Identity account: the admin account sees the pricing administration pages in the
+admin console, and customer or merchant accounts see the fee estimate in the merchant portal.
 
 ## Current API
 
@@ -130,7 +127,8 @@ credentials through `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and
 ```powershell
 mvn -f services/pricing/pom.xml test
 cd frontend
-npm run build:pricing
+npm run build:merchant
+npm run build:admin
 ```
 
 Backend tests require Docker and create disposable PostgreSQL containers. They do not use the
