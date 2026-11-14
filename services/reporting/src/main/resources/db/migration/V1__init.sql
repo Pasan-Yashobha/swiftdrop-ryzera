@@ -7,7 +7,7 @@
 CREATE TABLE processed_event (
   event_id     UUID         NOT NULL,
   consumer     VARCHAR(50)  NOT NULL,
-  processed_at TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  processed_at TIMESTAMP WITH TIME ZONE  NOT NULL DEFAULT now(),
   PRIMARY KEY (event_id, consumer)
 );
 
@@ -21,9 +21,9 @@ CREATE TABLE parcel_fact (
   dropoff_zone_id UUID,
   fee             NUMERIC(12,2),
   current_status  VARCHAR(30)  NOT NULL,
-  last_event_at   TIMESTAMPTZ  NOT NULL,
-  ofd_at          TIMESTAMPTZ,
-  delivered_at    TIMESTAMPTZ
+  last_event_at   TIMESTAMP WITH TIME ZONE  NOT NULL,
+  ofd_at          TIMESTAMP WITH TIME ZONE,
+  delivered_at    TIMESTAMP WITH TIME ZONE
 );
 
 -- Company-wide counters per calendar day
@@ -76,5 +76,5 @@ CREATE TABLE courier_state (
   courier_id       UUID        PRIMARY KEY,
   available        BOOLEAN     NOT NULL,
   active_deliveries INT        NOT NULL DEFAULT 0,
-  updated_at       TIMESTAMPTZ NOT NULL
+  updated_at       TIMESTAMP WITH TIME ZONE NOT NULL
 );
