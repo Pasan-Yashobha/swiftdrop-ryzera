@@ -1,0 +1,33 @@
+.admin-layout {
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+@media (min-width: 64rem) {
+  .admin-layout {
+    grid-template-columns: minmax(20rem, 2fr) 3fr;
+  }
+}
+
+.admin-layout h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.inactive-row td {
+  color: var(--color-text-muted);
+}
+
+/* Short codes such as COLOMBO or SAVE10 stay on one line. */
+.code-cell {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}

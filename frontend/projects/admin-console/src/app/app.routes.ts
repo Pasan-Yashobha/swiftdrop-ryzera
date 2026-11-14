@@ -41,6 +41,38 @@ export const routes: Routes = [
             (m) => m.WebhookDeliveriesPage,
           ),
       },
+      // Member 5: Pricing service (zones, rate cards, promo codes)
+      { path: 'pricing', pathMatch: 'full', redirectTo: 'pricing/zones' },
+      {
+        path: 'pricing/zones',
+        title: 'Delivery zones',
+        loadComponent: () => import('./features/pricing/zones.page').then((m) => m.ZonesPage),
+      },
+      {
+        path: 'pricing/rate-cards',
+        title: 'Rate cards',
+        loadComponent: () =>
+          import('./features/pricing/rate-cards.page').then((m) => m.RateCardsPage),
+      },
+      {
+        path: 'pricing/promo-codes',
+        title: 'Promo codes',
+        loadComponent: () =>
+          import('./features/pricing/promo-codes.page').then((m) => m.PromoCodesPage),
+      },
+      // Member 5: Document service (all receipts and invoices)
+      {
+        path: 'receipts',
+        title: 'Receipts',
+        loadComponent: () =>
+          import('./features/documents/receipts.page').then((m) => m.ReceiptsPage),
+      },
+      {
+        path: 'invoices',
+        title: 'Invoices',
+        loadComponent: () =>
+          import('./features/documents/invoices.page').then((m) => m.InvoicesPage),
+      },
     ],
   },
   {

@@ -39,7 +39,8 @@ Merchant's development-only token endpoint (`/api/v1/dev/**`) is routed and left
 | `/api/v1/merchants/**`, `/api/v1/admin/merchants/**` | merchant | 10 req/s per user |
 | `/api/v1/merchant-api/**`, `/api/v1/oauth/token` | merchant | 30 req/s per credential |
 | `/api/v1/parcels/**` | parcel | per user |
-| `/api/v1/quotes/**`, `/api/v1/zones/**`, `/api/v1/admin/pricing/**`, `/api/v1/admin/zones/**` | pricing | per user |
+| `/api/v1/pricing/**`, `/api/v1/admin/zones/**`, `/api/v1/admin/rate-cards/**`, `/api/v1/admin/promo-codes/**` | pricing | per user |
+| `/api/v1/assistant/**` | assistant | per user |
 | `/api/v1/dispatch/**` | dispatch | per user |
 | `/api/v1/courier/**` | courier | per user |
 | `/api/v1/public/tracking/**` | tracking | 5 req/s per IP |
@@ -48,7 +49,7 @@ Merchant's development-only token endpoint (`/api/v1/dev/**`) is routed and left
 | `/api/v1/admin/notifications/**` | notification | per user |
 | `/api/v1/admin/webhooks/**` | webhook | per user |
 | `/api/v1/admin/reports/**` | reporting | per user |
-| `/api/v1/receipts/**` | document | per user |
+| `/api/v1/receipts/**`, `/api/v1/invoices/**` | document | per user |
 | `GET /api/v1/admin/system/health` | handled by the gateway itself (feeds the System Status page, ADMIN only) | - |
 
 Add a service: add one `.route(...)` in `RoutesConfig` and its URI in `application.yml`. Limits are in `application.yml`

@@ -6,6 +6,7 @@ import {
   registeredMerchantGuard,
   statusPageGuard,
 } from './core/guards/merchant-status.guard';
+import { roleGuard } from './core/guards/role.guard';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
@@ -57,6 +58,26 @@ export const routes: Routes = [
     path: 'dispatch',
     redirectTo: 'admin/dispatch',
     pathMatch: 'full',
+  },
+
+  // Fee estimate, receipts and invoices (Member 5). Admin pricing and documents are in the admin console.
+  {
+    path: 'estimate',
+    title: 'Fee estimate',
+    canActivate: [roleGuard('CUSTOMER', 'MERCHANT')],
+    loadComponent: () => import('./features/pricing/estimate.page').then((m) => m.EstimatePage),
+  },
+  {
+    path: 'receipts',
+    title: 'Receipts',
+    canActivate: [roleGuard('CUSTOMER')],
+    loadComponent: () => import('./features/documents/receipts.page').then((m) => m.ReceiptsPage),
+  },
+  {
+    path: 'invoices',
+    title: 'Invoices',
+    canActivate: [roleGuard('MERCHANT')],
+    loadComponent: () => import('./features/documents/invoices.page').then((m) => m.InvoicesPage),
   },
 
   // Public parcel tracking (Member 8): anyone with a tracking number, no sign-in, full-screen layout.
