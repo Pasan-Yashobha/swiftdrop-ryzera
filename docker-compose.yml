@@ -32,11 +32,29 @@ services:
       - "15672:15672" # management UI
     volumes:
       - rabbitmqdata:/var/lib/rabbitmq
+      # Management + Prometheus + shovel (the "Move messages" button used to replay a DLQ by hand).
+      - ./infra/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
     healthcheck:
       test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
       interval: 15s
       timeout: 10s
       retries: 5
+    networks: [ swiftdrop ]
+
+  # One-shot: imports infra/rabbitmq/definitions.json (exchanges, queues, DLQs, bindings) through the management API.
+  # Services also declare their own topology, so this only makes the whole picture visible from the start.
+  rabbitmq-init:
+    image: curlimages/curl:8.10.1
+    restart: "no"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_USER: ${RABBITMQ_USER:-swiftdrop}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev_rabbit_pw}
+    volumes:
+      - ./infra/rabbitmq/definitions.json:/definitions.json:ro
+    entrypoint: [ "sh", "-c", "curl -fsS -u \"$$RABBITMQ_USER:$$RABBITMQ_PASSWORD\" -H 'Content-Type: application/json' -X POST --data-binary @/definitions.json http://rabbitmq:15672/api/definitions && echo 'RabbitMQ definitions imported'" ]
     networks: [ swiftdrop ]
 
   redis:
@@ -155,6 +173,95 @@ services:
       - "host.docker.internal:host-gateway"
     ports:
       - "8084:8080"
+    networks: [ swiftdrop ]
+
+  notification:
+    build:
+      context: ./services/notification
+    restart: unless-stopped
+    stop_grace_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    environment:
+      SPRING_PROFILES_ACTIVE: ${NOTIFICATION_SPRING_PROFILES:-dev}
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/notification_db
+      SPRING_DATASOURCE_USERNAME: notification_svc
+      SPRING_DATASOURCE_PASSWORD: ${SERVICE_DB_PASSWORD:-dev_service_pw}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-swiftdrop}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev_rabbit_pw}
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-mailpit}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-1025}
+      IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://host.docker.internal:8081/.well-known/jwks.json}
+      DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev-only-hmac-secret-change-me-0123456789}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-token}
+      IDENTITY_SERVICE_URL: ${IDENTITY_SERVICE_URL:-http://identity:8080}
+      MERCHANT_SERVICE_URL: ${MERCHANT_SERVICE_URL:-http://merchant:8080}
+      DOCUMENT_SERVICE_URL: ${DOCUMENT_SERVICE_URL:-http://document:8080}
+      # The mock SMS provider lives inside this service; a real provider is plugged in by changing these two.
+      SMS_API_URL: ${SMS_API_URL:-http://localhost:8080/mock-sms/messages}
+      SMS_API_KEY: ${SMS_API_KEY:-dev-sms-api-key}
+      SMS_MOCK_PROVIDER_ENABLED: ${SMS_MOCK_PROVIDER_ENABLED:-true}
+      PUBLIC_TRACKING_URL: ${PUBLIC_TRACKING_URL:-http://localhost:4200/track}
+      CORS_ALLOWED_ORIGINS: ${NOTIFICATION_CORS_ALLOWED_ORIGINS:-http://localhost:4202,http://localhost:4200}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8088:8080"
+    networks: [ swiftdrop ]
+
+  webhook:
+    build:
+      context: ./services/webhook
+    restart: unless-stopped
+    stop_grace_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${WEBHOOK_SPRING_PROFILES:-dev}
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/webhook_db
+      SPRING_DATASOURCE_USERNAME: webhook_svc
+      SPRING_DATASOURCE_PASSWORD: ${SERVICE_DB_PASSWORD:-dev_service_pw}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-swiftdrop}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev_rabbit_pw}
+      IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://host.docker.internal:8081/.well-known/jwks.json}
+      DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev-only-hmac-secret-change-me-0123456789}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-token}
+      MERCHANT_SERVICE_URL: ${MERCHANT_SERVICE_URL:-http://merchant:8080}
+      CORS_ALLOWED_ORIGINS: ${WEBHOOK_CORS_ALLOWED_ORIGINS:-http://localhost:4202,http://localhost:4200}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8089:8080"
+    networks: [ swiftdrop ]
+
+  admin-console:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.admin-console
+      args:
+        # "development" keeps the dev sign-in button (role ADMIN token from the merchant dev endpoint).
+        NG_CONFIGURATION: ${ADMIN_CONSOLE_CONFIGURATION:-development}
+    restart: unless-stopped
+    depends_on:
+      - gateway
+    environment:
+      API_UPSTREAM: ${ADMIN_CONSOLE_API_UPSTREAM:-http://gateway:8080}
+    ports:
+      - "4202:8080"
     networks: [ swiftdrop ]
 
   merchant-portal:

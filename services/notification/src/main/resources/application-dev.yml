@@ -1,0 +1,39 @@
+# Local development defaults (profile "dev"). Never use these values outside a developer machine.
+# Matches the Postgres (host port 5433), RabbitMQ and Mailpit containers of the root docker-compose.yml.
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/notification_db}
+    username: ${SPRING_DATASOURCE_USERNAME:notification_svc}
+    password: ${SPRING_DATASOURCE_PASSWORD:dev_service_pw}
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:swiftdrop}
+    password: ${SPRING_RABBITMQ_PASSWORD:dev_rabbit_pw}
+  mail:
+    host: ${SPRING_MAIL_HOST:localhost}
+    port: ${SPRING_MAIL_PORT:1025}
+
+server:
+  port: ${SERVER_PORT:8088}
+
+management:
+  endpoint:
+    health:
+      show-details: always
+
+swiftdrop:
+  security:
+    # Same HS256 secret as the merchant service's dev token endpoint (POST /api/v1/dev/tokens with role ADMIN).
+    dev-hmac-secret: ${DEV_JWT_HMAC_SECRET:dev-only-hmac-secret-change-me-0123456789}
+    internal-token: ${INTERNAL_API_TOKEN:dev-internal-token}
+    cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4202,http://localhost:4200}
+  clients:
+    identity-url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+    merchant-url: ${MERCHANT_SERVICE_URL:http://localhost:8083}
+    document-url: ${DOCUMENT_SERVICE_URL:http://localhost:8092}
+  sms:
+    api-url: ${SMS_API_URL:http://localhost:8088/mock-sms/messages}
+    api-key: ${SMS_API_KEY:dev-sms-api-key}
+    mock-provider-enabled: ${SMS_MOCK_PROVIDER_ENABLED:true}

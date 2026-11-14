@@ -1,0 +1,89 @@
+{
+  "rabbit_version": "3.13.0",
+  "vhosts": [
+    { "name": "/" }
+  ],
+  "exchanges": [
+    { "name": "swiftdrop.events", "vhost": "/", "type": "topic", "durable": true, "auto_delete": false, "internal": false, "arguments": {} },
+    { "name": "swiftdrop.dlx", "vhost": "/", "type": "direct", "durable": true, "auto_delete": false, "internal": false, "arguments": {} },
+    { "name": "swiftdrop.webhook.delay", "vhost": "/", "type": "direct", "durable": true, "auto_delete": false, "internal": false, "arguments": {} }
+  ],
+  "queues": [
+    { "name": "notification.q", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "swiftdrop.dlx", "x-dead-letter-routing-key": "notification.dlq" } },
+    { "name": "notification.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {} },
+
+    { "name": "webhook.q", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "swiftdrop.dlx", "x-dead-letter-routing-key": "webhook.dlq" } },
+    { "name": "webhook.retry.q", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "swiftdrop.dlx", "x-dead-letter-routing-key": "webhook.dlq" } },
+    { "name": "webhook.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {} },
+    { "name": "webhook.delay.5s", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": { "x-message-ttl": 5000, "x-dead-letter-exchange": "", "x-dead-letter-routing-key": "webhook.retry.q" } },
+    { "name": "webhook.delay.30s", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": { "x-message-ttl": 30000, "x-dead-letter-exchange": "", "x-dead-letter-routing-key": "webhook.retry.q" } },
+    { "name": "webhook.delay.2min", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": { "x-message-ttl": 120000, "x-dead-letter-exchange": "", "x-dead-letter-routing-key": "webhook.retry.q" } },
+    { "name": "webhook.delay.10min", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": { "x-message-ttl": 600000, "x-dead-letter-exchange": "", "x-dead-letter-routing-key": "webhook.retry.q" } },
+    { "name": "webhook.delay.30min", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": { "x-message-ttl": 1800000, "x-dead-letter-exchange": "", "x-dead-letter-routing-key": "webhook.retry.q" } },
+
+    { "name": "merchant.orders.q", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "swiftdrop.dlx", "x-dead-letter-routing-key": "merchant.orders.dlq" } },
+    { "name": "merchant.orders.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {} },
+
+    { "name": "dispatch.courier.q", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "swiftdrop.dlx", "x-dead-letter-routing-key": "dispatch.courier.q.dlq" } },
+    { "name": "dispatch.courier.q.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {} },
+
+    { "name": "audit.q", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "swiftdrop.dlx", "x-dead-letter-routing-key": "audit.dlq" } },
+    { "name": "audit.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {} },
+
+    { "name": "document.receipts.q", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "swiftdrop.dlx", "x-dead-letter-routing-key": "document.receipts.dlq" } },
+    { "name": "document.receipts.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {} }
+  ],
+  "bindings": [
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "notification.q", "destination_type": "queue", "routing_key": "parcel.created", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "notification.q", "destination_type": "queue", "routing_key": "parcel.status.*", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "notification.q", "destination_type": "queue", "routing_key": "parcel.cancelled", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "notification.q", "destination_type": "queue", "routing_key": "receipt.generated", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "notification.q", "destination_type": "queue", "routing_key": "merchant.approved", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "notification.q", "destination_type": "queue", "routing_key": "merchant.rejected", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "notification.q", "destination_type": "queue", "routing_key": "webhook.delivery.exhausted", "arguments": {} },
+    { "source": "swiftdrop.dlx", "vhost": "/", "destination": "notification.dlq", "destination_type": "queue", "routing_key": "notification.dlq", "arguments": {} },
+
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "webhook.q", "destination_type": "queue", "routing_key": "parcel.created", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "webhook.q", "destination_type": "queue", "routing_key": "parcel.assigned", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "webhook.q", "destination_type": "queue", "routing_key": "parcel.cancelled", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "webhook.q", "destination_type": "queue", "routing_key": "parcel.status.*", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "webhook.q", "destination_type": "queue", "routing_key": "invoice.generated", "arguments": {} },
+    { "source": "swiftdrop.dlx", "vhost": "/", "destination": "webhook.dlq", "destination_type": "queue", "routing_key": "webhook.dlq", "arguments": {} },
+    { "source": "swiftdrop.webhook.delay", "vhost": "/", "destination": "webhook.delay.5s", "destination_type": "queue", "routing_key": "webhook.delay.5s", "arguments": {} },
+    { "source": "swiftdrop.webhook.delay", "vhost": "/", "destination": "webhook.delay.30s", "destination_type": "queue", "routing_key": "webhook.delay.30s", "arguments": {} },
+    { "source": "swiftdrop.webhook.delay", "vhost": "/", "destination": "webhook.delay.2min", "destination_type": "queue", "routing_key": "webhook.delay.2min", "arguments": {} },
+    { "source": "swiftdrop.webhook.delay", "vhost": "/", "destination": "webhook.delay.10min", "destination_type": "queue", "routing_key": "webhook.delay.10min", "arguments": {} },
+    { "source": "swiftdrop.webhook.delay", "vhost": "/", "destination": "webhook.delay.30min", "destination_type": "queue", "routing_key": "webhook.delay.30min", "arguments": {} },
+
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "merchant.orders.q", "destination_type": "queue", "routing_key": "parcel.created", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "merchant.orders.q", "destination_type": "queue", "routing_key": "parcel.status.*", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "merchant.orders.q", "destination_type": "queue", "routing_key": "parcel.assigned", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "merchant.orders.q", "destination_type": "queue", "routing_key": "parcel.cancelled", "arguments": {} },
+    { "source": "swiftdrop.dlx", "vhost": "/", "destination": "merchant.orders.dlq", "destination_type": "queue", "routing_key": "merchant.orders.dlq", "arguments": {} },
+
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "dispatch.courier.q", "destination_type": "queue", "routing_key": "courier.availability.changed", "arguments": {} },
+    { "source": "swiftdrop.dlx", "vhost": "/", "destination": "dispatch.courier.q.dlq", "destination_type": "queue", "routing_key": "dispatch.courier.q.dlq", "arguments": {} },
+
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "audit.q", "destination_type": "queue", "routing_key": "user.#", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "audit.q", "destination_type": "queue", "routing_key": "merchant.#", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "audit.q", "destination_type": "queue", "routing_key": "admin.#", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "audit.q", "destination_type": "queue", "routing_key": "parcel.assigned", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "audit.q", "destination_type": "queue", "routing_key": "webhook.delivery.#", "arguments": {} },
+    { "source": "swiftdrop.dlx", "vhost": "/", "destination": "audit.dlq", "destination_type": "queue", "routing_key": "audit.dlq", "arguments": {} },
+
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "document.receipts.q", "destination_type": "queue", "routing_key": "parcel.status.delivered", "arguments": {} },
+    { "source": "swiftdrop.dlx", "vhost": "/", "destination": "document.receipts.dlq", "destination_type": "queue", "routing_key": "document.receipts.dlq", "arguments": {} }
+  ]
+}

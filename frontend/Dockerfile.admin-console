@@ -1,0 +1,32 @@
+# Admin console image. Build context = this folder (frontend/):
+#   docker build -f Dockerfile.admin-console -t swiftdrop/admin-console frontend
+#   docker run -p 4202:8080 -e API_UPSTREAM=http://gateway:8080 swiftdrop/admin-console
+
+# ---- Build stage ----
+FROM node:22-alpine AS build
+WORKDIR /workspace
+# Never ask for analytics consent during an image build.
+ENV NG_CLI_ANALYTICS=false
+# Install dependencies first so code-only changes reuse the cached layer
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY angular.json tsconfig.json ./
+COPY projects ./projects
+# "production" for real deployments (no dev sign-in). docker-compose may pass "development" so the
+# dev token sign-in works before Identity issues ADMIN accounts.
+ARG NG_CONFIGURATION=production
+RUN npx ng build admin-console --configuration ${NG_CONFIGURATION}
+
+# ---- Runtime stage ----
+# The unprivileged nginx image runs as a non-root user and listens on 8080.
+FROM nginxinc/nginx-unprivileged:1.27-alpine
+# API_UPSTREAM: where /api/ is proxied (compose sets it to the gateway). DNS_RESOLVER: Docker's embedded DNS;
+# override it elsewhere. Only these two variables are substituted into the template.
+ENV API_UPSTREAM=http://gateway:8080 \
+    DNS_RESOLVER=127.0.0.11 \
+    NGINX_ENVSUBST_FILTER='^(API_UPSTREAM|DNS_RESOLVER)$'
+COPY nginx/admin-console.conf.template /etc/nginx/templates/default.conf.template
+COPY --from=build /workspace/dist/admin-console/browser /usr/share/nginx/html
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:8080/healthz || exit 1
