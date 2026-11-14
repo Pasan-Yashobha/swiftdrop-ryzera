@@ -271,6 +271,36 @@ services:
       - prometheus
     networks: [ swiftdrop ]
 
+  gateway:
+    build:
+      context: ./services/gateway
+    restart: unless-stopped
+    stop_grace_period: 40s
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-dev_redis_pw}
+      # Services inside the compose network listen on 8080. Services that are not built yet
+      # simply answer 503 through the gateway until they exist.
+      IDENTITY_URI: http://identity:8080
+      MERCHANT_URI: http://merchant:8080
+      PARCEL_URI: http://parcel:8080
+      PRICING_URI: http://pricing:8080
+      DISPATCH_URI: http://dispatch:8080
+      COURIER_URI: http://courier:8080
+      TRACKING_URI: http://tracking:8080
+      NOTIFICATION_URI: http://notification:8080
+      WEBHOOK_URI: http://webhook:8080
+      REPORTING_URI: http://reporting:8080
+      AUDIT_URI: http://audit:8080
+      DOCUMENT_URI: http://document:8080
+      CORS_ALLOWED_ORIGINS: ${GATEWAY_CORS_ALLOWED_ORIGINS:-http://localhost:4201,http://localhost:4200}
+    ports:
+      - "8080:8080"
+    networks: [ swiftdrop ]
+
 networks:
   swiftdrop:
     name: swiftdrop
