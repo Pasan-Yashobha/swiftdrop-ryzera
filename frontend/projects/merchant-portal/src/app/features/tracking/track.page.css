@@ -1,0 +1,466 @@
+/*
+ * Public tracking page in the "Route Board" design language (SwiftDrop UI design, pages 1 and 4):
+ * black boards, hi-vis yellow, numbered stops, IBM Plex (falls back to system fonts when not installed).
+ * Fixed light palette on purpose: the boards are dark already, so the page reads the same in dark mode.
+ */
+:host {
+  --rb-ink: #0e1513;
+  --rb-board: #121a17;
+  --rb-hivis: #ffc72c;
+  --rb-hivis-dark: #e5b225;
+  --rb-lagoon: #0a7d74;
+  --rb-mist: #dce2dd;
+  --rb-chilli: #c8372d;
+  --rb-page: #f1f3f1;
+  --rb-muted: #4f5d57;
+  --rb-heading: 'IBM Plex Sans Condensed', 'Roboto Condensed', 'Arial Narrow', system-ui, sans-serif;
+  --rb-body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --rb-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  display: block;
+  min-height: 100vh;
+  background: var(--rb-page);
+  color: var(--rb-ink);
+  color-scheme: light;
+  font-family: var(--rb-body);
+}
+
+.mono {
+  font-family: var(--rb-mono);
+}
+
+/* ---------- Top bar ---------- */
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.5rem;
+  padding: 0.75rem clamp(1rem, 3vw, 2rem);
+  background: var(--rb-board);
+  color: #ffffff;
+}
+
+.brand {
+  color: #ffffff;
+  font-family: var(--rb-heading);
+  font-size: 1.4rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.brand span {
+  color: var(--rb-hivis);
+}
+
+.topbar-label {
+  color: #a7b3ad;
+  font-family: var(--rb-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.search {
+  display: flex;
+  flex: 1 1 18rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.search input {
+  flex: 1 1 12rem;
+  max-width: 18rem;
+  padding: 0.6rem 0.8rem;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--rb-ink);
+  font-family: var(--rb-mono);
+  font-size: 1rem;
+  text-transform: uppercase;
+}
+
+.search input:focus-visible {
+  outline: 3px solid var(--rb-hivis);
+  outline-offset: 1px;
+}
+
+.search-error {
+  flex-basis: 100%;
+  color: #ffb4ac;
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+/* ---------- Buttons ---------- */
+
+.btn-hivis,
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6rem 1.25rem;
+  border: 2px solid var(--rb-ink);
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.btn-hivis {
+  background: var(--rb-hivis);
+  color: var(--rb-ink);
+}
+
+.btn-hivis:hover {
+  background: var(--rb-hivis-dark);
+}
+
+.btn-outline {
+  background: #ffffff;
+  color: var(--rb-ink);
+}
+
+.btn-outline:hover {
+  background: var(--rb-mist);
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.btn-hivis:focus-visible,
+.btn-outline:focus-visible,
+.brand:focus-visible {
+  outline: 3px solid var(--rb-lagoon);
+  outline-offset: 2px;
+}
+
+/* ---------- Layout ---------- */
+
+.content {
+  max-width: 82rem;
+  margin: 0 auto;
+  padding: clamp(1rem, 3vw, 2rem);
+}
+
+.layout {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.main-column,
+.side-column {
+  display: grid;
+  gap: 1.25rem;
+  align-content: start;
+}
+
+@media (min-width: 60rem) {
+  .layout {
+    grid-template-columns: minmax(0, 2.1fr) minmax(16rem, 1fr);
+    gap: 1.75rem;
+  }
+}
+
+.card {
+  padding: 1.25rem;
+  border: 2px solid var(--rb-ink);
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.card-label {
+  margin-bottom: 0.75rem;
+  color: var(--rb-muted);
+  font-family: var(--rb-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.muted-text {
+  color: var(--rb-muted);
+  font-size: 0.9rem;
+}
+
+/* ---------- Intro and notices ---------- */
+
+.intro {
+  padding: clamp(2rem, 8vw, 5rem) clamp(1.25rem, 5vw, 3rem);
+  border-radius: 14px;
+  background: var(--rb-board);
+  color: #ffffff;
+}
+
+.eyebrow {
+  color: var(--rb-hivis);
+  font-family: var(--rb-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.intro h1 {
+  margin: 0.75rem 0 1rem;
+  font-family: var(--rb-heading);
+  font-size: clamp(2.5rem, 8vw, 4.5rem);
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+
+.intro-text {
+  color: #c9d2cd;
+  font-family: var(--rb-mono);
+  font-size: 0.9rem;
+}
+
+.notice {
+  display: grid;
+  justify-items: start;
+  gap: 0.75rem;
+  max-width: 40rem;
+  padding: 1.5rem;
+  border: 2px solid var(--rb-ink);
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.notice h1 {
+  font-family: var(--rb-heading);
+  font-size: 1.75rem;
+}
+
+/* ---------- Board (hero) ---------- */
+
+.board {
+  display: grid;
+  gap: 1.5rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border-radius: 14px;
+  background: var(--rb-board);
+  color: #ffffff;
+}
+
+.board-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.board-meta {
+  color: #c9d2cd;
+  font-size: 0.85rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  background: #000000;
+  color: #c9d2cd;
+  font-family: var(--rb-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.badge::before {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #7b8a83;
+}
+
+.badge[data-tone='live'] {
+  color: var(--rb-hivis);
+}
+
+.badge[data-tone='live']::before {
+  background: #3ddc84;
+}
+
+.board-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.board-stop {
+  color: var(--rb-hivis);
+  font-size: clamp(1.25rem, 3vw, 1.75rem);
+}
+
+.board-status {
+  font-family: var(--rb-heading);
+  font-size: clamp(2rem, 6vw, 3.75rem);
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.board-stop[data-tone='EXCEPTION'],
+.board-status[data-tone='EXCEPTION'] {
+  color: #ff8a80;
+}
+
+.board-eta {
+  grid-column: 1 / -1;
+}
+
+.eta-label {
+  color: #c9d2cd;
+  font-family: var(--rb-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.eta-window {
+  color: var(--rb-hivis);
+  font-family: var(--rb-mono);
+  font-size: clamp(1.25rem, 3.5vw, 1.75rem);
+  font-weight: 600;
+}
+
+.eta-window--alert {
+  color: #ff8a80;
+}
+
+@media (min-width: 48rem) {
+  .board-main {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .board-eta {
+    grid-column: auto;
+    text-align: right;
+  }
+}
+
+/* ---------- Map and history ---------- */
+
+.map-card {
+  padding: 1rem;
+}
+
+.map-caption {
+  margin-top: 0.6rem;
+  color: var(--rb-muted);
+  font-size: 0.8rem;
+}
+
+.history-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history-list li {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: 1rem;
+  padding: 0.7rem 0;
+  border-top: 1px solid var(--rb-mist);
+}
+
+.history-time {
+  font-size: 0.9rem;
+}
+
+.history-note {
+  color: var(--rb-chilli);
+}
+
+/* ---------- Side cards ---------- */
+
+.courier {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.courier-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 8px;
+  background: var(--rb-board);
+  color: var(--rb-hivis);
+  font-family: var(--rb-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.courier-title {
+  font-weight: 700;
+}
+
+.parcel-details dl {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+}
+
+.parcel-details dt {
+  margin-top: 0.5rem;
+  color: var(--rb-muted);
+  font-family: var(--rb-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.parcel-details dd {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.privacy-note {
+  margin-top: 1rem;
+  color: var(--rb-muted);
+  font-size: 0.85rem;
+}
+
+.help {
+  display: grid;
+  gap: 0.75rem;
+  background: #fff4cf;
+}
+
+.help-title {
+  font-size: 1.1rem;
+}
+
+.stale-note {
+  color: var(--rb-muted);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 30rem) {
+  .search {
+    justify-content: stretch;
+  }
+
+  .search input {
+    max-width: none;
+  }
+
+  .history-list li {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+}

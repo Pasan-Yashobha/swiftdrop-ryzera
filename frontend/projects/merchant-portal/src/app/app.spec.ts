@@ -23,6 +23,7 @@ describe('App shell', () => {
         provideRouter([
           { path: 'first', component: BlankPage },
           { path: 'second', component: BlankPage },
+          { path: 'track/:trackingNo', component: BlankPage },
         ]),
         provideHttpClient(),
         provideHttpClientTesting(),
@@ -96,6 +97,15 @@ describe('App shell', () => {
 
       expect(document.activeElement).toBe(input);
     });
+  });
+
+  it('gives the public tracking page the whole screen, without the portal header and footer', async () => {
+    await TestBed.inject(Router).navigateByUrl('/track/SD-2641-7788');
+    fixture.detectChanges();
+
+    expect(element(fixture).querySelector('app-header')).toBeNull();
+    expect(element(fixture).querySelector('footer')).toBeNull();
+    expect(query(fixture, 'main#main').classList).toContain('main--fullscreen');
   });
 
   it('offers sign in and sign up to visitors', () => {

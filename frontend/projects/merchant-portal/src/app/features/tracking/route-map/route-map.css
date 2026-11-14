@@ -1,0 +1,115 @@
+:host {
+  display: block;
+}
+
+.map {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.map-bg {
+  fill: #e8ece9;
+}
+
+.grid {
+  stroke: var(--rb-mist, #dce2dd);
+  stroke-width: 2;
+}
+
+.route {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.route--travelled {
+  stroke: var(--rb-lagoon, #0a7d74);
+  stroke-width: 6;
+}
+
+.route--remaining {
+  stroke: var(--rb-ink, #0e1513);
+  stroke-width: 3;
+  stroke-dasharray: 2 9;
+}
+
+.marker--origin {
+  fill: var(--rb-ink, #0e1513);
+}
+
+.marker--destination {
+  fill: #ffffff;
+  stroke: var(--rb-ink, #0e1513);
+  stroke-width: 3;
+}
+
+.marker--arrived {
+  fill: var(--rb-lagoon, #0a7d74);
+}
+
+.marker--courier {
+  fill: var(--rb-hivis, #ffc72c);
+  stroke: var(--rb-ink, #0e1513);
+  stroke-width: 3.5;
+}
+
+.pulse {
+  fill: var(--rb-hivis, #ffc72c);
+  opacity: 0.6;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pulse 2s ease-out infinite;
+}
+
+.place {
+  fill: var(--rb-ink, #0e1513);
+  font-family: var(--rb-heading, 'IBM Plex Sans Condensed', 'Arial Narrow', sans-serif);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.placeholder {
+  display: grid;
+  place-items: center;
+  min-height: 9rem;
+  border-radius: 6px;
+  background: #e8ece9;
+  color: #4f5d57;
+  font-size: 0.9rem;
+}
+
+/* On a phone the 800-unit drawing shrinks to about 340 px: draw names and lines bigger so they stay readable. */
+@media (max-width: 40rem) {
+  .place {
+    font-size: 34px;
+  }
+
+  .route--travelled {
+    stroke-width: 10;
+  }
+
+  .route--remaining {
+    stroke-width: 5;
+    stroke-dasharray: 3 14;
+  }
+}
+
+@keyframes pulse {
+  from {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+
+  to {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse {
+    animation: none;
+    opacity: 0;
+  }
+}

@@ -41,9 +41,11 @@ All demo accounts share the default password: **`Password123!`**
 
 | Service | URL | Notes |
 |---|---|---|
-| **Frontend (Angular)** | http://localhost:4200 | Proxies `/api/v1/auth` → 8081, `/api` → 8083 |
+| **Frontend (Angular)** | http://localhost:4200 | Proxies `/api/v1/auth` → 8081, `/api/v1/tracking` → 8088, `/api` → 8083 |
+| **Public tracking page** | http://localhost:4200/track | No sign-in; e.g. `/track/SD-2641-7788` |
 | **Identity Service** | http://localhost:8081 | Auth, JWT, user management |
 | **Merchant Service** | http://localhost:8083 | Merchant & parcel APIs |
+| **Tracking Service** | http://localhost:8088 | Public tracking + live updates (SSE); dev demo: `POST /api/v1/dev/tracking/simulate` |
 | **RabbitMQ UI** | http://localhost:15672 | user/pass from `.env` (default: `swiftdrop` / `dev_rabbit_pw`) |
 | **Mailpit inbox** | http://localhost:8025 | Captures all outbound emails in dev |
 | **PostgreSQL** | localhost:**5433** | Host port 5433 (not 5432) to avoid conflicts |

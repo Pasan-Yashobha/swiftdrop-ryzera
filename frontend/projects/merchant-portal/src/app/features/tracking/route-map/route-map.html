@@ -1,0 +1,48 @@
+@if (drawing(); as map) {
+  <svg
+    class="map"
+    [attr.viewBox]="'0 0 ' + width + ' ' + height"
+    role="img"
+    [attr.aria-label]="description()"
+    preserveAspectRatio="xMidYMid meet"
+  >
+    <rect class="map-bg" x="0" y="0" [attr.width]="width" [attr.height]="height" rx="6" />
+    @for (x of gridX; track x) {
+      <line class="grid" [attr.x1]="x" y1="0" [attr.x2]="x" [attr.y2]="height" />
+    }
+    @for (y of gridY; track y) {
+      <line class="grid" x1="0" [attr.y1]="y" [attr.x2]="width" [attr.y2]="y" />
+    }
+
+    @if (map.remaining) {
+      <path class="route route--remaining" [attr.d]="map.remaining" />
+    }
+    @if (map.travelled) {
+      <path class="route route--travelled" [attr.d]="map.travelled" />
+    }
+
+    <circle class="marker marker--origin" [attr.cx]="map.origin.x" [attr.cy]="map.origin.y" r="8" />
+    <circle
+      class="marker marker--destination"
+      [class.marker--arrived]="delivered()"
+      [attr.cx]="map.destination.x"
+      [attr.cy]="map.destination.y"
+      r="9"
+    />
+    @if (map.courier; as here) {
+      @if (live()) {
+        <circle class="pulse" [attr.cx]="here.x" [attr.cy]="here.y" r="14" />
+      }
+      <circle class="marker marker--courier" [attr.cx]="here.x" [attr.cy]="here.y" r="13" />
+    }
+
+    @if (map.originLabel; as l) {
+      <text class="place" [attr.x]="l.x" [attr.y]="l.y" [attr.text-anchor]="l.anchor">{{ l.text }}</text>
+    }
+    @if (map.destinationLabel; as l) {
+      <text class="place" [attr.x]="l.x" [attr.y]="l.y" [attr.text-anchor]="l.anchor">{{ l.text }}</text>
+    }
+  </svg>
+} @else {
+  <p class="placeholder">The map appears once the route is known.</p>
+}
