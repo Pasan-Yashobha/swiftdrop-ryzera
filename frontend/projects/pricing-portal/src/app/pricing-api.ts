@@ -126,6 +126,18 @@ interface Page<T> {
   items: T[];
   totalElements: number;
 }
+/** One MCP tool the assistant used to answer (mirrors ChatReply.ToolTrace in the Assistant service). */
+export interface ToolTrace {
+  tool: string;
+  arguments: Record<string, unknown>;
+  failed: boolean;
+}
+/** Response of POST /api/v1/assistant/chat (mirrors the ChatReply record). */
+export interface ChatReply {
+  conversationId: string;
+  reply: string;
+  toolCalls: ToolTrace[];
+}
 
 export function errorMessage(error: unknown, service = 'Pricing is running on port 8086'): string {
   if (error instanceof HttpErrorResponse) {
@@ -202,6 +214,27 @@ export class PricingApi {
 
   getInvoice(id: string): Promise<InvoiceDetail> {
     return firstValueFrom(this.http.get<InvoiceDetail>(`/api/v1/invoices/${id}`, this.options()));
+  }
+
+  /** Sends one chat message to the Assistant Service (port 8088) as the signed-in user. */
+  chat(message: string, conversationId: string | null): Promise<ChatReply> {
+    return firstValueFrom(
+      this.http.post<ChatReply>(
+        '/api/v1/assistant/chat',
+        conversationId ? { message, conversationId } : { message },
+        this.options(),
+      ),
+    );
+  }
+
+  /** "New chat": asks the server to forget the conversation's memory. */
+  forgetConversation(conversationId: string): Promise<void> {
+    return firstValueFrom(
+      this.http.delete<void>(
+        `/api/v1/assistant/conversations/${encodeURIComponent(conversationId)}`,
+        this.options(),
+      ),
+    );
   }
 
   private downloadPdf(url: string): Promise<Blob> {

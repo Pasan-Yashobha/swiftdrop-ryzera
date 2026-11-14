@@ -7,12 +7,21 @@ import { ManagementPage } from './management-page';
 import { PromoPage } from './promo-page';
 import { ReceiptsPage } from './receipts-page';
 import { InvoicesPage } from './invoices-page';
+import { ChatWidget } from './chat-widget';
 
 type Tab = 'estimate' | 'zones' | 'rates' | 'promos' | 'receipts' | 'invoices';
 
 @Component({
   selector: 'app-root',
-  imports: [FormsModule, EstimatePage, ManagementPage, PromoPage, ReceiptsPage, InvoicesPage],
+  imports: [
+    FormsModule,
+    EstimatePage,
+    ManagementPage,
+    PromoPage,
+    ReceiptsPage,
+    InvoicesPage,
+    ChatWidget,
+  ],
   template: `
     <header>
       <a class="brand" href="/">Swift<span>Drop</span></a>
@@ -104,6 +113,9 @@ type Tab = 'estimate' | 'zones' | 'rates' | 'promos' | 'receipts' | 'invoices';
       }
     } @else {
       <app-estimate />
+    }
+    @if (api.token() && api.role() !== 'ADMIN') {
+      <app-chat-widget />
     }
   `,
 })
