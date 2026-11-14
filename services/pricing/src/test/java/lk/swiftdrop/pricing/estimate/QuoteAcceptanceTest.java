@@ -170,7 +170,8 @@ class QuoteAcceptanceTest {
 
         accept(quote.quoteId(), UUID.randomUUID(), TOKEN)
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.detail").value("This quote was already accepted for another parcel"));
+                .andExpect(jsonPath("$.code").value("CONFLICT"))
+                .andExpect(jsonPath("$.message").value("This quote was already accepted for another parcel"));
     }
 
     @Test
@@ -185,7 +186,8 @@ class QuoteAcceptanceTest {
 
         accept(quote.quoteId(), UUID.randomUUID(), TOKEN)
                 .andExpect(status().isGone())
-                .andExpect(jsonPath("$.detail").value("This quote has expired; request a new estimate"));
+                .andExpect(jsonPath("$.code").value("GONE"))
+                .andExpect(jsonPath("$.message").value("This quote has expired; request a new estimate"));
         assertThat(usedCount(promoId)).isZero();
     }
 
@@ -198,7 +200,7 @@ class QuoteAcceptanceTest {
         accept(first.quoteId(), UUID.randomUUID(), TOKEN).andExpect(status().isOk());
         accept(second.quoteId(), UUID.randomUUID(), TOKEN)
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.detail").value("The promo code can no longer be used; request a new estimate"));
+                .andExpect(jsonPath("$.message").value("The promo code can no longer be used; request a new estimate"));
 
         assertThat(usedCount(promoId)).isEqualTo(1);
         assertThat(isAccepted(second.quoteId())).isFalse();
@@ -237,7 +239,10 @@ class QuoteAcceptanceTest {
         EstimateResponse quote = quote(null);
 
         accept(quote.quoteId(), null, null).andExpect(status().isUnauthorized());
-        accept(quote.quoteId(), null, "wrong-token").andExpect(status().isUnauthorized());
+        accept(quote.quoteId(), null, "wrong-token")
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
+                .andExpect(jsonPath("$.path").value("/internal/quotes/" + quote.quoteId() + "/accept"));
         assertThat(isAccepted(quote.quoteId())).isFalse();
     }
 

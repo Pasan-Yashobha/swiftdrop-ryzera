@@ -6,8 +6,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import lk.swiftdrop.pricing.common.ApiErrorWriter;
 import lk.swiftdrop.pricing.config.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +22,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(FeeEstimationController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, ApiErrorWriter.class})
 class FeeEstimationControllerTest {
     static final String PATH = "/api/v1/pricing/estimate";
     static final String BODY = """
@@ -44,9 +46,15 @@ class FeeEstimationControllerTest {
     @Test
     void anonymousAndCourierAreRejected() throws Exception {
         mvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(BODY))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
+                .andExpect(jsonPath("$.message").value("Sign in to continue."))
+                .andExpect(jsonPath("$.path").value(PATH));
         mvc.perform(post(PATH).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_COURIER")))
-                .contentType(MediaType.APPLICATION_JSON).content(BODY)).andExpect(status().isForbidden());
+                .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.error").value("Forbidden"));
         verifyNoInteractions(estimates);
     }
 

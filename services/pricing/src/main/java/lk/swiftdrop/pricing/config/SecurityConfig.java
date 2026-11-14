@@ -2,12 +2,11 @@ package lk.swiftdrop.pricing.config;
 
 import java.nio.charset.StandardCharsets;
 import javax.crypto.spec.SecretKeySpec;
+import lk.swiftdrop.pricing.common.ApiErrorWriter;
 import lk.swiftdrop.pricing.security.InternalTokenFilter;
 import lk.swiftdrop.pricing.security.JwtRoleConverter;
 import org.springframework.core.annotation.Order;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,21 +31,24 @@ public class SecurityConfig {
     @Bean
     @Order(1)
     SecurityFilterChain internalFilterChain(HttpSecurity http,
-                                            @Value("${pricing.security.internal-token:}") String internalToken)
+                                            @Value("${pricing.security.internal-token:}") String internalToken,
+                                            ApiErrorWriter errors)
             throws Exception {
         return http.securityMatcher("/internal/**")
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(new InternalTokenFilter(internalToken), AuthorizationFilter.class)
                 .authorizeHttpRequests(auth -> auth.anyRequest().hasRole(InternalTokenFilter.ROLE))
-                .exceptionHandling(errors -> errors.authenticationEntryPoint(
-                        new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                .exceptionHandling(handling -> handling
+                        .authenticationEntryPoint(errors::unauthenticated)
+                        .accessDeniedHandler(errors::forbidden))
                 .build();
     }
 
     @Bean
     @Order(2)
-    SecurityFilterChain securityFilterChain(HttpSecurity http, Environment environment) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, Environment environment, ApiErrorWriter errors)
+            throws Exception {
         return http.csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> {
@@ -61,8 +63,13 @@ public class SecurityConfig {
                         .hasAnyRole("CUSTOMER", "MERCHANT")
                         .anyRequest().denyAll();
                 })
-                .oauth2ResourceServer(resource -> resource.jwt(jwt ->
-                        jwt.jwtAuthenticationConverter(new JwtRoleConverter())))
+                .oauth2ResourceServer(resource -> resource
+                        .authenticationEntryPoint(errors::unauthenticated)
+                        .accessDeniedHandler(errors::forbidden)
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(new JwtRoleConverter())))
+                .exceptionHandling(handling -> handling
+                        .authenticationEntryPoint(errors::unauthenticated)
+                        .accessDeniedHandler(errors::forbidden))
                 .build();
     }
 

@@ -25,7 +25,7 @@ import org.springframework.util.StringUtils;
 @Configuration
 public class SecurityConfig {
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, ApiErrorWriter errors) throws Exception {
         return http.csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
@@ -33,8 +33,13 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/assistant/**", "/mcp", "/mcp/**")
                         .hasAnyRole("CUSTOMER", "MERCHANT")
                         .anyRequest().denyAll())
-                .oauth2ResourceServer(resource -> resource.jwt(jwt ->
-                        jwt.jwtAuthenticationConverter(new JwtRoleConverter())))
+                .oauth2ResourceServer(resource -> resource
+                        .authenticationEntryPoint(errors::unauthenticated)
+                        .accessDeniedHandler(errors::forbidden)
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(new JwtRoleConverter())))
+                .exceptionHandling(handling -> handling
+                        .authenticationEntryPoint(errors::unauthenticated)
+                        .accessDeniedHandler(errors::forbidden))
                 .build();
     }
 

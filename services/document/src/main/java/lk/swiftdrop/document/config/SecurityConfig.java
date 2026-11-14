@@ -7,9 +7,7 @@ import lk.swiftdrop.document.security.JwtRoleConverter;
 import lk.swiftdrop.document.security.ServiceRoles;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
@@ -32,19 +30,23 @@ public class SecurityConfig {
      */
     @Bean
     @Order(1)
-    SecurityFilterChain internalFilterChain(HttpSecurity http, DocumentProperties properties) throws Exception {
+    SecurityFilterChain internalFilterChain(HttpSecurity http, DocumentProperties properties, ApiErrorWriter errors)
+            throws Exception {
         return http.securityMatcher("/internal/**")
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(new InternalTokenFilter(properties.security().internalToken()), AuthorizationFilter.class)
                 .authorizeHttpRequests(auth -> auth.anyRequest().hasRole(ServiceRoles.INTERNAL))
-                .exceptionHandling(errors -> errors.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                .exceptionHandling(handling -> handling
+                        .authenticationEntryPoint(errors::unauthenticated)
+                        .accessDeniedHandler(errors::forbidden))
                 .build();
     }
 
     @Bean
     @Order(2)
-    SecurityFilterChain securityFilterChain(HttpSecurity http, Environment environment) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, Environment environment, ApiErrorWriter errors)
+            throws Exception {
         return http.csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> {
@@ -60,8 +62,13 @@ public class SecurityConfig {
                             .hasAnyRole("MERCHANT", "ADMIN")
                             .anyRequest().denyAll();
                 })
-                .oauth2ResourceServer(resource -> resource.jwt(jwt ->
-                        jwt.jwtAuthenticationConverter(new JwtRoleConverter())))
+                .oauth2ResourceServer(resource -> resource
+                        .authenticationEntryPoint(errors::unauthenticated)
+                        .accessDeniedHandler(errors::forbidden)
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(new JwtRoleConverter())))
+                .exceptionHandling(handling -> handling
+                        .authenticationEntryPoint(errors::unauthenticated)
+                        .accessDeniedHandler(errors::forbidden))
                 .build();
     }
 

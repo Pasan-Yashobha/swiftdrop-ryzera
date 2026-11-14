@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.Instant;
 import java.util.UUID;
+import lk.swiftdrop.pricing.common.ApiErrorWriter;
 import lk.swiftdrop.pricing.config.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,7 +28,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(ZoneController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, ApiErrorWriter.class})
 class ZoneControllerTest {
     private static final String PATH = "/api/v1/admin/zones";
     private static final String BODY = "{\"code\":\"COLOMBO\",\"name\":\"Colombo\"}";
@@ -105,7 +106,10 @@ class ZoneControllerTest {
     void invalidBodyIsRejectedBeforeSaving() throws Exception {
         mvc.perform(post(PATH).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                 .contentType(MediaType.APPLICATION_JSON).content("{\"code\":\"bad code\",\"name\":\" \"}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.details[?(@.field == 'code')]").exists())
+                .andExpect(jsonPath("$.details[?(@.field == 'name')]").exists());
         verifyNoInteractions(zones);
     }
 
@@ -123,7 +127,40 @@ class ZoneControllerTest {
         mvc.perform(post(PATH).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                 .contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.detail").value(
+                .andExpect(jsonPath("$.code").value("CONFLICT"))
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.message").value(
                         "The zone conflicts with an existing record. Zone codes must be unique."));
+    }
+
+    @Test
+    void malformedJsonIsAMalformedRequest() throws Exception {
+        mvc.perform(post(PATH).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                .contentType(MediaType.APPLICATION_JSON).content("{not json"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
+        verifyNoInteractions(zones);
+    }
+
+    @Test
+    void unexpectedFailureHidesItsDetailsAndKeepsTheCorrelationId() throws Exception {
+        when(zones.create(any())).thenThrow(new IllegalStateException("private stack details"));
+        mvc.perform(post(PATH).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                .header("X-Correlation-Id", "test-123")
+                .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+                .andExpect(jsonPath("$.message").value("Something went wrong on our side. Please try again."))
+                .andExpect(jsonPath("$.correlationId").value("test-123"))
+                .andExpect(jsonPath("$.timestamp").exists());
+    }
+
+    @Test
+    void anUnsafeCorrelationIdIsReplaced() throws Exception {
+        mvc.perform(get(PATH + "/" + UUID.randomUUID())
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
+                .header("X-Correlation-Id", "bad id; Injected: yes"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.correlationId").value(org.hamcrest.Matchers.matchesPattern("[0-9a-f-]{36}")));
     }
 }
