@@ -3,53 +3,9 @@
     <div>
       <p class="rb-eyebrow">Documents</p>
       <h1>Receipts</h1>
-      <p class="page__lead">
-        @if (isAdmin) {
-          Every delivery receipt issued by SwiftDrop.
-        } @else {
-          A PDF receipt for each of your delivered parcels.
-        }
-      </p>
+      <p class="page__lead">A PDF receipt for each of your delivered parcels.</p>
     </div>
   </div>
-
-  @if (showTestForm) {
-    <details class="card dev-panel">
-      <summary>Create a test receipt (development only)</summary>
-      <form class="stack" [formGroup]="testForm" (ngSubmit)="createTestReceipt()" novalidate>
-        <p class="alert alert--info small">
-          Stands in for the parcel.status.delivered event until the Parcel service publishes it. The
-          customer id must be the customer's Identity user id.
-        </p>
-        <div class="grid-2">
-          <app-form-field label="Customer id" [control]="testForm.controls.customerId">
-            <input appFieldControl type="text" [formControl]="testForm.controls.customerId" />
-          </app-form-field>
-          <app-form-field label="Tracking number" [control]="testForm.controls.trackingNumber">
-            <input appFieldControl type="text" [formControl]="testForm.controls.trackingNumber" />
-          </app-form-field>
-          @for (field of amountFields; track field.name) {
-            <app-form-field [label]="field.label" [control]="testForm.controls[field.name]">
-              <input
-                appFieldControl
-                type="number"
-                min="0"
-                step="0.01"
-                [formControl]="testForm.controls[field.name]"
-              />
-            </app-form-field>
-          }
-        </div>
-        <p class="muted small">Total {{ total() | money }} = charges − discount.</p>
-        <app-error-alert [error]="createError()" />
-        <div class="form-actions">
-          <button class="btn btn-primary" type="submit" [disabled]="creating() || total() < 0">
-            {{ creating() ? 'Creating…' : 'Create receipt' }}
-          </button>
-        </div>
-      </form>
-    </details>
-  }
 
   @if (loading()) {
     <app-spinner label="Loading receipts" />

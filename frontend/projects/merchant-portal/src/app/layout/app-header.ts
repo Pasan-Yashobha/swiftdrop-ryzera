@@ -53,13 +53,7 @@ const ROLE_LINKS: Readonly<Record<Exclude<UserRole, 'MERCHANT'>, readonly NavLin
     { path: '/estimate', label: 'Fee estimate' },
     { path: '/receipts', label: 'Receipts' },
   ],
-  ADMIN: [
-    HOME_LINK,
-    { path: '/admin/dispatch', label: 'Dispatch' },
-    { path: '/admin/pricing/zones', label: 'Pricing' },
-    { path: '/receipts', label: 'Receipts' },
-    { path: '/invoices', label: 'Invoices' },
-  ],
+  ADMIN: [HOME_LINK, { path: '/admin/dispatch', label: 'Dispatch' }],
   DISPATCHER: [HOME_LINK, { path: '/admin/dispatch', label: 'Dispatch' }],
   COURIER: [HOME_LINK],
 };

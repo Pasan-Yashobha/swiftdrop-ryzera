@@ -4,6 +4,11 @@
     "secure": false,
     "changeOrigin": true
   },
+  "/api/v1/dev/receipts": {
+    "target": "http://localhost:8092",
+    "secure": false,
+    "changeOrigin": true
+  },
   "/api/v1/dev": {
     "target": "http://localhost:8083",
     "secure": false,
@@ -16,6 +21,31 @@
   },
   "/api/v1/admin/webhooks": {
     "target": "http://localhost:8089",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/api/v1/admin/zones": {
+    "target": "http://localhost:8085",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/api/v1/admin/rate-cards": {
+    "target": "http://localhost:8085",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/api/v1/admin/promo-codes": {
+    "target": "http://localhost:8085",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/api/v1/receipts": {
+    "target": "http://localhost:8092",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/api/v1/invoices": {
+    "target": "http://localhost:8092",
     "secure": false,
     "changeOrigin": true
   }

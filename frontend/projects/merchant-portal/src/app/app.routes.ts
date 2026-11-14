@@ -60,7 +60,7 @@ export const routes: Routes = [
     pathMatch: 'full',
   },
 
-  // Pricing, receipts and the AI assistant (Member 5). Each page is open to specific roles only.
+  // Fee estimate, receipts and invoices (Member 5). Admin pricing and documents are in the admin console.
   {
     path: 'estimate',
     title: 'Fee estimate',
@@ -70,38 +70,14 @@ export const routes: Routes = [
   {
     path: 'receipts',
     title: 'Receipts',
-    canActivate: [roleGuard('CUSTOMER', 'ADMIN')],
+    canActivate: [roleGuard('CUSTOMER')],
     loadComponent: () => import('./features/documents/receipts.page').then((m) => m.ReceiptsPage),
   },
   {
     path: 'invoices',
     title: 'Invoices',
-    canActivate: [roleGuard('MERCHANT', 'ADMIN')],
+    canActivate: [roleGuard('MERCHANT')],
     loadComponent: () => import('./features/documents/invoices.page').then((m) => m.InvoicesPage),
-  },
-  {
-    path: 'admin/pricing',
-    canActivate: [roleGuard('ADMIN')],
-    children: [
-      { path: '', pathMatch: 'full', redirectTo: 'zones' },
-      {
-        path: 'zones',
-        title: 'Delivery zones',
-        loadComponent: () => import('./features/pricing/admin/zones.page').then((m) => m.ZonesPage),
-      },
-      {
-        path: 'rate-cards',
-        title: 'Rate cards',
-        loadComponent: () =>
-          import('./features/pricing/admin/rate-cards.page').then((m) => m.RateCardsPage),
-      },
-      {
-        path: 'promo-codes',
-        title: 'Promo codes',
-        loadComponent: () =>
-          import('./features/pricing/admin/promo-codes.page').then((m) => m.PromoCodesPage),
-      },
-    ],
   },
 
   // Public parcel tracking (Member 8): anyone with a tracking number, no sign-in, full-screen layout.

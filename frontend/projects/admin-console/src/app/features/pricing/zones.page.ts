@@ -1,17 +1,16 @@
 import { ChangeDetectionStrategy, Component, inject, signal, viewChild } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { PricingApi } from '../../../core/api/pricing.api';
-import { AppError, toAppError } from '../../../core/http/app-error';
-import { Zone } from '../../../core/models/pricing.model';
-import { notBlank } from '../../../shared/forms/validators';
-import { ConfirmDialog } from '../../../shared/ui/confirm-dialog/confirm-dialog';
-import { EmptyState } from '../../../shared/ui/empty-state/empty-state';
-import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
-import { FieldControl, FormField } from '../../../shared/ui/form-field/form-field';
-import { Spinner } from '../../../shared/ui/spinner/spinner';
-import { StatusBadge } from '../../../shared/ui/status-badge/status-badge';
-import { ToastService } from '../../../shared/ui/toast/toast.service';
-import { PricingAdminNav } from './pricing-admin-nav';
+import { PricingApi } from '../../core/api/pricing.api';
+import { AppError, toAppError } from '../../core/http/app-error';
+import { Zone } from '../../core/models/pricing.model';
+import { notBlank } from '../../shared/forms/validators';
+import { ConfirmDialog } from '../../shared/ui/confirm-dialog/confirm-dialog';
+import { EmptyState } from '../../shared/ui/empty-state/empty-state';
+import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
+import { FieldControl, FormField } from '../../shared/ui/form-field/form-field';
+import { Spinner } from '../../shared/ui/spinner/spinner';
+import { StatusBadge } from '../../shared/ui/status-badge/status-badge';
+import { ToastService } from '../../shared/ui/toast/toast.service';
 
 /** Uppercase letter first, then uppercase letters, digits, _ or - (the Pricing service's rule). */
 export const ZONE_CODE_PATTERN = /^[A-Z][A-Z0-9_-]*$/;
@@ -26,13 +25,12 @@ export const ZONE_CODE_PATTERN = /^[A-Z][A-Z0-9_-]*$/;
     ErrorAlert,
     FieldControl,
     FormField,
-    PricingAdminNav,
     Spinner,
     StatusBadge,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './zones.page.html',
-  styleUrls: ['../../route-board.css', './admin.css'],
+  styleUrls: ['../route-board.css', './admin.css'],
 })
 export class ZonesPage {
   private readonly api = inject(PricingApi);

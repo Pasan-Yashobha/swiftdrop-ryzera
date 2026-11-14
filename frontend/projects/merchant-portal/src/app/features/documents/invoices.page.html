@@ -3,101 +3,9 @@
     <div>
       <p class="rb-eyebrow">Documents</p>
       <h1>Invoices</h1>
-      <p class="page__lead">
-        @if (isAdmin) {
-          Every merchant invoice issued by SwiftDrop.
-        } @else {
-          Your SwiftDrop invoices, with the parcels billed on each.
-        }
-      </p>
+      <p class="page__lead">Your SwiftDrop invoices, with the parcels billed on each.</p>
     </div>
   </div>
-
-  @if (showTestForm) {
-    <details class="card dev-panel">
-      <summary>Create a test invoice (development only)</summary>
-      <form class="stack" [formGroup]="testForm" (ngSubmit)="createTestInvoice()" novalidate>
-        <p class="alert alert--info small">
-          The merchant id must be the merchant owner's Identity user id, which is what decides who
-          can see the invoice. Each line is one parcel; a parcel can be billed on one invoice only.
-        </p>
-        <div class="grid-2">
-          <app-form-field label="Merchant id" [control]="testForm.controls.merchantId">
-            <input appFieldControl type="text" [formControl]="testForm.controls.merchantId" />
-          </app-form-field>
-          <app-form-field label="Merchant name" [control]="testForm.controls.merchantName">
-            <input appFieldControl type="text" [formControl]="testForm.controls.merchantName" />
-          </app-form-field>
-          <app-form-field label="Period start" [control]="testForm.controls.periodStart">
-            <input appFieldControl type="date" [formControl]="testForm.controls.periodStart" />
-          </app-form-field>
-          <app-form-field label="Period end" [control]="testForm.controls.periodEnd">
-            <input appFieldControl type="date" [formControl]="testForm.controls.periodEnd" />
-          </app-form-field>
-        </div>
-        @if (testForm.hasError('periodOrder')) {
-          <p class="alert alert--danger small" role="alert">
-            The period cannot end before it starts.
-          </p>
-        }
-
-        <fieldset class="stack invoice-lines">
-          <legend>Billing lines ({{ lines.length }} / {{ maxLines }})</legend>
-          @for (line of lines.controls; track line; let i = $index) {
-            <div class="invoice-line" [formGroup]="line">
-              <app-form-field label="Tracking number" [control]="line.controls.trackingNumber">
-                <input appFieldControl type="text" [formControl]="line.controls.trackingNumber" />
-              </app-form-field>
-              <app-form-field label="Description" [control]="line.controls.description">
-                <input appFieldControl type="text" [formControl]="line.controls.description" />
-              </app-form-field>
-              <app-form-field label="Amount (LKR)" [control]="line.controls.amount">
-                <input
-                  appFieldControl
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  [formControl]="line.controls.amount"
-                />
-              </app-form-field>
-              <button
-                type="button"
-                class="btn btn-sm btn-ghost"
-                [attr.aria-label]="'Remove line ' + (i + 1)"
-                (click)="removeLine(i)"
-              >
-                Remove
-              </button>
-            </div>
-          }
-          <div>
-            <button
-              type="button"
-              class="btn btn-sm"
-              [disabled]="lines.length >= maxLines"
-              (click)="addLine()"
-            >
-              Add line
-            </button>
-          </div>
-        </fieldset>
-
-        <p class="muted small">
-          Preview total {{ total() | money }} (the server calculates the real one).
-        </p>
-        <app-error-alert [error]="createError()" />
-        <div class="form-actions">
-          <button
-            class="btn btn-primary"
-            type="submit"
-            [disabled]="creating() || lines.length === 0"
-          >
-            {{ creating() ? 'Creating…' : 'Create invoice' }}
-          </button>
-        </div>
-      </form>
-    </details>
-  }
 
   @if (loading()) {
     <app-spinner label="Loading invoices" />
@@ -118,9 +26,6 @@
           <thead>
             <tr>
               <th scope="col">Invoice</th>
-              @if (isAdmin) {
-                <th scope="col">Merchant</th>
-              }
               <th scope="col">Period</th>
               <th scope="col">Parcels</th>
               <th scope="col">Total</th>
@@ -131,9 +36,6 @@
             @for (invoice of page.items; track invoice.id) {
               <tr>
                 <td class="mono">{{ invoice.invoiceNo }}</td>
-                @if (isAdmin) {
-                  <td>{{ invoice.merchantName }}</td>
-                }
                 <td class="small">{{ invoice.periodStart }} → {{ invoice.periodEnd }}</td>
                 <td>{{ invoice.lineCount }}</td>
                 <td>{{ invoice.totalAmount | money: invoice.currency }}</td>

@@ -1,19 +1,18 @@
 import { ChangeDetectionStrategy, Component, inject, signal, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { PricingApi } from '../../../core/api/pricing.api';
-import { AppError, toAppError } from '../../../core/http/app-error';
-import { DiscountType, PromoCode } from '../../../core/models/pricing.model';
-import { MoneyPipe } from '../../../shared/pipes/money.pipe';
-import { ConfirmDialog } from '../../../shared/ui/confirm-dialog/confirm-dialog';
-import { EmptyState } from '../../../shared/ui/empty-state/empty-state';
-import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
-import { FieldControl, FormField } from '../../../shared/ui/form-field/form-field';
-import { Spinner } from '../../../shared/ui/spinner/spinner';
-import { StatusBadge } from '../../../shared/ui/status-badge/status-badge';
-import { ToastService } from '../../../shared/ui/toast/toast.service';
+import { PricingApi } from '../../core/api/pricing.api';
+import { AppError, toAppError } from '../../core/http/app-error';
+import { DiscountType, PromoCode } from '../../core/models/pricing.model';
+import { MoneyPipe } from '../../shared/pipes/money.pipe';
+import { ConfirmDialog } from '../../shared/ui/confirm-dialog/confirm-dialog';
+import { EmptyState } from '../../shared/ui/empty-state/empty-state';
+import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
+import { FieldControl, FormField } from '../../shared/ui/form-field/form-field';
+import { Spinner } from '../../shared/ui/spinner/spinner';
+import { StatusBadge } from '../../shared/ui/status-badge/status-badge';
+import { ToastService } from '../../shared/ui/toast/toast.service';
 import { endAfterStart, today } from './date-range';
-import { PricingAdminNav } from './pricing-admin-nav';
 
 /** Largest amount the Pricing service accepts (NUMERIC with two decimals). */
 const MAX_FEE = 99_999_999.99;
@@ -34,13 +33,12 @@ const MAX_USES = 2_147_483_647;
     ErrorAlert,
     FieldControl,
     FormField,
-    PricingAdminNav,
     Spinner,
     StatusBadge,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './promo-codes.page.html',
-  styleUrls: ['../../route-board.css', './admin.css'],
+  styleUrls: ['../route-board.css', './admin.css'],
 })
 export class PromoCodesPage {
   private readonly api = inject(PricingApi);

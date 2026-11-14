@@ -24,4 +24,15 @@ export const ADMIN_NAV: readonly AdminNavSection[] = [
       { label: 'Webhook deliveries', path: '/admin/webhooks' },
     ],
   },
+  {
+    // Member 5: Pricing service and Document service.
+    heading: 'Pricing and documents',
+    items: [
+      { label: 'Delivery zones', path: '/admin/pricing/zones' },
+      { label: 'Rate cards', path: '/admin/pricing/rate-cards' },
+      { label: 'Promo codes', path: '/admin/pricing/promo-codes' },
+      { label: 'Receipts', path: '/admin/receipts' },
+      { label: 'Invoices', path: '/admin/invoices' },
+    ],
+  },
 ];

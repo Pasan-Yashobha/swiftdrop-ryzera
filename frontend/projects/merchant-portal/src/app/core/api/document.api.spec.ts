@@ -42,33 +42,4 @@ describe('DocumentApi', () => {
     expect(http.expectOne('/api/v1/invoices/i-1').request.method).toBe('GET');
     expect(http.expectOne('/api/v1/invoices/i-1/download').request.responseType).toBe('blob');
   });
-
-  it('generates an invoice and a test receipt with POST', () => {
-    api
-      .generateInvoice({
-        merchantId: 'u-1',
-        merchantName: 'Lanka Crafts',
-        periodStart: '2026-11-01',
-        periodEnd: '2026-11-30',
-        lines: [],
-      })
-      .subscribe();
-    api
-      .createTestReceipt({
-        parcelId: 'p-1',
-        customerId: 'c-1',
-        trackingNumber: 'SD-1',
-        deliveredAt: '2026-11-01T10:00:00Z',
-        baseAmount: 300,
-        weightAmount: 200,
-        sizeAmount: 50,
-        expressAmount: 0,
-        discountAmount: 0,
-        totalAmount: 550,
-      })
-      .subscribe();
-
-    expect(http.expectOne('/api/v1/invoices/generate').request.method).toBe('POST');
-    expect(http.expectOne('/api/v1/dev/receipts').request.method).toBe('POST');
-  });
 });

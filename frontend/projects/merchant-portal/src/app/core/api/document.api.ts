@@ -2,18 +2,12 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { API_BASE_URL } from '../config/app-config';
-import {
-  Invoice,
-  InvoiceDetail,
-  InvoiceRequest,
-  Receipt,
-  ReceiptSnapshot,
-} from '../models/document.model';
+import { Invoice, InvoiceDetail, Receipt } from '../models/document.model';
 import { ItemPage } from '../models/pricing.model';
 
 /**
  * Document service (Member 5). Customers see only their own receipts and merchants only their own
- * invoices; Admin sees all. The server enforces this from the token, so the same calls serve every role.
+ * invoices (Admin uses the admin console). The server enforces this from the token.
  */
 @Injectable({ providedIn: 'root' })
 export class DocumentApi {
@@ -34,11 +28,6 @@ export class DocumentApi {
     });
   }
 
-  /** Development only (Admin, dev profile): stands in for the parcel.status.delivered event. */
-  createTestReceipt(snapshot: ReceiptSnapshot): Observable<Receipt> {
-    return this.http.post<Receipt>(`${this.api}/dev/receipts`, snapshot);
-  }
-
   invoices(page = 0, size = 20): Observable<ItemPage<Invoice>> {
     return this.http.get<ItemPage<Invoice>>(`${this.api}/invoices`, { params: paging(page, size) });
   }
@@ -51,11 +40,6 @@ export class DocumentApi {
     return this.http.get(`${this.api}/invoices/${encodeURIComponent(invoiceId)}/download`, {
       responseType: 'blob',
     });
-  }
-
-  /** Admin. The same merchant, period and lines return the existing invoice instead of a second one. */
-  generateInvoice(request: InvoiceRequest): Observable<Invoice> {
-    return this.http.post<Invoice>(`${this.api}/invoices/generate`, request);
   }
 }
 

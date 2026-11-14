@@ -8,19 +8,18 @@ import {
 } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { forkJoin } from 'rxjs';
-import { PricingApi } from '../../../core/api/pricing.api';
-import { AppError, toAppError } from '../../../core/http/app-error';
-import { RateCard, Zone } from '../../../core/models/pricing.model';
-import { MoneyPipe } from '../../../shared/pipes/money.pipe';
-import { ConfirmDialog } from '../../../shared/ui/confirm-dialog/confirm-dialog';
-import { EmptyState } from '../../../shared/ui/empty-state/empty-state';
-import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
-import { FieldControl, FormField } from '../../../shared/ui/form-field/form-field';
-import { Spinner } from '../../../shared/ui/spinner/spinner';
-import { StatusBadge } from '../../../shared/ui/status-badge/status-badge';
-import { ToastService } from '../../../shared/ui/toast/toast.service';
+import { PricingApi } from '../../core/api/pricing.api';
+import { AppError, toAppError } from '../../core/http/app-error';
+import { RateCard, Zone } from '../../core/models/pricing.model';
+import { MoneyPipe } from '../../shared/pipes/money.pipe';
+import { ConfirmDialog } from '../../shared/ui/confirm-dialog/confirm-dialog';
+import { EmptyState } from '../../shared/ui/empty-state/empty-state';
+import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
+import { FieldControl, FormField } from '../../shared/ui/form-field/form-field';
+import { Spinner } from '../../shared/ui/spinner/spinner';
+import { StatusBadge } from '../../shared/ui/status-badge/status-badge';
+import { ToastService } from '../../shared/ui/toast/toast.service';
 import { endAfterStart, today } from './date-range';
-import { PricingAdminNav } from './pricing-admin-nav';
 
 /** Largest fee the Pricing service accepts (NUMERIC with two decimals). */
 export const MAX_FEE = 99_999_999.99;
@@ -42,13 +41,12 @@ export type FeeName =
     ErrorAlert,
     FieldControl,
     FormField,
-    PricingAdminNav,
     Spinner,
     StatusBadge,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './rate-cards.page.html',
-  styleUrls: ['../../route-board.css', './admin.css'],
+  styleUrls: ['../route-board.css', './admin.css'],
 })
 export class RateCardsPage {
   private readonly api = inject(PricingApi);
