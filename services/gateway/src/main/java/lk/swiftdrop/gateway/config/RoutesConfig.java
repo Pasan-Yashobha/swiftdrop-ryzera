@@ -56,11 +56,17 @@ public class RoutesConfig {
                         .path("/api/v1/parcels/**")
                         .filters(guarded("parcel", userLimiter, userKey))
                         .uri(props.uri("parcel")))
+                // Pricing (Member 5): fee estimate and zone directory; Admin zones, rate cards, promo codes
                 .route("pricing", r -> r
-                        .path("/api/v1/quotes/**", "/api/v1/zones/**",
-                                "/api/v1/admin/pricing/**", "/api/v1/admin/zones/**")
+                        .path("/api/v1/pricing/**", "/api/v1/admin/zones/**",
+                                "/api/v1/admin/rate-cards/**", "/api/v1/admin/promo-codes/**")
                         .filters(guarded("pricing", userLimiter, userKey))
                         .uri(props.uri("pricing")))
+                // AI assistant with MCP tools (Member 5). Its MCP endpoint (/mcp) stays internal.
+                .route("assistant", r -> r
+                        .path("/api/v1/assistant/**")
+                        .filters(guarded("assistant", userLimiter, userKey))
+                        .uri(props.uri("assistant")))
                 .route("dispatch", r -> r
                         .path("/api/v1/dispatch/**")
                         .filters(guarded("dispatch", userLimiter, userKey))
@@ -97,8 +103,9 @@ public class RoutesConfig {
                         .path("/api/v1/admin/reports/**")
                         .filters(guarded("reporting", userLimiter, userKey))
                         .uri(props.uri("reporting")))
+                // Document (Member 5): customer receipts and merchant invoices
                 .route("document", r -> r
-                        .path("/api/v1/receipts/**")
+                        .path("/api/v1/receipts/**", "/api/v1/invoices/**")
                         .filters(guarded("document", userLimiter, userKey))
                         .uri(props.uri("document")));
 

@@ -45,7 +45,7 @@ swiftdrop:
       identity: ${IDENTITY_URI:http://localhost:8081}
       parcel: ${PARCEL_URI:http://localhost:8082}
       merchant: ${MERCHANT_URI:http://localhost:8083}
-      pricing: ${PRICING_URI:http://localhost:8084}
+      pricing: ${PRICING_URI:http://localhost:8086}
       dispatch: ${DISPATCH_URI:http://localhost:8085}
       courier: ${COURIER_URI:http://localhost:8086}
       tracking: ${TRACKING_URI:http://localhost:8087}
@@ -53,7 +53,8 @@ swiftdrop:
       webhook: ${WEBHOOK_URI:http://localhost:8089}
       reporting: ${REPORTING_URI:http://localhost:8090}
       audit: ${AUDIT_URI:http://localhost:8091}
-      document: ${DOCUMENT_URI:http://localhost:8092}
+      document: ${DOCUMENT_URI:http://localhost:8087}
+      assistant: ${ASSISTANT_URI:http://localhost:8088}
     # Token bucket: replenish-rate tokens per second, up to burst-capacity; a request costs requested-tokens.
     rate-limits:
       user:          { replenish-rate: 10, burst-capacity: 20,  requested-tokens: 1 }   # 10 req/s per user
