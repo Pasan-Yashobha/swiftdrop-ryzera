@@ -1,0 +1,115 @@
+/*
+ * Not encapsulated (Leaflet builds its own DOM), so every selector is scoped under .rb-map*.
+ * Leaflet's own stylesheet is loaded globally from angular.json.
+ */
+app-route-map {
+  display: block;
+}
+
+.rb-map-wrap {
+  position: relative;
+}
+
+.rb-map {
+  /* Own stacking context: Leaflet's panes use z-index 400+ and must not cover the rest of the page. */
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  height: 22rem;
+  border-radius: 6px;
+  background: #e8ece9;
+  font-family: var(--rb-body, system-ui, sans-serif);
+}
+
+.rb-map .leaflet-control-attribution {
+  font-size: 0.65rem;
+}
+
+.rb-map .leaflet-control-zoom a {
+  color: var(--rb-ink, #0e1513);
+}
+
+.rb-map .rb-map-label {
+  padding: 0.1rem 0.4rem;
+  border: 2px solid var(--rb-ink, #0e1513);
+  border-radius: 4px;
+  background: #ffffff;
+  box-shadow: none;
+  color: var(--rb-ink, #0e1513);
+  font-family: var(--rb-heading, 'IBM Plex Sans Condensed', 'Arial Narrow', sans-serif);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.rb-map .rb-map-label::before {
+  display: none;
+}
+
+.rb-map-courier {
+  position: relative;
+}
+
+.rb-map-courier-dot,
+.rb-map-courier-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+}
+
+.rb-map-courier-dot {
+  inset: 3px;
+  border: 3px solid var(--rb-ink, #0e1513);
+  background: var(--rb-hivis, #ffc72c);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 35%);
+}
+
+.rb-map-courier-pulse {
+  display: none;
+  background: var(--rb-hivis, #ffc72c);
+  opacity: 0.55;
+}
+
+.rb-map-courier--live .rb-map-courier-pulse {
+  display: block;
+  animation: rb-map-pulse 2s ease-out infinite;
+}
+
+.rb-map-placeholder {
+  position: absolute;
+  z-index: 1;
+  right: 0.75rem;
+  bottom: 1.75rem;
+  left: 0.75rem;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: rgb(255 255 255 / 92%);
+  color: #4f5d57;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+@keyframes rb-map-pulse {
+  from {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+
+  to {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@media (max-width: 40rem) {
+  .rb-map {
+    height: 16rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rb-map-courier--live .rb-map-courier-pulse {
+    animation: none;
+    display: none;
+  }
+}

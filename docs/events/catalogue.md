@@ -22,10 +22,10 @@ catalogue as a diagram.
 
 | eventType | Producer | aggregateId | data | Consumers (queue) |
 |---|---|---|---|---|
-| `parcel.created` | parcel-service | parcelId | `parcelId, trackingNo, merchantId?, customerId` | merchant (`merchant.orders.q`), notification, webhook |
-| `parcel.assigned` | parcel-service | parcelId | `parcelId, trackingNo, courierId, merchantId?` | merchant, webhook, audit |
+| `parcel.created` | parcel-service | parcelId | `parcelId, trackingNo, merchantId?, customerId` | merchant (`merchant.orders.q`), notification, webhook, tracking |
+| `parcel.assigned` | parcel-service | parcelId | `parcelId, trackingNo, courierId, merchantId?` | merchant, webhook, audit, tracking |
 | `parcel.status.<status>` (`picked_up`, `in_transit`, `out_for_delivery`, `delivered`, `failed`, `rescheduled`, `returned`) | parcel-service | parcelId | `parcelId, trackingNo, fromStatus, toStatus, courierId, customerId, merchantId?, etaMinutes?, failureReason?` | merchant, notification, webhook, tracking, reporting; `delivered` also document (`document.receipts.q`) |
-| `parcel.cancelled` | parcel-service | parcelId | `parcelId, trackingNo, merchantId?, customerId, reason?` | merchant, notification, webhook |
+| `parcel.cancelled` | parcel-service | parcelId | `parcelId, trackingNo, merchantId?, customerId, reason?` | merchant, notification, webhook, tracking |
 | `courier.availability.changed` | courier-service | courierId | `courierId, available, zoneId?` | dispatch (`dispatch.courier.q`) |
 | `merchant.registered` | merchant-service | merchantId | `merchantId, businessName` | audit |
 | `merchant.approved` | merchant-service | merchantId | `merchantId, decidedBy` | notification (email to owner), audit |
@@ -76,6 +76,7 @@ otherwise RabbitMQ refuses the declaration with `PRECONDITION_FAILED`. When you 
 | `dispatch.courier.q` / `dispatch.courier.q.dlq` | dispatch (M6) | `courier.availability.changed` |
 | `audit.q` / `audit.dlq` | audit (M1) | `user.#`, `merchant.#`, `admin.#`, `parcel.assigned`, `webhook.delivery.#` |
 | `document.receipts.q` / `document.receipts.dlq` | document (M5) | `parcel.status.delivered` |
+| `tracking.q` / `tracking.q.dlq` | tracking (M8) | `parcel.#` (every parcel event), `courier.location.#` |
 
 Consumer DLQs are replayed by hand with "Move messages" in the RabbitMQ management UI (http://localhost:15672; the
 shovel plugins are enabled in docker-compose). Webhook deliveries also have a Replay button in the admin console.

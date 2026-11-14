@@ -43,7 +43,11 @@
 
     { "name": "document.receipts.q", "vhost": "/", "durable": true, "auto_delete": false,
       "arguments": { "x-dead-letter-exchange": "swiftdrop.dlx", "x-dead-letter-routing-key": "document.receipts.dlq" } },
-    { "name": "document.receipts.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {} }
+    { "name": "document.receipts.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {} },
+
+    { "name": "tracking.q", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "swiftdrop.dlx", "x-dead-letter-routing-key": "tracking.q.dlq" } },
+    { "name": "tracking.q.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {} }
   ],
   "bindings": [
     { "source": "swiftdrop.events", "vhost": "/", "destination": "notification.q", "destination_type": "queue", "routing_key": "parcel.created", "arguments": {} },
@@ -84,6 +88,10 @@
     { "source": "swiftdrop.dlx", "vhost": "/", "destination": "audit.dlq", "destination_type": "queue", "routing_key": "audit.dlq", "arguments": {} },
 
     { "source": "swiftdrop.events", "vhost": "/", "destination": "document.receipts.q", "destination_type": "queue", "routing_key": "parcel.status.delivered", "arguments": {} },
-    { "source": "swiftdrop.dlx", "vhost": "/", "destination": "document.receipts.dlq", "destination_type": "queue", "routing_key": "document.receipts.dlq", "arguments": {} }
+    { "source": "swiftdrop.dlx", "vhost": "/", "destination": "document.receipts.dlq", "destination_type": "queue", "routing_key": "document.receipts.dlq", "arguments": {} },
+
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "tracking.q", "destination_type": "queue", "routing_key": "parcel.#", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "tracking.q", "destination_type": "queue", "routing_key": "courier.location.#", "arguments": {} },
+    { "source": "swiftdrop.dlx", "vhost": "/", "destination": "tracking.q.dlq", "destination_type": "queue", "routing_key": "tracking.q.dlq", "arguments": {} }
   ]
 }

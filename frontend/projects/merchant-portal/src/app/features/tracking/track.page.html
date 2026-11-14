@@ -1,0 +1,200 @@
+<div class="page">
+  <header class="topbar">
+    <a class="brand" routerLink="/track" aria-label="SwiftDrop parcel tracking">Swift<span>Drop</span></a>
+    <span class="topbar-label">Track a parcel</span>
+    <form class="search" role="search" [formGroup]="form" (ngSubmit)="search()" novalidate>
+      <label class="visually-hidden" for="tracking-number">Tracking number</label>
+      <input
+        id="tracking-number"
+        type="text"
+        formControlName="trackingNo"
+        placeholder="SD-0000-0000"
+        autocomplete="off"
+        autocapitalize="characters"
+        spellcheck="false"
+        maxlength="40"
+        [attr.aria-invalid]="searchError() ? true : null"
+        [attr.aria-describedby]="searchError() ? 'tracking-number-error' : null"
+      />
+      <button type="submit" class="btn-hivis">Track</button>
+      @if (searchError(); as message) {
+        <p id="tracking-number-error" class="search-error" role="alert">{{ message }}</p>
+      }
+    </form>
+  </header>
+
+  <p class="visually-hidden" aria-live="polite">{{ announcement() }}</p>
+
+  <div class="content">
+    @switch (state()) {
+      @case ('idle') {
+        <section class="intro">
+          <p class="eyebrow">Island-wide courier</p>
+          <h1>Every parcel,<br />stop by stop.</h1>
+          <p class="intro-text">Enter your tracking number above. No account needed.</p>
+        </section>
+      }
+      @case ('loading') {
+        <section class="notice" role="status">
+          <p class="mono">Finding {{ tracking.trackingNo() }}…</p>
+        </section>
+      }
+      @case ('not-found') {
+        <section class="notice">
+          <h1>No parcel found</h1>
+          <p>
+            We could not find <span class="mono">{{ tracking.trackingNo() }}</span>. Check the number on your
+            receipt or message. A new parcel can take a minute to appear.
+          </p>
+          <p class="checked-note mono" role="status">
+            @if (tracking.lastChecked(); as checked) {
+              <span>Last checked {{ checked | date: 'HH:mm:ss' }}</span>
+            }
+            @if (tracking.lookingAgain()) {
+              <span> · checking again every few seconds</span>
+            }
+          </p>
+          <button type="button" class="btn-outline" (click)="retry()">Try again</button>
+        </section>
+      }
+      @case ('error') {
+        @if (!parcel()) {
+          <section class="notice" role="alert">
+            <h1>Tracking is not available right now</h1>
+            <p>{{ tracking.error()?.message }}</p>
+            @if (tracking.trackingNo()) {
+              <button type="button" class="btn-outline" (click)="retry()">Try again</button>
+            }
+          </section>
+        }
+      }
+    }
+
+    @if (parcel(); as p) {
+      <div class="layout">
+        <div class="main-column">
+          <section class="board" aria-labelledby="status-heading">
+            <div class="board-top">
+              <p class="board-meta mono">
+                {{ p.trackingNo }}
+                @if (route(); as r) {
+                  · {{ r }}
+                }
+              </p>
+              @if (badge(); as b) {
+                <span class="badge" [attr.data-tone]="b.tone">{{ b.text }}</span>
+              }
+            </div>
+            <div class="board-main">
+              <span class="board-stop mono" [attr.data-tone]="p.tone" aria-hidden="true">{{ stopNumber() }}</span>
+              <h1 id="status-heading" class="board-status" [attr.data-tone]="p.tone">{{ p.statusLabel }}</h1>
+              <div class="board-eta">
+                @if (p.deliveredAt) {
+                  <p class="eta-label">Delivered</p>
+                  <p class="eta-window">{{ p.deliveredAt | date: 'h:mm a' }}</p>
+                } @else if (eta(); as e) {
+                  <p class="eta-label">{{ e.label }}</p>
+                  <p class="eta-window">{{ e.window }}</p>
+                } @else if (p.failure) {
+                  <p class="eta-label">Attempt failed</p>
+                  <p class="eta-window eta-window--alert">{{ p.failure.label }}</p>
+                }
+              </div>
+            </div>
+            <app-transit-line [stops]="p.stops" />
+          </section>
+
+          <section class="card map-card" aria-label="Live map">
+            <app-route-map
+              [origin]="p.origin"
+              [destination]="p.destination"
+              [courier]="p.courier"
+              [delivered]="p.status === 'DELIVERED'"
+              [live]="tracking.isLive()"
+            />
+            @if (p.courier; as c) {
+              <p class="map-caption mono">
+                Courier position {{ c.at | date: 'HH:mm' }}
+                @if (c.distanceKm !== null) {
+                  · {{ c.distanceKm | number: '1.0-1' }} km from {{ p.destination?.city ?? 'you' }}
+                }
+              </p>
+            }
+          </section>
+
+          <section class="card history" aria-labelledby="history-heading">
+            <h2 id="history-heading" class="card-label">History</h2>
+            @if (p.history.length > 0) {
+              <ol class="history-list">
+                @for (entry of p.history; track entry.at + entry.status) {
+                  <li>
+                    <span class="history-time mono">{{ historyTime(entry) }}</span>
+                    <span>
+                      <strong>{{ entry.label }}</strong>
+                      @if (entry.location) {
+                        · {{ entry.location }}
+                      }
+                      @if (entry.note) {
+                        <span class="history-note"> · {{ entry.note }}</span>
+                      }
+                    </span>
+                  </li>
+                }
+              </ol>
+            } @else {
+              <p class="muted-text">No updates yet.</p>
+            }
+          </section>
+        </div>
+
+        <aside class="side-column" aria-label="Delivery information">
+          @if (p.courier; as c) {
+            <section class="card courier">
+              <span class="courier-icon" aria-hidden="true">GPS</span>
+              <div>
+                <p class="courier-title">Courier on the way</p>
+                <p class="muted-text">
+                  @if (c.distanceKm !== null) {
+                    {{ c.distanceKm | number: '1.0-1' }} km away ·
+                  }
+                  updated {{ c.at | date: 'HH:mm' }}
+                </p>
+              </div>
+            </section>
+          }
+
+          <section class="card parcel-details" aria-labelledby="details-heading">
+            <h2 id="details-heading" class="card-label">Delivery details</h2>
+            <dl>
+              @if (p.destination?.city) {
+                <dt>To</dt>
+                <dd>{{ p.destination?.city }}</dd>
+              }
+              @if (p.origin?.city) {
+                <dt>From</dt>
+                <dd>{{ p.origin?.city }}</dd>
+              }
+              @if (parcelLine(); as line) {
+                <dt>Parcel</dt>
+                <dd>{{ line }}</dd>
+              }
+            </dl>
+            <p class="privacy-note">Names, full addresses and phone numbers are never shown on public pages.</p>
+          </section>
+
+          <section class="card help" aria-labelledby="help-heading">
+            <h2 id="help-heading" class="help-title">{{ help().title }}</h2>
+            <p>{{ help().text }}</p>
+            <a class="btn-outline btn-block" routerLink="/login">{{ help().action }}</a>
+          </section>
+
+          @if (tracking.error() && state() === 'polling') {
+            <p class="stale-note" role="status">
+              Showing the last known status from {{ tracking.lastUpdated() | date: 'HH:mm' }}. Reconnecting…
+            </p>
+          }
+        </aside>
+      </div>
+    }
+  </div>
+</div>

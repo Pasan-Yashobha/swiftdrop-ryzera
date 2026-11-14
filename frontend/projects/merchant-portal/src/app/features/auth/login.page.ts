@@ -17,6 +17,7 @@ import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid';
 import { AppError, toAppError } from '../../core/http/app-error';
 import { AuthUser } from '../../core/models/auth.model';
 import { safeReturnUrl } from '../../core/auth/return-url';
+import { openTrackingPage } from '../../core/tracking/quick-track';
 
 const INVALID_CREDENTIALS = new AppError(
   401,
@@ -64,8 +65,8 @@ export class LoginPage {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   protected quickTrack(code: string): void {
-    const trimmed = (code || 'SD-0000-0000').trim().toUpperCase();
-    this.quickTrackStatus.set(`Parcel ${trimmed}: In Transit — Out for Delivery today by 4:30 PM`);
+    // Opens the public tracking page (Member 8); only an impossible number leaves a hint here.
+    this.quickTrackStatus.set(openTrackingPage(this.router, code));
   }
 
   protected submit(): void {

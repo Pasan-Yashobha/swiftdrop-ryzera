@@ -7,11 +7,12 @@ import {
   ViewEncapsulation,
 } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { AuthApiService } from '../../core/auth/auth-api.service';
 import { toAppError } from '../../core/http/app-error';
 import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid';
 import { notBlank } from '../../shared/forms/validators';
+import { openTrackingPage } from '../../core/tracking/quick-track';
 
 @Component({
   selector: 'app-forgot-password-page',
@@ -23,6 +24,7 @@ import { notBlank } from '../../shared/forms/validators';
 })
 export class ForgotPasswordPage {
   private readonly authApi = inject(AuthApiService);
+  private readonly router = inject(Router);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   protected readonly form = new FormGroup({
@@ -36,8 +38,8 @@ export class ForgotPasswordPage {
   protected readonly quickTrackStatus = signal<string | null>(null);
 
   protected quickTrack(code: string): void {
-    const trimmed = (code || 'SD-0000-0000').trim().toUpperCase();
-    this.quickTrackStatus.set(`Parcel ${trimmed}: In Transit — Out for Delivery today by 4:30 PM`);
+    // Opens the public tracking page (Member 8); only an impossible number leaves a hint here.
+    this.quickTrackStatus.set(openTrackingPage(this.router, code));
   }
 
   protected submit(): void {

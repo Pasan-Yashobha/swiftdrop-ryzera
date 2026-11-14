@@ -32,7 +32,11 @@
               }
             ],
             "styles": [
+              "node_modules/leaflet/dist/leaflet.css",
               "projects/merchant-portal/src/styles.css"
+            ],
+            "allowedCommonJsDependencies": [
+              "leaflet"
             ]
           },
           "configurations": {
@@ -103,6 +107,7 @@
               }
             ],
             "styles": [
+              "node_modules/leaflet/dist/leaflet.css",
               "projects/merchant-portal/src/styles.css"
             ]
           }

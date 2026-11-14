@@ -175,6 +175,33 @@ services:
       - "8084:8080"
     networks: [ swiftdrop ]
 
+  tracking:
+    build:
+      context: ./services/tracking
+    restart: unless-stopped
+    # Longer than the 30 s graceful shutdown of the service, or Docker kills it after 10 s.
+    stop_grace_period: 40s
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${TRACKING_SPRING_PROFILES:-dev}
+      SERVER_PORT: 8080
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-dev_redis_pw}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-swiftdrop}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev_rabbit_pw}
+      CORS_ALLOWED_ORIGINS: ${TRACKING_CORS_ALLOWED_ORIGINS:-http://localhost:4201,http://localhost:4200}
+    ports:
+      # 8087 is the port the gateway (M1) gives the tracking service; 8088 belongs to notification (M9).
+      - "8087:8080"
+    networks: [ swiftdrop ]
+
   notification:
     build:
       context: ./services/notification
@@ -275,6 +302,7 @@ services:
       - merchant
     environment:
       API_UPSTREAM: ${MERCHANT_PORTAL_API_UPSTREAM:-http://merchant:8080}
+      TRACKING_UPSTREAM: ${MERCHANT_PORTAL_TRACKING_UPSTREAM:-http://tracking:8080}
     ports:
       - "4201:8080"
     networks: [ swiftdrop ]
