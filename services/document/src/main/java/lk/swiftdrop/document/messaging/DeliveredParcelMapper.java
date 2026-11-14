@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.Optional;
 import java.util.UUID;
 import lk.swiftdrop.document.receipt.ReceiptRequest;
@@ -17,7 +18,8 @@ import org.springframework.stereotype.Component;
  *
  * <p>Expected in {@code data}: {@code parcelId}, {@code trackingNo}, {@code customerId} and a {@code pricing} object
  * ({@code baseAmount, weightAmount, sizeAmount, expressAmount, discountAmount, totalAmount}, numbers or decimal
- * strings). The delivery time is the event's {@code occurredAt}. If any of that is missing and a Parcel URL is
+ * strings). The delivery time is {@code data.deliveredAt} (UTC ISO-8601), or the envelope's {@code occurredAt} when
+ * the event does not carry it. If any of that is missing and a Parcel URL is
  * configured, the Parcel service is asked for it. This is the one place that knows Parcel's field names, so the
  * contract with the Parcel service can change here without touching anything else.
  */
@@ -64,14 +66,25 @@ public class DeliveredParcelMapper {
         BigDecimal discount = optionalMoney(pricing, "discountAmount");
         BigDecimal total = pricing.hasNonNull("totalAmount") ? money(pricing, "totalAmount")
                 : base.add(weight).add(size).add(express).subtract(discount);
-        return Optional.of(new ReceiptRequest(parcelId, customerId, tracking, deliveredAt(event.occurredAt()),
+        return Optional.of(new ReceiptRequest(parcelId, customerId, tracking, deliveredAt(data, event.occurredAt()),
                 base, weight, size, express, discount, total));
     }
 
-    private Instant deliveredAt(Instant occurredAt) {
+    /**
+     * The real delivery time is {@code data.deliveredAt} (agreed with the Parcel service); {@code occurredAt} is
+     * when the event was created and is only the fallback for events without it.
+     */
+    private Instant deliveredAt(JsonNode data, Instant occurredAt) {
+        String reported = text(data, "deliveredAt");
+        Instant delivered;
+        try {
+            delivered = reported != null ? Instant.parse(reported) : occurredAt;
+        } catch (DateTimeParseException exception) {
+            throw new PermanentEventException("deliveredAt is not an ISO-8601 time");
+        }
         Instant now = clock.instant();
-        if (!occurredAt.isAfter(now)) return occurredAt;
-        if (occurredAt.isBefore(now.plus(CLOCK_SKEW))) return now;
+        if (!delivered.isAfter(now)) return delivered;
+        if (delivered.isBefore(now.plus(CLOCK_SKEW))) return now;
         throw new PermanentEventException("The delivery time is in the future");
     }
 

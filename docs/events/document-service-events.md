@@ -59,16 +59,28 @@ event cannot be addressed to a webhook.
 
 ### `parcel.status.delivered` (queue `document.receipts.q`)
 
-Bound with the routing key `parcel.status.delivered`. **The field names below are a proposal that Member 4 still has
-to confirm**; they are read in one class (`DeliveredParcelMapper`), so changing them is a small change.
+Bound with the routing key `parcel.status.delivered`. The fields below were **agreed with Member 4 (Parcel)**; the
+Parcel service is not built yet, and they are read in one class (`DeliveredParcelMapper`), so any later change stays
+small.
 
 ```json
-{ "parcelId": "uuid", "trackingNo": "SD-2641-7788", "customerId": "Identity user id",
+{ "parcelId": "uuid", "trackingNo": "SD-2641-7788", "customerId": "Identity user id (JWT subject)",
+  "deliveredAt": "2026-11-11T10:00:00Z",
+  "merchantId": "optional", "courierId": "optional",
   "pricing": { "baseAmount": 300.00, "weightAmount": 200.00, "sizeAmount": 50.00,
-               "expressAmount": 137.50, "discountAmount": 68.75, "totalAmount": 618.75 } }
+               "expressAmount": 137.50, "discountAmount": 68.75, "totalAmount": 618.75, "currency": "LKR" } }
 ```
 
-- The delivery time is the envelope's `occurredAt`.
+- `parcelId` and `trackingNo` are required. `customerId` is the customer's Identity user id; a parcel without one
+  (a merchant's parcel) gets no receipt, because merchants are invoiced instead.
+- The delivery time is `data.deliveredAt` (UTC ISO-8601, the moment of delivery). The envelope's `occurredAt` is when
+  the event was created and is only used when `deliveredAt` is missing. An unreadable `deliveredAt`, or one more
+  than 5 minutes in the future, is a permanent failure (dead-letter queue).
+- `pricing` is the snapshot the Parcel service received from Pricing when it accepted the quote at booking
+  (`POST /internal/quotes/{quoteId}/accept`, see `services/pricing/README.md`); its `pricing` object has exactly
+  these field names, so Parcel can copy it as it is. Receipts never recalculate prices.
+- The Parcel service publishes the event through its transactional outbox once per transition to `DELIVERED`
+  (a terminal state). Delivery is at-least-once, so this consumer deduplicates on `eventId`.
 - Amounts may be numbers or decimal strings. `expressAmount` and `discountAmount` default to 0; `totalAmount`
   defaults to the sum and, when given, must equal base + weight + size + express - discount.
 - If `customerId`, `trackingNo` or `pricing` are missing and `DOCUMENT_PARCEL_URL` is set, the service asks
