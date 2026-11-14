@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import jakarta.servlet.FilterChain;
@@ -83,7 +84,8 @@ class InternalReceiptPdfTest {
         var receipt = receipt();
         String url = "/internal/receipts/" + receipt.id() + "/pdf";
         mvc.perform(get(url)).andExpect(status().isUnauthorized());
-        mvc.perform(get(url).header("X-Internal-Token", "wrong-token")).andExpect(status().isUnauthorized());
+        mvc.perform(get(url).header("X-Internal-Token", "wrong-token")).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
         mvc.perform(get(url).header("X-Internal-Token", "")).andExpect(status().isUnauthorized());
         // a user's real, validly signed JWT is not an internal credential
         mvc.perform(get(url).header("Authorization", TestTokens.bearer("admin-1", "ADMIN"))).andExpect(status().isUnauthorized());

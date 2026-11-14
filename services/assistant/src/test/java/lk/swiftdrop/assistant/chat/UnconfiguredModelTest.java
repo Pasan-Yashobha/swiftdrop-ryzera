@@ -33,7 +33,7 @@ class UnconfiguredModelTest {
         var response = rest.exchange("/api/v1/assistant/chat", HttpMethod.POST,
                 new HttpEntity<>(Map.of("message", "hi"), headers), JsonNode.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
-        assertThat(response.getBody().get("detail").asText()).contains("not configured");
+        assertThat(response.getBody().get("message").asText()).contains("not configured");
     }
 
     @Test

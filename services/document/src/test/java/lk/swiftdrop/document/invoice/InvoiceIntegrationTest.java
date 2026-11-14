@@ -142,7 +142,10 @@ class InvoiceIntegrationTest {
         invoices.generate(request("merchant-b", OCT_1, OCT_31, List.of(line("SD-2001-0001", "Colombo to Jaffna", "900.00"))));
 
         mvc.perform(get("/api/v1/invoices/" + mine.id()).with(user("merchant-b", "MERCHANT")))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("Invoice not found"))
+                .andExpect(jsonPath("$.path").value("/api/v1/invoices/" + mine.id()));
         mvc.perform(get("/api/v1/invoices/" + mine.id() + "/download").with(user("merchant-b", "MERCHANT")))
                 .andExpect(status().isNotFound());
         mvc.perform(get("/api/v1/invoices").with(user("merchant-a", "MERCHANT")))
@@ -160,10 +163,12 @@ class InvoiceIntegrationTest {
     @Test
     void onlyAdminGeneratesAndOnlyMerchantsOrAdminRead() throws Exception {
         var request = request("merchant-a", OCT_1, OCT_31, threeLines());
-        generateAs("merchant-a", "MERCHANT", request).andExpect(status().isForbidden());
+        generateAs("merchant-a", "MERCHANT", request).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
         generateAs("customer-a", "CUSTOMER", request).andExpect(status().isForbidden());
         mvc.perform(post("/api/v1/invoices/generate").contentType(MediaType.APPLICATION_JSON)
-                .content(mapper.writeValueAsString(request))).andExpect(status().isUnauthorized());
+                .content(mapper.writeValueAsString(request))).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
         assertThat(count("invoice")).isZero();
 
         var invoice = invoices.generate(request);
@@ -241,7 +246,9 @@ class InvoiceIntegrationTest {
         var tooMany = IntStream.range(0, InvoiceRequest.MAX_LINES + 1)
                 .mapToObj(i -> line("SD-" + i, "Parcel " + i, "1.00")).toList();
 
-        generateAs("admin", "ADMIN", request("merchant-a", OCT_1, OCT_31, List.of())).andExpect(status().isBadRequest());
+        generateAs("admin", "ADMIN", request("merchant-a", OCT_1, OCT_31, List.of())).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.details[0].field").value("lines"));
         generateAs("admin", "ADMIN", request("merchant-a", OCT_31, OCT_1, one)).andExpect(status().isBadRequest());
         generateAs("admin", "ADMIN", request("merchant-a", OCT_1, OCT_31, twice)).andExpect(status().isBadRequest());
         generateAs("admin", "ADMIN", request("merchant-a", OCT_1, OCT_31, tooMany)).andExpect(status().isBadRequest());

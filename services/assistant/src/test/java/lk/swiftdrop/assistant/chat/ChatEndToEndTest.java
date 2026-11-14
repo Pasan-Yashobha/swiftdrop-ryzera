@@ -168,7 +168,9 @@ class ChatEndToEndTest {
                 .isEqualTo(HttpStatus.BAD_REQUEST);
         var tooLong = post(bearer, Map.of("message", "x".repeat(1001)));
         assertThat(tooLong.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(tooLong.getBody().get("detail").asText()).contains("too long");
+        assertThat(tooLong.getBody().get("message").asText()).contains("too long");
+        assertThat(tooLong.getBody().get("code").asText()).isEqualTo("BAD_REQUEST");
+        assertThat(tooLong.getBody().get("path").asText()).isEqualTo("/api/v1/assistant/chat");
         assertThat(llm.calls()).isEmpty();
     }
 
@@ -178,7 +180,9 @@ class ChatEndToEndTest {
                 "The AI model is busy right now (usage limit reached). Please try again in a minute"); });
         var response = post(TestTokens.bearer("customer-1", "CUSTOMER"), Map.of("message", "hi"));
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
-        assertThat(response.getBody().get("detail").asText()).contains("busy right now");
+        assertThat(response.getBody().get("message").asText()).contains("busy right now");
+        assertThat(response.getBody().get("code").asText()).isEqualTo("SERVICE_UNAVAILABLE");
+        assertThat(response.getBody().get("correlationId").asText()).isNotBlank();
         assertThat(response.getBody().toString()).doesNotContain("Exception", "at lk.swiftdrop");
     }
 

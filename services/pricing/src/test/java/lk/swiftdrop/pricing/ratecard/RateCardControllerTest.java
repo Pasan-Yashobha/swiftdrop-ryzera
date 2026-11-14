@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.UUID;
+import lk.swiftdrop.pricing.common.ApiErrorWriter;
 import lk.swiftdrop.pricing.config.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +20,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(RateCardController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, ApiErrorWriter.class})
 class RateCardControllerTest {
     private static final String PATH = "/api/v1/admin/rate-cards";
     @Autowired MockMvc mvc;
