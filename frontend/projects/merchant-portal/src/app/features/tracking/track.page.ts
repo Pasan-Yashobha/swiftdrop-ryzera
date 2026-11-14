@@ -115,6 +115,11 @@ export class TrackPage implements OnChanges {
       return;
     }
     this.searchError.set(null);
+    if (trackingNo === this.tracking.trackingNo()) {
+      // Same page already open: navigating would do nothing, so ask the server again instead.
+      this.tracking.refresh();
+      return;
+    }
     void this.router.navigate(['/track', trackingNo]);
   }
 

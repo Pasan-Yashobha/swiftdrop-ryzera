@@ -22,6 +22,7 @@ import {
   sameAsSibling,
 } from '../../shared/forms/validators';
 import { normalizePhone } from '../../shared/util/phone';
+import { openTrackingPage } from '../../core/tracking/quick-track';
 
 const EMAIL_TAKEN = new AppError(
   409,
@@ -76,8 +77,8 @@ export class SignupPage {
   protected readonly quickTrackStatus = signal<string | null>(null);
 
   protected quickTrack(code: string): void {
-    const trimmed = (code || 'SD-0000-0000').trim().toUpperCase();
-    this.quickTrackStatus.set(`Parcel ${trimmed}: In Transit — Out for Delivery today by 4:30 PM`);
+    // Opens the public tracking page (Member 8); only an impossible number leaves a hint here.
+    this.quickTrackStatus.set(openTrackingPage(this.router, code));
   }
 
   private readonly password = toSignal(this.form.controls.password.valueChanges, {

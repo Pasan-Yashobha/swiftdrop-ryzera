@@ -6,6 +6,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { PublicTracking } from '../../core/models/tracking.model';
 import { FakeEventSource } from '../../core/testing/fake-event-source';
 import { aTracking, stopsAt } from '../../core/testing/tracking-data';
+import { MAP_TILES } from '../../core/tracking/map-tiles';
 import { EVENT_SOURCE_FACTORY } from '../../core/tracking/tracking.api';
 import { TrackPage } from './track.page';
 
@@ -28,6 +29,7 @@ describe('TrackPage (public tracking)', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: EVENT_SOURCE_FACTORY, useValue: FakeEventSource.factory },
+        { provide: MAP_TILES, useValue: { url: '', attribution: '', maxZoom: 18 } },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -69,7 +71,7 @@ describe('TrackPage (public tracking)', () => {
     expect(text('.eta-label')).toBe('Arriving today');
     expect(text('.eta-window')).toMatch(/^\d{1,2}:\d{2}( [AP]M)? – \d{1,2}:\d{2} [AP]M$/);
     expect(page().querySelectorAll('app-transit-line li').length).toBe(5);
-    expect(page().querySelector('app-route-map svg')).not.toBeNull();
+    expect(page().querySelector('app-route-map .rb-map.leaflet-container')).not.toBeNull();
     expect(page().querySelectorAll('.history-list li').length).toBe(4);
     expect(text('.history-list li')).toContain('Out for delivery · Kandy hub');
     expect(text('.parcel-details')).toContain('Kandy');
@@ -128,12 +130,37 @@ describe('TrackPage (public tracking)', () => {
     expect(page().querySelector('#status-heading')?.getAttribute('data-tone')).toBe('EXCEPTION');
   });
 
-  it('says so when the parcel is not found', async () => {
+  it('says so when the parcel is not found, and says when it last checked', async () => {
     await open('SD-9999-9999', null);
 
     expect(text('.notice h1')).toBe('No parcel found');
     expect(text('.notice')).toContain('SD-9999-9999');
+    expect(text('.checked-note')).toMatch(/^Last checked \d{2}:\d{2}:\d{2} · checking again every few seconds$/);
     expect(FakeEventSource.instances.length).toBe(0);
+  });
+
+  it('finds the parcel when "Try again" is pressed after it was created', async () => {
+    await open('SD-9999-9999', null);
+
+    page().querySelector<HTMLButtonElement>('.notice button')!.click();
+    harness.detectChanges();
+    expect(text('.notice')).toContain('Finding SD-9999-9999');
+
+    http.expectOne('/api/v1/tracking/SD-9999-9999').flush(aTracking({ trackingNo: 'SD-9999-9999' }));
+    harness.detectChanges();
+    expect(text('#status-heading')).toBe('Out for delivery');
+  });
+
+  it('checks again when Track is pressed for the number already shown', async () => {
+    await open('SD-9999-9999', null);
+
+    page().querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
+    harness.detectChanges();
+
+    http.expectOne('/api/v1/tracking/SD-9999-9999').flush(aTracking({ trackingNo: 'SD-9999-9999' }));
+    harness.detectChanges();
+    expect(text('#status-heading')).toBe('Out for delivery');
+    expect(TestBed.inject(Router).url).toBe('/track/SD-9999-9999');
   });
 
   it('searches by number and normalises it', async () => {

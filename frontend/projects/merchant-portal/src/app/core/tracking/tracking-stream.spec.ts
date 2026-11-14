@@ -23,7 +23,7 @@ describe('TrackingStream (shared real-time tracking hook)', () => {
     });
     http = TestBed.inject(HttpTestingController);
     stream = TestBed.runInInjectionContext(() =>
-      injectTrackingStream({ pollIntervalMs: 1_000, streamRetryMs: 5_000 }),
+      injectTrackingStream({ pollIntervalMs: 1_000, streamRetryMs: 5_000, notFoundRetryMs: 2_000, notFoundRetries: 2 }),
     );
   });
 
@@ -130,17 +130,54 @@ describe('TrackingStream (shared real-time tracking hook)', () => {
     http.expectNone(URL);
   }));
 
-  it('reports an unknown parcel without opening a stream', fakeAsync(() => {
+  it('reports an unknown parcel, looks it up again a few times, then stops', fakeAsync(() => {
+    const notFound = { code: 'TRACKING_NOT_FOUND', message: 'No parcel was found' };
     stream.watch(NO);
-    http
-      .expectOne(URL)
-      .flush({ code: 'TRACKING_NOT_FOUND', message: 'No parcel was found' }, { status: 404, statusText: 'Not Found' });
+    http.expectOne(URL).flush(notFound, { status: 404, statusText: 'Not Found' });
 
     expect(stream.state()).toBe('not-found');
     expect(stream.error()?.code).toBe('TRACKING_NOT_FOUND');
+    expect(stream.lastChecked()).not.toBeNull();
+    expect(stream.lookingAgain()).toBeTrue();
     expect(FakeEventSource.instances.length).toBe(0);
-    tick(5_000);
+
+    tick(2_000);
+    http.expectOne(URL).flush(notFound, { status: 404, statusText: 'Not Found' });
+    tick(2_000);
+    http.expectOne(URL).flush(notFound, { status: 404, statusText: 'Not Found' });
+
+    expect(stream.lookingAgain()).toBeFalse();
+    tick(10_000);
     http.expectNone(URL);
+  }));
+
+  it('opens the parcel as soon as a later look-up finds it', fakeAsync(() => {
+    stream.watch(NO);
+    http.expectOne(URL).flush({ code: 'TRACKING_NOT_FOUND' }, { status: 404, statusText: 'Not Found' });
+
+    tick(2_000);
+    http.expectOne(URL).flush(aTracking());
+
+    expect(stream.state()).toBe('connecting');
+    expect(stream.lookingAgain()).toBeFalse();
+    expect(FakeEventSource.instances.length).toBe(1);
+    tick(10_000);
+    http.expectNone(URL);
+    discardPeriodicTasks();
+  }));
+
+  it('shows the loading state again when "Try again" is pressed on a missing parcel', fakeAsync(() => {
+    stream.watch(NO);
+    http.expectOne(URL).flush({ code: 'TRACKING_NOT_FOUND' }, { status: 404, statusText: 'Not Found' });
+
+    stream.refresh();
+
+    expect(stream.state()).toBe('loading');
+    http.expectOne(URL).flush({ code: 'TRACKING_NOT_FOUND' }, { status: 404, statusText: 'Not Found' });
+    expect(stream.state()).toBe('not-found');
+    expect(stream.lookingAgain()).toBeTrue();
+    stream.stop();
+    expect(stream.lookingAgain()).toBeFalse();
   }));
 
   it('rejects an impossible number without calling the server', () => {

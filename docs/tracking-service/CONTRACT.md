@@ -143,7 +143,8 @@ service receives simulated events.
 | `core/tracking/tracking.api.ts` | `TrackingApi` (GET), `normalizeTrackingNo()`, `EVENT_SOURCE_FACTORY` (replaced by a fake in specs). |
 | `core/models/tracking.model.ts` | TypeScript shape of `PublicTrackingResponse`. |
 | `shared/ui/transit-line/` | `<app-transit-line [stops]="..." variant="board|light">`, the numbered-stops line, reusable on "My parcels". |
-| `features/tracking/route-map/` | SVG route map: no map tiles or third-party scripts, so it works under the portal's content security policy. |
+| `features/tracking/route-map/` | Live street map (Leaflet 1.9): covered route in lagoon green, the rest dashed, a pulsing courier dot. Fits the route once, then only pans when the courier leaves the view. Leaflet is only in the lazy `/track` chunk. |
+| `core/tracking/map-tiles.ts` | `MAP_TILES` token: the tile server (default OpenStreetMap's standard tiles, no key, attribution shown on the map). Specs provide `{ url: '' }` so tests never call the network. To change provider, provide the token and allow the host in the nginx `img-src` policy (it currently allows `https://tile.openstreetmap.org`). CARTO's free tiles need an API key since 25 September 2026. |
 
 Using the hook in any component:
 
@@ -157,6 +158,10 @@ It loads the current state, opens the SSE stream, applies only newer versions, f
 the stream is down (and reopens it after 30 s if the browser gave up), stops everything when the parcel is delivered,
 returned or cancelled, and cleans up when the component is destroyed. `state()` is one of `idle`, `loading`,
 `connecting`, `live`, `polling`, `finished`, `not-found`, `error`.
+
+An unknown number is looked up again every 5 s for 2 minutes (`lookingAgain()`, `lastChecked()`), because a new parcel
+reaches the Tracking Service a moment after it is created. `refresh()` ("Try again", or Track with the same number)
+shows `loading` again and restarts those look-ups.
 
 Routing of `/api/v1/tracking`: the dev server proxies it to `localhost:8088` (`proxy.conf.json`); the portal container's
 nginx sends it to `TRACKING_UPSTREAM` (default `http://tracking:8080`) with buffering off for the event stream. Once the

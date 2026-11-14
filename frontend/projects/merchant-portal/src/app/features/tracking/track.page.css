@@ -230,6 +230,11 @@
   background: #ffffff;
 }
 
+.checked-note {
+  color: var(--rb-muted);
+  font-size: 0.8rem;
+}
+
 .notice h1 {
   font-family: var(--rb-heading);
   font-size: 1.75rem;

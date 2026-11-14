@@ -27,9 +27,18 @@ export interface TrackingStreamOptions {
   pollIntervalMs: number;
   /** How long to wait before opening a new stream after the browser gave up on the old one. */
   streamRetryMs: number;
+  /** A number that is not found yet is looked up again this often (a new parcel can take a moment to appear). */
+  notFoundRetryMs: number;
+  /** ...this many times before giving up (24 x 5 s = 2 minutes). */
+  notFoundRetries: number;
 }
 
-const DEFAULT_OPTIONS: TrackingStreamOptions = { pollIntervalMs: 15_000, streamRetryMs: 30_000 };
+const DEFAULT_OPTIONS: TrackingStreamOptions = {
+  pollIntervalMs: 15_000,
+  streamRetryMs: 30_000,
+  notFoundRetryMs: 5_000,
+  notFoundRetries: 24,
+};
 
 /** EventSource.CLOSED: the browser will not reconnect by itself (HTTP error or server refused). */
 const EVENT_SOURCE_CLOSED = 2;
@@ -63,6 +72,8 @@ export class TrackingStream {
   private readonly errorState = signal<AppError | null>(null);
   private readonly updatedState = signal<Date | null>(null);
   private readonly watchedState = signal<string | null>(null);
+  private readonly checkedState = signal<Date | null>(null);
+  private readonly lookingState = signal(false);
 
   /** Latest known state of the watched parcel. Kept while reconnecting so the page never goes blank. */
   readonly parcel: Signal<PublicTracking | null> = this.parcelState.asReadonly();
@@ -74,11 +85,17 @@ export class TrackingStream {
   /** The canonical tracking number being watched. */
   readonly trackingNo: Signal<string | null> = this.watchedState.asReadonly();
   readonly isLive = computed(() => this.liveState() === 'live');
+  /** When the server was last asked (found or not), so a "Try again" visibly does something. */
+  readonly lastChecked: Signal<Date | null> = this.checkedState.asReadonly();
+  /** True while a not-found number is being looked up again automatically. */
+  readonly lookingAgain: Signal<boolean> = this.lookingState.asReadonly();
 
   private source: EventSource | null = null;
   private request: Subscription | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private lookTimer: ReturnType<typeof setInterval> | null = null;
+  private lookAttempts = 0;
 
   constructor(
     private readonly api: TrackingApi,
@@ -111,12 +128,22 @@ export class TrackingStream {
     this.load(trackingNo);
   }
 
-  /** Reads the current state once more (a manual "refresh"). */
+  /**
+   * Reads the current state once more (a manual "Try again" or "Track" with the same number). From a not-found or
+   * error screen it shows the loading state again and restarts the automatic look-ups.
+   */
   refresh(): void {
     const trackingNo = this.watchedState();
-    if (trackingNo !== null && this.request === null) {
-      this.load(trackingNo);
+    if (trackingNo === null || this.request !== null) {
+      return;
     }
+    const state = this.liveState();
+    if (state === 'not-found' || (state === 'error' && this.parcelState() === null)) {
+      this.stopLooking();
+      this.lookAttempts = 0;
+      this.liveState.set('loading');
+    }
+    this.load(trackingNo);
   }
 
   /** Stops watching and releases the stream, timers and pending request. */
@@ -124,9 +151,12 @@ export class TrackingStream {
     this.closeStream();
     this.stopPolling();
     this.clearRetry();
+    this.stopLooking();
+    this.lookAttempts = 0;
     this.request?.unsubscribe();
     this.request = null;
     this.watchedState.set(null);
+    this.checkedState.set(null);
     this.parcelState.set(null);
     this.errorState.set(null);
     this.updatedState.set(null);
@@ -138,6 +168,8 @@ export class TrackingStream {
     this.request = this.api.get(trackingNo).subscribe({
       next: (parcel) => {
         this.request = null;
+        this.checkedState.set(new Date());
+        this.stopLooking();
         this.apply(parcel);
         if (this.liveState() === 'finished' || this.watchedState() !== trackingNo) {
           return;
@@ -150,6 +182,7 @@ export class TrackingStream {
       },
       error: (error: unknown) => {
         this.request = null;
+        this.checkedState.set(new Date());
         this.fail(toAppError(error));
       },
     });
@@ -229,6 +262,9 @@ export class TrackingStream {
       this.stopPolling();
       this.clearRetry();
       this.liveState.set(error.status === 404 ? 'not-found' : 'error');
+      if (error.status === 404) {
+        this.lookAgainLater();
+      }
       return;
     }
     // Network or server trouble: keep what we have and try again on the polling schedule.
@@ -236,6 +272,37 @@ export class TrackingStream {
       this.liveState.set('error');
     }
     this.startPolling();
+  }
+
+  /** Not found yet: ask again every notFoundRetryMs, notFoundRetries times at most. */
+  private lookAgainLater(): void {
+    if (this.lookTimer !== null || this.lookAttempts >= this.options.notFoundRetries) {
+      this.lookingState.set(this.lookTimer !== null);
+      return;
+    }
+    this.lookingState.set(true);
+    this.lookTimer = setInterval(() => {
+      const trackingNo = this.watchedState();
+      if (trackingNo === null) {
+        this.stopLooking();
+        return;
+      }
+      this.lookAttempts++;
+      if (this.lookAttempts >= this.options.notFoundRetries) {
+        this.stopLooking();
+      }
+      if (this.request === null) {
+        this.load(trackingNo);
+      }
+    }, this.options.notFoundRetryMs);
+  }
+
+  private stopLooking(): void {
+    if (this.lookTimer !== null) {
+      clearInterval(this.lookTimer);
+      this.lookTimer = null;
+    }
+    this.lookingState.set(false);
   }
 
   private startPolling(): void {

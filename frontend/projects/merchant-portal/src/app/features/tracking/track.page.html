@@ -46,6 +46,14 @@
             We could not find <span class="mono">{{ tracking.trackingNo() }}</span>. Check the number on your
             receipt or message. A new parcel can take a minute to appear.
           </p>
+          <p class="checked-note mono" role="status">
+            @if (tracking.lastChecked(); as checked) {
+              <span>Last checked {{ checked | date: 'HH:mm:ss' }}</span>
+            }
+            @if (tracking.lookingAgain()) {
+              <span> · checking again every few seconds</span>
+            }
+          </p>
           <button type="button" class="btn-outline" (click)="retry()">Try again</button>
         </section>
       }
