@@ -14,6 +14,13 @@ import { Spinner } from '../../shared/ui/spinner/spinner';
 /** Weight limits enforced by the Pricing service: above 0 and at most 20 kg, three decimals. */
 export const MAX_WEIGHT_KG = 20;
 
+/** Short descriptions on the size cards, as in the design (page 6). */
+const SIZE_HINTS: Readonly<Record<SizeClass, string>> = {
+  SMALL: 'Envelopes & compact parcels',
+  MEDIUM: 'Boxes & medium parcels',
+  LARGE: 'Bulky parcels',
+};
+
 /**
  * Delivery fee estimate for customers and merchants (Pricing service, Strategy pattern on the server).
  * The quote is itemised and stored by the server; any change to the form clears it so an old price is
@@ -24,7 +31,7 @@ export const MAX_WEIGHT_KG = 20;
   imports: [ReactiveFormsModule, DatePipe, MoneyPipe, ErrorAlert, FieldControl, FormField, Spinner],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './estimate.page.html',
-  styleUrl: './pricing.css',
+  styleUrls: ['../route-board.css', './pricing.css'],
 })
 export class EstimatePage {
   private readonly api = inject(PricingApi);
@@ -115,5 +122,9 @@ export class EstimatePage {
 
   protected sizeLabel(size: SizeClass): string {
     return size.charAt(0) + size.slice(1).toLowerCase();
+  }
+
+  protected sizeHint(size: SizeClass): string {
+    return SIZE_HINTS[size];
   }
 }

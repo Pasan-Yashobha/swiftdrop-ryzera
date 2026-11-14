@@ -1,13 +1,14 @@
 <div class="page">
   <div class="page__header">
     <div>
-      <h1>Delivery fee estimate</h1>
+      <p class="rb-eyebrow">Delivery fee estimate</p>
+      <h1>Where is it going?</h1>
       <p class="page__lead">See the exact price of a delivery before you book it.</p>
     </div>
   </div>
 
   <div class="estimate-layout">
-    <form class="card stack" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <form class="stack" [formGroup]="form" (ngSubmit)="submit()" novalidate>
       @if (zonesLoading()) {
         <app-spinner label="Loading delivery zones" />
       } @else if (zonesError(); as zonesError) {
@@ -16,26 +17,55 @@
         <p class="alert alert--info">No delivery zones are open yet. Please try again later.</p>
       }
 
-      <div class="grid-2">
-        <app-form-field label="Pick up from" [control]="form.controls.originZone">
-          <select appFieldControl [formControl]="form.controls.originZone">
-            <option value="">Choose a zone</option>
-            @for (zone of zones(); track zone.id) {
-              <option [value]="zone.code">{{ zone.name }}</option>
-            }
-          </select>
-        </app-form-field>
-        <app-form-field label="Deliver to" [control]="form.controls.destinationZone">
-          <select appFieldControl [formControl]="form.controls.destinationZone">
-            <option value="">Choose a zone</option>
-            @for (zone of zones(); track zone.id) {
-              <option [value]="zone.code">{{ zone.name }}</option>
-            }
-          </select>
-        </app-form-field>
+      <!-- Route: stop A to stop B, like a bus route board -->
+      <div class="card route-card">
+        <div class="stop-row">
+          <b class="stop" aria-hidden="true">A</b>
+          <app-form-field label="Pick up from" [control]="form.controls.originZone">
+            <select appFieldControl [formControl]="form.controls.originZone">
+              <option value="">Choose a zone</option>
+              @for (zone of zones(); track zone.id) {
+                <option [value]="zone.code">{{ zone.name }}</option>
+              }
+            </select>
+          </app-form-field>
+        </div>
+        <p class="route-caption">
+          {{ form.controls.originZone.value || 'ORIGIN' }} ZONE →
+          {{ form.controls.destinationZone.value || 'DESTINATION' }} ZONE ·
+          {{ form.controls.deliveryType.value === 'EXPRESS' ? 'EXPRESS' : 'ISLAND' }} RATE
+        </p>
+        <div class="stop-row">
+          <b class="stop stop--yellow" aria-hidden="true">B</b>
+          <app-form-field label="Deliver to" [control]="form.controls.destinationZone">
+            <select appFieldControl [formControl]="form.controls.destinationZone">
+              <option value="">Choose a zone</option>
+              @for (zone of zones(); track zone.id) {
+                <option [value]="zone.code">{{ zone.name }}</option>
+              }
+            </select>
+          </app-form-field>
+        </div>
       </div>
 
-      <div class="grid-2">
+      <!-- Parcel size cards -->
+      <fieldset class="size-set">
+        <legend class="rb-eyebrow">What are you sending?</legend>
+        <div class="size-options">
+          @for (size of sizes; track size) {
+            <label
+              class="size-card"
+              [class.size-card--selected]="form.controls.sizeClass.value === size"
+            >
+              <input type="radio" [value]="size" [formControl]="form.controls.sizeClass" />
+              <strong>{{ sizeLabel(size) }}</strong>
+              <span>{{ sizeHint(size) }}</span>
+            </label>
+          }
+        </div>
+      </fieldset>
+
+      <div class="grid-3">
         <app-form-field
           label="Weight (kg)"
           [control]="form.controls.weightKg"
@@ -51,16 +81,6 @@
             [formControl]="form.controls.weightKg"
           />
         </app-form-field>
-        <app-form-field label="Parcel size" [control]="form.controls.sizeClass">
-          <select appFieldControl [formControl]="form.controls.sizeClass">
-            @for (size of sizes; track size) {
-              <option [value]="size">{{ sizeLabel(size) }}</option>
-            }
-          </select>
-        </app-form-field>
-      </div>
-
-      <div class="grid-2">
         <app-form-field label="Delivery speed" [control]="form.controls.deliveryType">
           <select appFieldControl [formControl]="form.controls.deliveryType">
             <option value="STANDARD">Standard</option>
@@ -68,7 +88,7 @@
           </select>
         </app-form-field>
         <app-form-field
-          label="Promo code (optional)"
+          label="Promo code"
           [control]="form.controls.promoCode"
           [messages]="{ pattern: 'Use letters, numbers, - or _ only.' }"
         >
@@ -85,46 +105,66 @@
       <app-error-alert [error]="error()" />
 
       <div class="form-actions">
-        <button class="btn btn-primary" type="submit" [disabled]="submitting() || zonesLoading()">
-          {{ submitting() ? 'Calculating…' : 'Get estimate' }}
+        <button
+          class="btn btn-primary btn-lg"
+          type="submit"
+          [disabled]="submitting() || zonesLoading()"
+        >
+          {{ submitting() ? 'Calculating…' : 'Calculate delivery fee' }}
         </button>
       </div>
     </form>
 
-    <section class="card stack quote-card" aria-live="polite" aria-label="Fee breakdown">
-      @if (quote(); as quote) {
-        <h2>{{ quote.originZone }} → {{ quote.destinationZone }}</h2>
-        <p class="muted small">
-          {{ quote.strategyUsed === 'EXPRESS' ? 'Express' : 'Standard' }} delivery
-        </p>
-        <dl class="details">
-          <dt>Base fee</dt>
-          <dd>{{ quote.amounts.baseAmount | money: quote.currency }}</dd>
-          <dt>Weight charge</dt>
-          <dd>{{ quote.amounts.weightAmount | money: quote.currency }}</dd>
-          <dt>Size charge</dt>
-          <dd>{{ quote.amounts.sizeAmount | money: quote.currency }}</dd>
-          @if (quote.amounts.expressAmount > 0) {
-            <dt>Express</dt>
-            <dd>{{ quote.amounts.expressAmount | money: quote.currency }}</dd>
-          }
-          @if (quote.amounts.discountAmount > 0) {
-            <dt>Discount ({{ quote.promoCode }})</dt>
-            <dd class="discount">− {{ quote.amounts.discountAmount | money: quote.currency }}</dd>
-          }
-        </dl>
-        <p class="quote-total">
-          <span>Total</span>
-          <strong>{{ quote.amounts.totalAmount | money: quote.currency }}</strong>
-        </p>
-        <p class="muted small">
-          Quote <span class="mono">{{ quote.quoteId }}</span> · valid until
-          {{ quote.expiresAt | date: 'shortTime' }}
-        </p>
-      } @else {
-        <h2>Your estimate</h2>
-        <p class="muted">Choose a route and parcel details to see the fee breakdown.</p>
-      }
-    </section>
+    <!-- Waybill: the itemised estimate -->
+    <aside class="waybill" aria-live="polite" aria-label="Fee breakdown">
+      <div class="waybill__top">
+        <p class="rb-eyebrow">Waybill · estimate</p>
+        @if (quote(); as quote) {
+          <p class="waybill__route mono">{{ quote.originZone }} → {{ quote.destinationZone }}</p>
+          <dl class="waybill__lines">
+            <div>
+              <dt>Base fare</dt>
+              <dd>{{ quote.amounts.baseAmount | money: quote.currency }}</dd>
+            </div>
+            <div>
+              <dt>Weight {{ form.controls.weightKg.value }} kg</dt>
+              <dd>{{ quote.amounts.weightAmount | money: quote.currency }}</dd>
+            </div>
+            <div>
+              <dt>Parcel size</dt>
+              <dd>{{ quote.amounts.sizeAmount | money: quote.currency }}</dd>
+            </div>
+            @if (quote.amounts.expressAmount > 0) {
+              <div>
+                <dt>Express surcharge</dt>
+                <dd>{{ quote.amounts.expressAmount | money: quote.currency }}</dd>
+              </div>
+            }
+            @if (quote.amounts.discountAmount > 0) {
+              <div class="discount">
+                <dt>Promo · {{ quote.promoCode }}</dt>
+                <dd>− {{ quote.amounts.discountAmount | money: quote.currency }}</dd>
+              </div>
+            }
+          </dl>
+        } @else {
+          <p class="muted">Choose your route and parcel details to see the fare breakdown.</p>
+        }
+      </div>
+      <div class="waybill__total">
+        <div class="total-line">
+          <span class="rb-eyebrow">Total ({{ quote()?.currency ?? 'LKR' }})</span>
+          <strong>{{
+            quote() ? (quote()!.amounts.totalAmount | money: quote()!.currency) : '—'
+          }}</strong>
+        </div>
+        @if (quote(); as quote) {
+          <p>Valid until {{ quote.expiresAt | date: 'shortTime' }} · re-checked when booking.</p>
+          <p class="mono small">Quote {{ quote.quoteId }}</p>
+        } @else {
+          <p>Your estimate will appear here.</p>
+        }
+      </div>
+    </aside>
   </div>
 </div>

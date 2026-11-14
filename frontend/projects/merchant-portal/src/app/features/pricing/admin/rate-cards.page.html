@@ -1,0 +1,153 @@
+<div class="page">
+  <div class="page__header">
+    <div>
+      <p class="rb-eyebrow">Pricing administration</p>
+      <h1>Rate cards</h1>
+      <p class="page__lead">
+        The price of one direction between two zones. Fee = base + per kg × weight + size surcharge;
+        Express multiplies that.
+      </p>
+    </div>
+  </div>
+  <app-pricing-admin-nav />
+
+  <div class="admin-layout">
+    <form class="card stack" [formGroup]="form" (ngSubmit)="save()" novalidate>
+      <h2>{{ editing() ? 'Edit rate card' : 'Add a rate card' }}</h2>
+      <div class="form-grid">
+        <app-form-field label="From zone" [control]="form.controls.originZoneId">
+          <select appFieldControl [formControl]="form.controls.originZoneId">
+            <option value="">Choose a zone</option>
+            @for (zone of zoneOptions(); track zone.id) {
+              <option [value]="zone.id">
+                {{ zone.name }}{{ zone.active ? '' : ' (inactive)' }}
+              </option>
+            }
+          </select>
+        </app-form-field>
+        <app-form-field label="To zone" [control]="form.controls.destinationZoneId">
+          <select appFieldControl [formControl]="form.controls.destinationZoneId">
+            <option value="">Choose a zone</option>
+            @for (zone of zoneOptions(); track zone.id) {
+              <option [value]="zone.id">
+                {{ zone.name }}{{ zone.active ? '' : ' (inactive)' }}
+              </option>
+            }
+          </select>
+        </app-form-field>
+        @for (fee of fees; track fee.name) {
+          <app-form-field [label]="fee.label" [control]="form.controls[fee.name]">
+            <input
+              appFieldControl
+              type="number"
+              min="0"
+              step="0.01"
+              [formControl]="form.controls[fee.name]"
+            />
+          </app-form-field>
+        }
+        <app-form-field
+          label="Express multiplier"
+          [control]="form.controls.expressMultiplier"
+          hint="For example 1.25. Leave empty if Express is not offered."
+        >
+          <input
+            appFieldControl
+            type="number"
+            min="1"
+            step="0.01"
+            [formControl]="form.controls.expressMultiplier"
+          />
+        </app-form-field>
+        <app-form-field label="Valid from" [control]="form.controls.validFrom">
+          <input appFieldControl type="date" [formControl]="form.controls.validFrom" />
+        </app-form-field>
+        <app-form-field
+          label="Valid until (not included)"
+          [control]="form.controls.validTo"
+          hint="Leave empty for no end date."
+        >
+          <input appFieldControl type="date" [formControl]="form.controls.validTo" />
+        </app-form-field>
+      </div>
+      @if (form.hasError('endBeforeStart') && form.controls.validTo.touched) {
+        <p class="alert alert--danger small" role="alert">
+          The end date must be after the start date.
+        </p>
+      }
+      <app-error-alert [error]="saveError()" />
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Saving…' : editing() ? 'Save changes' : 'Add rate card' }}
+        </button>
+        @if (editing()) {
+          <button class="btn" type="button" (click)="cancelEdit()">Cancel</button>
+        }
+      </div>
+    </form>
+
+    <section class="stack" aria-label="Rate cards">
+      @if (loading()) {
+        <app-spinner label="Loading rate cards" />
+      } @else if (loadError(); as error) {
+        <app-error-alert [error]="error" [retryable]="true" (retry)="load()" />
+      } @else if (cards().length === 0) {
+        <app-empty-state
+          heading="No rate cards yet"
+          message="Add zones first, then price the routes between them."
+        />
+      } @else {
+        <div class="table-wrap">
+          <table class="table">
+            <caption class="visually-hidden">
+              Rate cards
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Route</th>
+                <th scope="col">Fees</th>
+                <th scope="col">Period</th>
+                <th scope="col">Status</th>
+                <th scope="col"><span class="visually-hidden">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (card of cards(); track card.id) {
+                <tr [class.inactive-row]="!card.active">
+                  <td>
+                    {{ zoneName(card.originZoneId) }} → {{ zoneName(card.destinationZoneId) }}
+                  </td>
+                  <td>
+                    {{ card.baseFee | money }} + {{ card.perKgFee | money }}/kg
+                    <div class="muted small">
+                      S {{ card.smallSurcharge }} · M {{ card.mediumSurcharge }} · L
+                      {{ card.largeSurcharge }} · Express
+                      {{ card.expressMultiplier ? '×' + card.expressMultiplier : 'off' }}
+                    </div>
+                  </td>
+                  <td class="small">{{ card.validFrom }} → {{ card.validTo || 'open' }}</td>
+                  <td><app-status-badge [status]="card.active ? 'ACTIVE' : 'INACTIVE'" /></td>
+                  <td>
+                    <div class="row-actions">
+                      <button type="button" class="btn btn-sm" (click)="edit(card)">Edit</button>
+                      @if (card.active) {
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-danger"
+                          (click)="deactivate(card)"
+                        >
+                          Deactivate
+                        </button>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  </div>
+  <app-confirm-dialog />
+</div>

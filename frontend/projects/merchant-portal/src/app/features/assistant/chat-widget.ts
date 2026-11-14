@@ -31,7 +31,7 @@ export interface ChatLine {
   imports: [FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './chat-widget.html',
-  styleUrl: './chat-widget.css',
+  styleUrls: ['../route-board.css', './chat-widget.css'],
 })
 export class ChatWidget {
   private readonly api = inject(AssistantApi);
@@ -66,7 +66,11 @@ export class ChatWidget {
     this.api.chat(message, this.conversationId).subscribe({
       next: (answer) => {
         this.conversationId = answer.conversationId;
-        this.add({ from: 'assistant', text: plainText(answer.reply), tools: answer.toolCalls ?? [] });
+        this.add({
+          from: 'assistant',
+          text: plainText(answer.reply),
+          tools: answer.toolCalls ?? [],
+        });
         this.busy.set(false);
       },
       error: (error: unknown) => {

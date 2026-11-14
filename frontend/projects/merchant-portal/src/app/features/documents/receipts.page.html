@@ -1,6 +1,7 @@
 <div class="page">
   <div class="page__header">
     <div>
+      <p class="rb-eyebrow">Documents</p>
       <h1>Receipts</h1>
       <p class="page__lead">
         @if (isAdmin) {
@@ -17,8 +18,8 @@
       <summary>Create a test receipt (development only)</summary>
       <form class="stack" [formGroup]="testForm" (ngSubmit)="createTestReceipt()" novalidate>
         <p class="alert alert--info small">
-          Stands in for the parcel.status.delivered event until the Parcel service publishes it.
-          The customer id must be the customer's Identity user id.
+          Stands in for the parcel.status.delivered event until the Parcel service publishes it. The
+          customer id must be the customer's Identity user id.
         </p>
         <div class="grid-2">
           <app-form-field label="Customer id" [control]="testForm.controls.customerId">

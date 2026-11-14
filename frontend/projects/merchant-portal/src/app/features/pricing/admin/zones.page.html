@@ -1,0 +1,96 @@
+<div class="page">
+  <div class="page__header">
+    <div>
+      <p class="rb-eyebrow">Pricing administration</p>
+      <h1>Delivery zones</h1>
+      <p class="page__lead">
+        Areas SwiftDrop delivers to. Rate cards price the trips between them.
+      </p>
+    </div>
+  </div>
+  <app-pricing-admin-nav />
+
+  <div class="admin-layout">
+    <form class="card stack" [formGroup]="form" (ngSubmit)="save()" novalidate>
+      <h2>{{ editing() ? 'Edit ' + editing()!.code : 'Add a zone' }}</h2>
+      <app-form-field
+        label="Zone code"
+        [control]="form.controls.code"
+        hint="Uppercase, for example COLOMBO or GALLE_FORT"
+        [messages]="{ pattern: 'Start with a capital letter; use A–Z, 0–9, _ or -.' }"
+      >
+        <input appFieldControl type="text" autocomplete="off" [formControl]="form.controls.code" />
+      </app-form-field>
+      <app-form-field label="Name" [control]="form.controls.name">
+        <input appFieldControl type="text" [formControl]="form.controls.name" />
+      </app-form-field>
+      <app-form-field label="Description" [control]="form.controls.description">
+        <textarea appFieldControl rows="3" [formControl]="form.controls.description"></textarea>
+      </app-form-field>
+      <app-error-alert [error]="saveError()" />
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Saving…' : editing() ? 'Save changes' : 'Add zone' }}
+        </button>
+        @if (editing()) {
+          <button class="btn" type="button" (click)="cancelEdit()">Cancel</button>
+        }
+      </div>
+    </form>
+
+    <section class="stack" aria-label="Zones">
+      @if (loading()) {
+        <app-spinner label="Loading zones" />
+      } @else if (loadError(); as error) {
+        <app-error-alert [error]="error" [retryable]="true" (retry)="load()" />
+      } @else if (zones().length === 0) {
+        <app-empty-state heading="No zones yet" message="Add the first delivery zone." />
+      } @else {
+        <div class="table-wrap">
+          <table class="table">
+            <caption class="visually-hidden">
+              Zones
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Code</th>
+                <th scope="col">Name</th>
+                <th scope="col">Status</th>
+                <th scope="col"><span class="visually-hidden">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (zone of zones(); track zone.id) {
+                <tr [class.inactive-row]="!zone.active">
+                  <td class="mono code-cell">{{ zone.code }}</td>
+                  <td>
+                    {{ zone.name }}
+                    @if (zone.description) {
+                      <div class="muted small">{{ zone.description }}</div>
+                    }
+                  </td>
+                  <td><app-status-badge [status]="zone.active ? 'ACTIVE' : 'INACTIVE'" /></td>
+                  <td>
+                    <div class="row-actions">
+                      <button type="button" class="btn btn-sm" (click)="edit(zone)">Edit</button>
+                      @if (zone.active) {
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-danger"
+                          (click)="deactivate(zone)"
+                        >
+                          Deactivate
+                        </button>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  </div>
+  <app-confirm-dialog />
+</div>

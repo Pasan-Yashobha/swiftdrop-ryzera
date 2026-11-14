@@ -1,0 +1,214 @@
+<div class="page">
+  <div class="page__header">
+    <div>
+      <p class="rb-eyebrow">Documents</p>
+      <h1>Invoices</h1>
+      <p class="page__lead">
+        @if (isAdmin) {
+          Every merchant invoice issued by SwiftDrop.
+        } @else {
+          Your SwiftDrop invoices, with the parcels billed on each.
+        }
+      </p>
+    </div>
+  </div>
+
+  @if (showTestForm) {
+    <details class="card dev-panel">
+      <summary>Create a test invoice (development only)</summary>
+      <form class="stack" [formGroup]="testForm" (ngSubmit)="createTestInvoice()" novalidate>
+        <p class="alert alert--info small">
+          The merchant id must be the merchant owner's Identity user id, which is what decides who
+          can see the invoice. Each line is one parcel; a parcel can be billed on one invoice only.
+        </p>
+        <div class="grid-2">
+          <app-form-field label="Merchant id" [control]="testForm.controls.merchantId">
+            <input appFieldControl type="text" [formControl]="testForm.controls.merchantId" />
+          </app-form-field>
+          <app-form-field label="Merchant name" [control]="testForm.controls.merchantName">
+            <input appFieldControl type="text" [formControl]="testForm.controls.merchantName" />
+          </app-form-field>
+          <app-form-field label="Period start" [control]="testForm.controls.periodStart">
+            <input appFieldControl type="date" [formControl]="testForm.controls.periodStart" />
+          </app-form-field>
+          <app-form-field label="Period end" [control]="testForm.controls.periodEnd">
+            <input appFieldControl type="date" [formControl]="testForm.controls.periodEnd" />
+          </app-form-field>
+        </div>
+        @if (testForm.hasError('periodOrder')) {
+          <p class="alert alert--danger small" role="alert">
+            The period cannot end before it starts.
+          </p>
+        }
+
+        <fieldset class="stack invoice-lines">
+          <legend>Billing lines ({{ lines.length }} / {{ maxLines }})</legend>
+          @for (line of lines.controls; track line; let i = $index) {
+            <div class="invoice-line" [formGroup]="line">
+              <app-form-field label="Tracking number" [control]="line.controls.trackingNumber">
+                <input appFieldControl type="text" [formControl]="line.controls.trackingNumber" />
+              </app-form-field>
+              <app-form-field label="Description" [control]="line.controls.description">
+                <input appFieldControl type="text" [formControl]="line.controls.description" />
+              </app-form-field>
+              <app-form-field label="Amount (LKR)" [control]="line.controls.amount">
+                <input
+                  appFieldControl
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  [formControl]="line.controls.amount"
+                />
+              </app-form-field>
+              <button
+                type="button"
+                class="btn btn-sm btn-ghost"
+                [attr.aria-label]="'Remove line ' + (i + 1)"
+                (click)="removeLine(i)"
+              >
+                Remove
+              </button>
+            </div>
+          }
+          <div>
+            <button
+              type="button"
+              class="btn btn-sm"
+              [disabled]="lines.length >= maxLines"
+              (click)="addLine()"
+            >
+              Add line
+            </button>
+          </div>
+        </fieldset>
+
+        <p class="muted small">
+          Preview total {{ total() | money }} (the server calculates the real one).
+        </p>
+        <app-error-alert [error]="createError()" />
+        <div class="form-actions">
+          <button
+            class="btn btn-primary"
+            type="submit"
+            [disabled]="creating() || lines.length === 0"
+          >
+            {{ creating() ? 'Creating…' : 'Create invoice' }}
+          </button>
+        </div>
+      </form>
+    </details>
+  }
+
+  @if (loading()) {
+    <app-spinner label="Loading invoices" />
+  } @else if (error(); as error) {
+    <app-error-alert [error]="error" [retryable]="true" (retry)="load(0)" />
+  } @else if (page(); as page) {
+    @if (page.items.length === 0) {
+      <app-empty-state
+        heading="No invoices yet"
+        message="Invoices appear here once SwiftDrop bills your deliveries."
+      />
+    } @else {
+      <div class="table-wrap">
+        <table class="table">
+          <caption class="visually-hidden">
+            Invoices
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Invoice</th>
+              @if (isAdmin) {
+                <th scope="col">Merchant</th>
+              }
+              <th scope="col">Period</th>
+              <th scope="col">Parcels</th>
+              <th scope="col">Total</th>
+              <th scope="col"><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (invoice of page.items; track invoice.id) {
+              <tr>
+                <td class="mono">{{ invoice.invoiceNo }}</td>
+                @if (isAdmin) {
+                  <td>{{ invoice.merchantName }}</td>
+                }
+                <td class="small">{{ invoice.periodStart }} → {{ invoice.periodEnd }}</td>
+                <td>{{ invoice.lineCount }}</td>
+                <td>{{ invoice.totalAmount | money: invoice.currency }}</td>
+                <td>
+                  <div class="row-actions">
+                    <button
+                      type="button"
+                      class="btn btn-sm"
+                      [attr.aria-expanded]="selected()?.invoice?.id === invoice.id"
+                      [disabled]="opening() === invoice.id"
+                      (click)="toggleLines(invoice)"
+                    >
+                      {{ selected()?.invoice?.id === invoice.id ? 'Hide lines' : 'Lines' }}
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-sm"
+                      [disabled]="downloading() === invoice.id"
+                      (click)="download(invoice)"
+                    >
+                      {{ downloading() === invoice.id ? 'Downloading…' : 'PDF' }}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (pageInfo(); as info) {
+        @if (info.totalPages > 1) {
+          <app-pagination [info]="info" (pageChange)="load($event)" />
+        }
+      }
+    }
+  }
+
+  @if (selected(); as detail) {
+    <section class="card stack" aria-label="Invoice lines">
+      <h2 class="lines-title">
+        {{ detail.invoice.invoiceNo }} · generated
+        {{ detail.invoice.generatedAt | date: 'd MMM y' : '+0530' }}
+      </h2>
+      <div class="table-wrap">
+        <table class="table">
+          <caption class="visually-hidden">
+            Lines of invoice
+            {{
+              detail.invoice.invoiceNo
+            }}
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">Tracking number</th>
+              <th scope="col">Description</th>
+              <th scope="col">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of detail.lines; track line.lineNo) {
+              <tr>
+                <td>{{ line.lineNo }}</td>
+                <td class="mono">{{ line.trackingNumber }}</td>
+                <td>{{ line.description }}</td>
+                <td>{{ line.amount | money: detail.invoice.currency }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <p class="quote-total">
+        <span>Total</span>
+        <strong>{{ detail.invoice.totalAmount | money: detail.invoice.currency }}</strong>
+      </p>
+    </section>
+  }
+</div>

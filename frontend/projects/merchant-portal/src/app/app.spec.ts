@@ -110,6 +110,7 @@ describe('App shell', () => {
       'Dashboard',
       'Orders',
       'Fee estimate',
+      'Invoices',
       'API keys',
       'Webhooks',
       'API docs',
@@ -146,10 +147,10 @@ describe('App shell', () => {
     expect(element(fixture).querySelector('app-chat-widget')).toBeTruthy();
   });
 
-  it('gives an admin dispatch and receipts, without the assistant', () => {
+  it('gives an admin dispatch, pricing, receipts and invoices, without the assistant', () => {
     signInAs('ADMIN');
 
-    expect(links()).toEqual(['Home', 'Dispatch', 'Receipts']);
+    expect(links()).toEqual(['Home', 'Dispatch', 'Pricing', 'Receipts', 'Invoices']);
     expect(element(fixture).querySelector('app-chat-widget')).toBeNull();
   });
 

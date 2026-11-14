@@ -1,0 +1,162 @@
+<div class="page">
+  <div class="page__header">
+    <div>
+      <p class="rb-eyebrow">Pricing administration</p>
+      <h1>Promo codes</h1>
+      <p class="page__lead">
+        Discounts customers can enter with an estimate. Checking a price never uses a code up.
+      </p>
+    </div>
+  </div>
+  <app-pricing-admin-nav />
+
+  <div class="admin-layout">
+    <form class="card stack" [formGroup]="form" (ngSubmit)="save()" novalidate>
+      <h2>{{ editing() ? 'Edit ' + editing()!.code : 'Add a promo code' }}</h2>
+      <div class="form-grid">
+        <app-form-field
+          label="Code"
+          [control]="form.controls.code"
+          class="span-2"
+          [messages]="{ pattern: 'Use letters, numbers, - or _ only.' }"
+        >
+          <input
+            appFieldControl
+            type="text"
+            autocomplete="off"
+            placeholder="SAVE10"
+            [formControl]="form.controls.code"
+          />
+        </app-form-field>
+        <app-form-field label="Discount type" [control]="form.controls.discountType">
+          <select appFieldControl [formControl]="form.controls.discountType">
+            <option value="PERCENT">Percentage</option>
+            <option value="FLAT">Fixed amount (LKR)</option>
+          </select>
+        </app-form-field>
+        <app-form-field
+          [label]="
+            form.controls.discountType.value === 'PERCENT' ? 'Discount (%)' : 'Discount (LKR)'
+          "
+          [control]="form.controls.discountValue"
+        >
+          <input
+            appFieldControl
+            type="number"
+            min="0.01"
+            step="0.01"
+            [formControl]="form.controls.discountValue"
+          />
+        </app-form-field>
+        <app-form-field label="Minimum fare (LKR)" [control]="form.controls.minOrderValue">
+          <input
+            appFieldControl
+            type="number"
+            min="0"
+            step="0.01"
+            [formControl]="form.controls.minOrderValue"
+          />
+        </app-form-field>
+        <app-form-field
+          label="Maximum uses"
+          [control]="form.controls.maxUses"
+          hint="Empty means unlimited."
+          [messages]="{ pattern: 'Use a whole number.' }"
+        >
+          <input
+            appFieldControl
+            type="number"
+            min="1"
+            step="1"
+            [formControl]="form.controls.maxUses"
+          />
+        </app-form-field>
+        <app-form-field label="Valid from" [control]="form.controls.validFrom">
+          <input appFieldControl type="date" [formControl]="form.controls.validFrom" />
+        </app-form-field>
+        <app-form-field
+          label="Valid until (not included)"
+          [control]="form.controls.validTo"
+          hint="Leave empty for no end date."
+        >
+          <input appFieldControl type="date" [formControl]="form.controls.validTo" />
+        </app-form-field>
+      </div>
+      @if (form.hasError('endBeforeStart') && form.controls.validTo.touched) {
+        <p class="alert alert--danger small" role="alert">
+          The end date must be after the start date.
+        </p>
+      }
+      <app-error-alert [error]="saveError()" />
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Saving…' : editing() ? 'Save changes' : 'Add promo code' }}
+        </button>
+        @if (editing()) {
+          <button class="btn" type="button" (click)="cancelEdit()">Cancel</button>
+        }
+      </div>
+    </form>
+
+    <section class="stack" aria-label="Promo codes">
+      @if (loading()) {
+        <app-spinner label="Loading promo codes" />
+      } @else if (loadError(); as error) {
+        <app-error-alert [error]="error" [retryable]="true" (retry)="load()" />
+      } @else if (promos().length === 0) {
+        <app-empty-state heading="No promo codes yet" message="Add the first promotion." />
+      } @else {
+        <div class="table-wrap">
+          <table class="table">
+            <caption class="visually-hidden">
+              Promo codes
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Code</th>
+                <th scope="col">Discount</th>
+                <th scope="col">Uses</th>
+                <th scope="col">Period</th>
+                <th scope="col">Status</th>
+                <th scope="col"><span class="visually-hidden">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (promo of promos(); track promo.id) {
+                <tr [class.inactive-row]="!promo.active">
+                  <td class="mono code-cell">{{ promo.code }}</td>
+                  <td>
+                    @if (promo.discountType === 'PERCENT') {
+                      {{ promo.discountValue }}%
+                    } @else {
+                      {{ promo.discountValue | money }}
+                    }
+                    <div class="muted small">Minimum {{ promo.minOrderValue | money }}</div>
+                  </td>
+                  <td>{{ promo.usedCount }} / {{ promo.maxUses ?? '∞' }}</td>
+                  <td class="small">{{ promo.validFrom }} → {{ promo.validTo || 'open' }}</td>
+                  <td><app-status-badge [status]="promo.active ? 'ACTIVE' : 'INACTIVE'" /></td>
+                  <td>
+                    <div class="row-actions">
+                      <button type="button" class="btn btn-sm" (click)="edit(promo)">Edit</button>
+                      @if (promo.active) {
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-danger"
+                          (click)="deactivate(promo)"
+                        >
+                          Deactivate
+                        </button>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  </div>
+  <app-confirm-dialog />
+</div>

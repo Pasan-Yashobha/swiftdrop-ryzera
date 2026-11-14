@@ -5,3 +5,46 @@
 .dev-panel[open] summary {
   margin-bottom: var(--space-4);
 }
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.invoice-lines {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.invoice-line {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr;
+  align-items: end;
+  padding-bottom: var(--space-3);
+  border-bottom: 1px dashed var(--color-border);
+}
+
+@media (min-width: 48rem) {
+  .invoice-line {
+    grid-template-columns: 1fr 2fr 1fr auto;
+  }
+}
+
+.lines-title {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.quote-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  font-size: var(--text-lg);
+}

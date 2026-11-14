@@ -52,6 +52,20 @@ describe('PricingApi', () => {
     expect(request.request.params.get('size')).toBe('50');
   });
 
+  it('loads every page of a collection', () => {
+    let zones: { id: string }[] | undefined;
+    api.all<{ id: string }>('zones').subscribe((items) => (zones = items));
+
+    const first = http.expectOne((r) => r.url === '/api/v1/admin/zones');
+    expect(first.request.params.get('page')).toBe('0');
+    first.flush({ items: [{ id: 'a' }], page: 0, size: 1, totalElements: 2 });
+    const second = http.expectOne((r) => r.url === '/api/v1/admin/zones');
+    expect(second.request.params.get('page')).toBe('1');
+    second.flush({ items: [{ id: 'b' }], page: 1, size: 1, totalElements: 2 });
+
+    expect(zones).toEqual([{ id: 'a' }, { id: 'b' }]);
+  });
+
   it('creates with POST and updates with PUT', () => {
     const zone = { code: 'GALLE', name: 'Galle', description: '' };
     api.saveZone(zone).subscribe();

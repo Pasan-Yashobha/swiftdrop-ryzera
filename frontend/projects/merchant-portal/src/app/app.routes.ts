@@ -73,6 +73,36 @@ export const routes: Routes = [
     canActivate: [roleGuard('CUSTOMER', 'ADMIN')],
     loadComponent: () => import('./features/documents/receipts.page').then((m) => m.ReceiptsPage),
   },
+  {
+    path: 'invoices',
+    title: 'Invoices',
+    canActivate: [roleGuard('MERCHANT', 'ADMIN')],
+    loadComponent: () => import('./features/documents/invoices.page').then((m) => m.InvoicesPage),
+  },
+  {
+    path: 'admin/pricing',
+    canActivate: [roleGuard('ADMIN')],
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'zones' },
+      {
+        path: 'zones',
+        title: 'Delivery zones',
+        loadComponent: () => import('./features/pricing/admin/zones.page').then((m) => m.ZonesPage),
+      },
+      {
+        path: 'rate-cards',
+        title: 'Rate cards',
+        loadComponent: () =>
+          import('./features/pricing/admin/rate-cards.page').then((m) => m.RateCardsPage),
+      },
+      {
+        path: 'promo-codes',
+        title: 'Promo codes',
+        loadComponent: () =>
+          import('./features/pricing/admin/promo-codes.page').then((m) => m.PromoCodesPage),
+      },
+    ],
+  },
 
   // Everything below needs a signed-in merchant user. authGuard runs before any child guard.
   {

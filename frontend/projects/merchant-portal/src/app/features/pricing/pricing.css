@@ -1,34 +1,218 @@
+/* Fee estimator in the Route Board layout (design PDF page 6). Tokens come from ../route-board.css. */
+
 .estimate-layout {
   display: grid;
-  gap: var(--space-5);
+  gap: var(--space-6);
   grid-template-columns: 1fr;
   align-items: start;
 }
 
-@media (min-width: 56rem) {
+@media (min-width: 60rem) {
   .estimate-layout {
-    grid-template-columns: 3fr 2fr;
+    grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr);
   }
 }
 
-.quote-card h2 {
+/* ── Route card: stop A → stop B ── */
+.route-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-5);
+}
+
+.stop-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+}
+
+.stop-row app-form-field {
+  flex: 1;
+}
+
+.stop {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.5rem;
+  margin-bottom: 0.15rem;
+  border-radius: 4px;
+  background: var(--rb-ink);
+  color: var(--rb-hivis);
+  font-family: var(--rb-font-mono);
+  font-weight: 700;
+}
+
+.stop--yellow {
+  background: var(--rb-hivis);
+  color: var(--rb-ink);
+  border: var(--rb-border);
+}
+
+.route-caption {
+  margin: var(--space-2) 0 var(--space-2) 3.25rem;
+  color: var(--rb-lagoon);
+  font-family: var(--rb-font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+}
+
+/* ── Parcel size cards ── */
+.size-set {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.size-set legend {
+  margin-bottom: var(--space-3);
+}
+
+.size-options {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.size-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: var(--rb-border);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: var(--rb-stamp);
+  cursor: pointer;
+}
+
+.size-card--selected {
+  background: var(--rb-hivis);
+}
+
+.size-card input {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--rb-ink);
+}
+
+.size-card strong {
+  font-family: var(--rb-font-heading);
+  font-size: 1.5rem;
+}
+
+.size-card span {
+  font-family: var(--rb-font-mono);
+  font-size: 0.72rem;
+}
+
+.size-card:has(input:focus-visible) {
+  box-shadow:
+    0 0 0 3px var(--rb-hivis),
+    var(--rb-stamp);
+}
+
+.grid-3 {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 40rem) {
+  .grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.btn-lg {
+  min-height: 3rem;
+  padding-inline: var(--space-6);
+  font-size: 1rem;
+}
+
+/* ── Waybill: white ticket with a dark, dashed-off total ── */
+.waybill {
+  overflow: hidden;
+  border: var(--rb-border);
+  border-radius: 12px;
+  box-shadow: var(--rb-stamp);
+}
+
+.waybill__top {
+  min-height: 13rem;
+  padding: var(--space-5);
+  background: #ffffff;
+}
+
+.waybill__route {
+  margin: 0 0 var(--space-3);
+  font-weight: 700;
+}
+
+.waybill__lines {
   margin: 0;
 }
 
-.quote-total {
+.waybill__lines div {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+  border-bottom: 1px dashed var(--rb-mist);
+}
+
+.waybill__lines dt {
+  color: var(--rb-muted);
+}
+
+.waybill__lines dd {
   margin: 0;
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-border);
-  font-size: var(--text-lg);
+  font-family: var(--rb-font-mono);
 }
 
-.quote-total strong {
-  font-size: var(--text-xl);
+.discount dd,
+.discount dt {
+  color: var(--rb-lagoon);
 }
 
-.discount {
-  color: var(--tone-success-fg);
+.waybill__total {
+  padding: var(--space-5);
+  background: var(--rb-ink);
+  color: #b8c3bd;
+  border-top: 3px dashed #f0f3ef;
+}
+
+.waybill__total .rb-eyebrow {
+  color: #b8c3bd;
+}
+
+.waybill__total p {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+}
+
+.total-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.total-line strong {
+  color: var(--rb-hivis);
+  font-family: var(--rb-font-heading);
+  font-size: 2rem;
+}
+
+@media (max-width: 30rem) {
+  .size-options {
+    grid-template-columns: 1fr;
+  }
 }

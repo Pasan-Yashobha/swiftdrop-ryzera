@@ -28,6 +28,7 @@ const APPROVED_LINKS: readonly NavLink[] = [
   { path: '/dashboard', label: 'Dashboard' },
   { path: '/orders', label: 'Orders' },
   { path: '/estimate', label: 'Fee estimate' },
+  { path: '/invoices', label: 'Invoices' },
   { path: '/developers/keys', label: 'API keys' },
   { path: '/developers/webhooks', label: 'Webhooks' },
   { path: '/developers/docs', label: 'API docs' },
@@ -55,7 +56,9 @@ const ROLE_LINKS: Readonly<Record<Exclude<UserRole, 'MERCHANT'>, readonly NavLin
   ADMIN: [
     HOME_LINK,
     { path: '/admin/dispatch', label: 'Dispatch' },
+    { path: '/admin/pricing/zones', label: 'Pricing' },
     { path: '/receipts', label: 'Receipts' },
+    { path: '/invoices', label: 'Invoices' },
   ],
   DISPATCHER: [HOME_LINK, { path: '/admin/dispatch', label: 'Dispatch' }],
   COURIER: [HOME_LINK],

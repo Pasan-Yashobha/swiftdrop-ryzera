@@ -44,7 +44,7 @@ const MAX_AMOUNT = 99_999_999_999_999;
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './receipts.page.html',
-  styleUrl: './documents.css',
+  styleUrls: ['../route-board.css', './documents.css'],
 })
 export class ReceiptsPage {
   private readonly api = inject(DocumentApi);
@@ -86,7 +86,11 @@ export class ReceiptsPage {
     }),
     trackingNumber: new FormControl(sampleTrackingNumber(), {
       nonNullable: true,
-      validators: [Validators.required, Validators.maxLength(60), Validators.pattern(/^[A-Za-z0-9_-]+$/)],
+      validators: [
+        Validators.required,
+        Validators.maxLength(60),
+        Validators.pattern(/^[A-Za-z0-9_-]+$/),
+      ],
     }),
     baseAmount: amountControl(300),
     weightAmount: amountControl(200),

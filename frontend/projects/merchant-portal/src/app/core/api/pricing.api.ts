@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
+import { EMPTY, expand, Observable, reduce } from 'rxjs';
 import { API_BASE_URL } from '../config/app-config';
 import {
   EstimateRequest,
@@ -40,6 +40,23 @@ export class PricingApi {
       body.promoCode = body.promoCode.trim();
     }
     return this.http.post<Quote>(`${this.api}/pricing/estimate`, body);
+  }
+
+  /**
+   * Every record of an admin collection, following the pages until all have arrived.
+   * Admin lists are small (zones, rate cards, promo codes), so loading them whole keeps forms simple.
+   */
+  all<T>(collection: PricingCollection): Observable<T[]> {
+    const pageSize = 100;
+    return this.list<T>(collection, 0, pageSize).pipe(
+      expand((page) => {
+        const loaded = (page.page + 1) * page.size;
+        return page.items.length > 0 && loaded < page.totalElements
+          ? this.list<T>(collection, page.page + 1, pageSize)
+          : EMPTY;
+      }),
+      reduce((items, page) => items.concat(page.items), [] as T[]),
+    );
   }
 
   listZones(page = 0, size = 100): Observable<ItemPage<Zone>> {

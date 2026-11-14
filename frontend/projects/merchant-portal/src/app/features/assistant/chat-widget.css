@@ -3,8 +3,9 @@
   right: var(--space-5);
   bottom: var(--space-5);
   z-index: 40;
+  border: var(--rb-border);
   border-radius: 999px;
-  box-shadow: 0 6px 18px rgb(15 23 42 / 25%);
+  box-shadow: var(--rb-stamp);
 }
 
 .chat-panel {
@@ -17,10 +18,10 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: 0 12px 32px rgb(15 23 42 / 30%);
+  background: #ffffff;
+  border: var(--rb-border);
+  border-radius: 12px;
+  box-shadow: 4px 4px 0 var(--rb-ink);
 }
 
 .chat-head {
@@ -28,7 +29,30 @@
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--color-border);
+  background: var(--rb-board);
+  color: #ffffff;
+  border-bottom: 2px solid #000000;
+}
+
+.chat-head strong {
+  font-family: var(--rb-font-heading);
+  font-size: 1.1rem;
+}
+
+.chat-head .small {
+  color: #a0aec0;
+  font-family: var(--rb-font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.chat-head .btn {
+  color: #ffffff;
+}
+
+.chat-head .btn:hover:not(:disabled) {
+  background: rgb(255 255 255 / 12%);
 }
 
 .chat-head div {
@@ -44,7 +68,7 @@
   gap: var(--space-3);
   overflow-y: auto;
   padding: var(--space-4);
-  background: var(--color-bg);
+  background: var(--rb-bg);
 }
 
 .bubble {
@@ -52,9 +76,9 @@
   max-width: 88%;
   margin: 0;
   padding: var(--space-2) var(--space-3);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  background: #ffffff;
+  border: var(--rb-border);
+  border-radius: 12px;
 }
 
 .bubble p {
@@ -65,18 +89,19 @@
 
 .bubble--mine {
   align-self: flex-end;
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-on-primary);
+  background: var(--rb-ink);
+  border-color: var(--rb-ink);
+  color: #ffffff;
 }
 
 .tools {
   margin: var(--space-2) 0 0;
   padding: var(--space-2) 0 0;
   list-style: none;
-  border-top: 1px dashed var(--color-border);
-  font-size: var(--text-sm);
-  color: var(--tone-info-fg);
+  border-top: 1px dashed var(--rb-mist);
+  font-family: var(--rb-font-mono);
+  font-size: 0.75rem;
+  color: var(--rb-lagoon);
 }
 
 .tools li {
@@ -85,7 +110,7 @@
 }
 
 .tools__failed {
-  color: var(--tone-danger-fg);
+  color: var(--rb-chilli);
 }
 
 .chat-empty {
@@ -111,7 +136,7 @@
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-3);
-  border-top: 1px solid var(--color-border);
+  border-top: var(--rb-border);
 }
 
 .chat-input textarea {
