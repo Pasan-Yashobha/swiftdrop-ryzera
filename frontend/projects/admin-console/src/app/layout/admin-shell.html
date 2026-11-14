@@ -1,0 +1,47 @@
+<a class="skip-link" href="#main" (click)="skipToContent($event)">Skip to main content</a>
+
+<header class="topbar">
+  <button
+    type="button"
+    class="btn btn-ghost btn-sm topbar__menu"
+    aria-controls="admin-nav"
+    [attr.aria-expanded]="navOpen()"
+    (click)="toggleNav()"
+  >
+    <span aria-hidden="true">☰</span> Menu
+  </button>
+  <a routerLink="/admin" class="topbar__brand">Swift<span>Drop</span> <small>Admin</small></a>
+  <div class="topbar__user">
+    @if (auth.user(); as user) {
+      <span class="topbar__name">
+        {{ user.fullName }} <span class="muted small">({{ user.role }})</span>
+      </span>
+    }
+    <button type="button" class="btn btn-ghost btn-sm" (click)="signOut()">Sign out</button>
+  </div>
+</header>
+
+<div class="layout">
+  <nav id="admin-nav" class="sidenav" [class.sidenav--open]="navOpen()" aria-label="Admin">
+    @for (section of sections; track section.heading) {
+      <h2 class="sidenav__heading">{{ section.heading }}</h2>
+      <ul class="sidenav__list">
+        @for (item of section.items; track item.path) {
+          <li>
+            <a
+              class="sidenav__link"
+              [routerLink]="item.path"
+              routerLinkActive="sidenav__link--active"
+              ariaCurrentWhenActive="page"
+              >{{ item.label }}</a
+            >
+          </li>
+        }
+      </ul>
+    }
+  </nav>
+
+  <main id="main" #main class="content" tabindex="-1">
+    <router-outlet />
+  </main>
+</div>

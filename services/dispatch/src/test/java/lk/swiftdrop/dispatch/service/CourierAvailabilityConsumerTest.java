@@ -60,5 +60,36 @@ class CourierAvailabilityConsumerTest {
         assertThat(saved.getActiveDeliveries()).isEqualTo(1);
         verify(sseEmitterService).broadcast(eq("workload.changed"), any());
     }
+
+    @Test
+    @DisplayName("Stale event older than lastAssignedAt never lowers the active deliveries count")
+    void staleEventDoesNotLowerActiveDeliveries() {
+        java.time.Instant assignmentTime = java.time.Instant.parse("2026-11-13T10:00:00Z");
+        CourierWorkload existing = new CourierWorkload(courierId, null, 3, 8, true, assignmentTime);
+        when(workloadRepository.findByIdForUpdate(courierId)).thenReturn(Optional.of(existing));
+        when(workloadRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // Event occurred before last assignment
+        String json = """
+                {
+                    "eventType": "courier.availability.changed",
+                    "occurredAt": "2026-11-13T09:55:00Z",
+                    "data": {
+                        "courierId": "%s",
+                        "available": true,
+                        "activeDeliveries": 1
+                    }
+                }
+                """.formatted(courierId);
+
+        consumer.handleCourierAvailabilityChanged(json);
+
+        ArgumentCaptor<CourierWorkload> captor = ArgumentCaptor.forClass(CourierWorkload.class);
+        verify(workloadRepository).save(captor.capture());
+
+        CourierWorkload saved = captor.getValue();
+        // Count remains 3 because event occurred before lastAssignedAt
+        assertThat(saved.getActiveDeliveries()).isEqualTo(3);
+    }
 }
 

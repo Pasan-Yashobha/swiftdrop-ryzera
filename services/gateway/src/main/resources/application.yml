@@ -1,0 +1,62 @@
+server:
+  port: 8080
+  shutdown: graceful
+
+spring:
+  application:
+    name: gateway-service
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:dev_redis_pw}
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 2000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+swiftdrop:
+  gateway:
+    issuer: ${JWT_ISSUER:swiftdrop-identity}
+    dev-routes-enabled: ${GATEWAY_DEV_ROUTES:false}
+    cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:4201}
+    # Identity publishes its public keys here; the gateway uses them to verify tokens.
+    jwks-uri: ${IDENTITY_JWKS_URI:${swiftdrop.gateway.uris.identity}/.well-known/jwks.json}
+    # Where each service runs. Defaults suit services started from the IDE on your machine;
+    # docker-compose overrides them with container names (see services/gateway/README.md).
+    uris:
+      identity: ${IDENTITY_URI:http://localhost:8081}
+      parcel: ${PARCEL_URI:http://localhost:8082}
+      merchant: ${MERCHANT_URI:http://localhost:8083}
+      pricing: ${PRICING_URI:http://localhost:8084}
+      dispatch: ${DISPATCH_URI:http://localhost:8085}
+      courier: ${COURIER_URI:http://localhost:8086}
+      tracking: ${TRACKING_URI:http://localhost:8087}
+      notification: ${NOTIFICATION_URI:http://localhost:8088}
+      webhook: ${WEBHOOK_URI:http://localhost:8089}
+      reporting: ${REPORTING_URI:http://localhost:8090}
+      audit: ${AUDIT_URI:http://localhost:8091}
+      document: ${DOCUMENT_URI:http://localhost:8092}
+    # Token bucket: replenish-rate tokens per second, up to burst-capacity; a request costs requested-tokens.
+    rate-limits:
+      user:          { replenish-rate: 10, burst-capacity: 20,  requested-tokens: 1 }   # 10 req/s per user
+      merchant-api:  { replenish-rate: 30, burst-capacity: 60,  requested-tokens: 1 }   # 30 req/s per merchant credential
+      auth:          { replenish-rate: 10, burst-capacity: 600, requested-tokens: 60 }  # 10 req/min per IP (login, signup, refresh)
+      public-api:    { replenish-rate: 5,  burst-capacity: 10,  requested-tokens: 1 }   # 5 req/s per IP (public tracking)
