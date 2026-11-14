@@ -1,0 +1,134 @@
+<div class="page">
+  <header class="page__header">
+    <div>
+      <h1>Webhook deliveries</h1>
+      <p class="page__lead">
+        Every event the Webhook Delivery Service sent to a merchant endpoint, with its attempts.
+      </p>
+    </div>
+    <button type="button" class="btn btn-ghost btn-sm" [disabled]="loading()" (click)="load()">
+      {{ loading() ? 'Refreshing…' : 'Refresh' }}
+    </button>
+  </header>
+
+  <form
+    class="toolbar card"
+    [formGroup]="filters"
+    (ngSubmit)="applyFilters()"
+    aria-label="Filter deliveries"
+    novalidate
+  >
+    <div class="filter">
+      <label for="wd-status">Status</label>
+      <select id="wd-status" formControlName="status">
+        <option value="">Any status</option>
+        @for (status of statuses; track status) {
+          <option [value]="status">{{ status }}</option>
+        }
+      </select>
+    </div>
+    <div class="filter">
+      <label for="wd-merchant">Merchant id</label>
+      <input
+        id="wd-merchant"
+        type="text"
+        formControlName="merchantId"
+        autocomplete="off"
+        spellcheck="false"
+      />
+    </div>
+    <div class="filter">
+      <label for="wd-event">Event type</label>
+      <input
+        id="wd-event"
+        type="text"
+        formControlName="eventType"
+        placeholder="parcel.status.delivered"
+        autocomplete="off"
+        spellcheck="false"
+      />
+    </div>
+    <div class="toolbar__actions cluster">
+      <button type="submit" class="btn btn-primary">Apply filters</button>
+      <button type="button" class="btn btn-ghost" (click)="resetFilters()">Reset</button>
+    </div>
+  </form>
+
+  <app-error-alert [error]="error()" [retryable]="true" (retry)="load()" />
+
+  @if (result(); as page) {
+    @if (page.content.length === 0) {
+      <app-empty-state
+        heading="No deliveries found"
+        message="Nothing matches these filters. Deliveries appear here as merchants receive webhook events."
+      />
+    } @else {
+      <div class="table-wrap" [attr.aria-busy]="loading()">
+        <table class="table table--stacked">
+          <caption class="visually-hidden">
+            Webhook deliveries, newest first. Use a row's Details button to see its payload and attempts.
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Time</th>
+              <th scope="col">Merchant</th>
+              <th scope="col">Event type</th>
+              <th scope="col">URL</th>
+              <th scope="col">Attempts</th>
+              <th scope="col">Last HTTP status</th>
+              <th scope="col">Duration</th>
+              <th scope="col">Status</th>
+              <th scope="col"><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (d of page.content; track d.id) {
+              <!-- Clicking a row is a mouse shortcut only; keyboard and screen reader users use the Details button. -->
+              <tr class="row-link" [attr.data-id]="d.id" (click)="onRowClick($event, d)">
+                <td data-label="Time">
+                  <time [attr.datetime]="d.createdAt">{{ d.createdAt | date: 'medium' }}</time>
+                </td>
+                <td data-label="Merchant" class="mono" [title]="d.merchantId">{{ d.merchantId }}</td>
+                <td data-label="Event type" class="mono">{{ d.eventType }}</td>
+                <td data-label="URL" class="mono cell-url">{{ d.url }}</td>
+                <td data-label="Attempts">{{ d.attempts }}</td>
+                <td data-label="Last HTTP status">{{ d.lastHttpStatus ?? '—' }}</td>
+                <td data-label="Duration">{{ d.durationMs !== null ? d.durationMs + ' ms' : '—' }}</td>
+                <td data-label="Status"><app-status-badge [status]="d.status" /></td>
+                <td data-label="Actions">
+                  <div class="table__actions">
+                    <button
+                      #detailsButton
+                      type="button"
+                      class="btn btn-ghost btn-sm"
+                      (click)="openDetail(d, detailsButton)"
+                    >
+                      Details <span class="visually-hidden">of delivery {{ d.id }}</span>
+                    </button>
+                    @if (d.status === 'FAILED') {
+                      <button
+                        type="button"
+                        class="btn btn-sm"
+                        [disabled]="replaying().has(d.id)"
+                        (click)="replay(d)"
+                      >
+                        {{ replaying().has(d.id) ? 'Replaying…' : 'Replay' }}
+                        <span class="visually-hidden">delivery {{ d.id }}</span>
+                      </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination [info]="page" (pageChange)="goToPage($event)" />
+    }
+  } @else if (loading()) {
+    <app-spinner label="Loading deliveries" />
+  }
+</div>
+
+<app-delivery-detail-dialog [replaying]="replaying()" (replay)="replay($event)" />
+<app-confirm-dialog />

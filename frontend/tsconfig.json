@@ -29,6 +29,12 @@
     },
     {
       "path": "./projects/merchant-portal/tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/admin-console/tsconfig.app.json"
+    },
+    {
+      "path": "./projects/admin-console/tsconfig.spec.json"
     }
   ]
 }

@@ -1,0 +1,110 @@
+# Notification Service configuration.
+# No secrets live here: every secret comes from an environment variable (see services/notification/README.md).
+# Local development defaults are in application-dev.yml (profile "dev").
+
+spring:
+  application:
+    name: notification-service
+  # Datasource, broker and SMTP settings are bound from SPRING_DATASOURCE_*, SPRING_RABBITMQ_* and SPRING_MAIL_*.
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  rabbitmq:
+    publisher-confirm-type: correlated
+    listener:
+      simple:
+        acknowledge-mode: auto
+  mail:
+    host: ${SPRING_MAIL_HOST:mailpit}
+    port: ${SPRING_MAIL_PORT:1025}
+    properties:
+      mail:
+        smtp:
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+  jackson:
+    time-zone: UTC
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+  mvc:
+    throw-exception-if-no-handler-found: true
+  web:
+    resources:
+      add-mappings: false
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+server:
+  port: 8080
+  shutdown: graceful
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+    include-exception: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    mail:
+      # Mailpit being down must not mark the service unhealthy; failed emails are retried.
+      enabled: false
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+logging:
+  pattern:
+    level: "%5p [%X{correlationId:-}]"
+
+swiftdrop:
+  public-tracking-url: ${PUBLIC_TRACKING_URL:http://localhost:4200/track}
+  security:
+    identity-jwks-uri: ${IDENTITY_JWKS_URI:}
+    jwt-issuer: ${JWT_ISSUER:}
+    dev-hmac-secret: ${DEV_JWT_HMAC_SECRET:}
+    internal-token: ${INTERNAL_API_TOKEN:}
+    cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+  events:
+    exchange: swiftdrop.events
+    dead-letter-exchange: swiftdrop.dlx
+    queue: notification.q
+    dead-letter-queue: notification.dlq
+    consumer-prefetch: 10
+    consumer-max-attempts: 3
+  delivery:
+    max-attempts: 3
+    retry-delay-ms: ${NOTIFICATION_RETRY_DELAY_MS:30000}
+    retry-poll-ms: 5000
+    retry-batch-size: 50
+  clients:
+    identity-url: ${IDENTITY_SERVICE_URL:http://identity:8080}
+    merchant-url: ${MERCHANT_SERVICE_URL:http://merchant:8080}
+    document-url: ${DOCUMENT_SERVICE_URL:http://document:8080}
+    timeout-ms: 3000
+    contact-cache-seconds: 600
+  mail:
+    from: ${NOTIFICATION_MAIL_FROM:SwiftDrop <no-reply@swiftdrop.lk>}
+  sms:
+    api-url: ${SMS_API_URL:http://localhost:8080/mock-sms/messages}
+    api-key: ${SMS_API_KEY:}
+    mock-provider-enabled: ${SMS_MOCK_PROVIDER_ENABLED:false}
