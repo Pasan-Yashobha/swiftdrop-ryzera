@@ -1,0 +1,115 @@
+.header {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.header__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--header-height);
+  position: relative;
+}
+
+.header__brand {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-text);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.header__brand-sub {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-primary);
+  background: var(--tone-info-bg);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
+}
+
+.header__toggle {
+  display: flex;
+}
+
+@media (min-width: 48rem) {
+  .header__toggle {
+    display: none;
+  }
+}
+
+.header__nav {
+  display: none;
+  flex-direction: column;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-4);
+  gap: var(--space-3);
+  box-shadow: var(--shadow-md);
+}
+
+.header__nav--open {
+  display: flex;
+}
+
+@media (min-width: 48rem) {
+  .header__nav {
+    display: flex;
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    background: transparent;
+    border-bottom: none;
+    padding: 0;
+    gap: var(--space-5);
+    box-shadow: none;
+  }
+}
+
+.header__links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+@media (min-width: 48rem) {
+  .header__links {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-4);
+  }
+}
+
+.header__link {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  padding: var(--space-2) var(--space-1);
+  transition: color 0.15s ease;
+}
+
+.header__link:hover {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.header__link--active {
+  color: var(--color-primary);
+  border-bottom: 2px solid var(--color-primary);
+}
+
+.header__actions {
+  display: flex;
+  align-items: center;
+}
