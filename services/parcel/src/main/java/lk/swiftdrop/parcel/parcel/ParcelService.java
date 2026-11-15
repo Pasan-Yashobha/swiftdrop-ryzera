@@ -165,28 +165,67 @@ public class ParcelService {
         return response;
     }
 
-    @Transactional
     public void updateCourierStatus(UUID parcelId, CourierStatusUpdateRequest request) {
+        updateCourierStatus(parcelId, request, null);
+    }
+
+    @Transactional
+    public void updateCourierStatus(UUID parcelId, CourierStatusUpdateRequest request, String idempotencyKey) {
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            IdempotencyService.ReplayStatus replayStatus =
+                    idempotencyService.startOrCheckReplay(idempotencyKey, new StatusUpdatePayload(parcelId.toString(), request));
+            if (replayStatus == IdempotencyService.ReplayStatus.REPLAY) {
+                return;
+            }
+        }
+
         Parcel parcel = parcelRepository.findById(parcelId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.PARCEL_NOT_FOUND, "Parcel not found: " + parcelId));
 
-        if (parcel.getCourierId() != null && !parcel.getCourierId().isBlank()) {
+        ParcelStatus fromStatus = parcel.getStatus();
+        ParcelStatus toStatus = request.status();
+
+        // 1. Courier assignment validation
+        if (toStatus == ParcelStatus.ASSIGNED) {
+            // Assignment transition: if already assigned to a DIFFERENT courier, reject
+            if (parcel.getCourierId() != null && !parcel.getCourierId().isBlank()
+                    && !parcel.getCourierId().equals(request.courierId())) {
+                throw new ConflictException(ErrorCode.COURIER_MISMATCH,
+                        "Courier '" + request.courierId() + "' cannot claim parcel " + parcelId
+                                + " already assigned to courier '" + parcel.getCourierId() + "'");
+            }
+        } else {
+            // Delivery status updates (PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, FAILED, RESCHEDULED, RETURNED):
+            // Parcel must already be assigned, and assigned courier must match request.courierId
+            if (parcel.getCourierId() == null || parcel.getCourierId().isBlank()) {
+                throw new ConflictException(ErrorCode.COURIER_MISMATCH,
+                        "Cannot update delivery status for unassigned parcel " + parcelId
+                                + "; parcel must be ASSIGNED first");
+            }
             if (!parcel.getCourierId().equals(request.courierId())) {
                 throw new ConflictException(ErrorCode.COURIER_MISMATCH,
                         "Courier '" + request.courierId() + "' is not assigned to parcel " + parcelId);
             }
         }
 
-        ParcelStatus fromStatus = parcel.getStatus();
-        ParcelStatus toStatus = request.status();
-
+        // 2. Validate state transition
         stateMachine.validateTransition(fromStatus, toStatus);
 
+        // 3. Repeated same-state check (idempotent no-op for repeated requests without or with key)
+        if (fromStatus == toStatus) {
+            if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+                idempotencyService.recordCompleted(idempotencyKey, 204, null);
+            }
+            return;
+        }
+
+        // 4. Update parcel entity
         Instant now = clock.instant();
         parcel.updateStatus(toStatus, request.courierId(), request.recipientName(),
                 request.photoObjectKey(), request.failureReason(), now);
         parcelRepository.save(parcel);
 
+        // 5. Append status history
         int nextSeq = historyRepository.findMaxSequenceNumber(parcelId).orElse(0) + 1;
         ParcelStatusHistory history = new ParcelStatusHistory(
                 UUID.randomUUID(), parcelId, nextSeq, fromStatus.name(), toStatus.name(),
@@ -194,8 +233,16 @@ public class ParcelService {
         );
         historyRepository.save(history);
 
+        // 6. Record outbox event
         recordStatusEvent(parcel, fromStatus, toStatus, request.courierId(), request.failureReason(), now);
+
+        // 7. Mark idempotency key completed if provided
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            idempotencyService.recordCompleted(idempotencyKey, 204, null);
+        }
     }
+
+    record StatusUpdatePayload(String parcelId, CourierStatusUpdateRequest request) {}
 
     private void recordStatusEvent(Parcel parcel, ParcelStatus fromStatus, ParcelStatus toStatus,
                                    String courierId, String failureReason, Instant now) {

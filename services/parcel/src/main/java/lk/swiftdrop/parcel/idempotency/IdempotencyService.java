@@ -13,6 +13,7 @@ import java.util.Optional;
 import lk.swiftdrop.parcel.common.ConflictException;
 import lk.swiftdrop.parcel.common.ErrorCode;
 import lk.swiftdrop.parcel.common.UnprocessableException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +41,65 @@ public class IdempotencyService {
             return HexFormat.of().formatHex(hash);
         } catch (JsonProcessingException | NoSuchAlgorithmException e) {
             throw new IllegalStateException("Failed to calculate request hash", e);
+        }
+    }
+
+    public enum ReplayStatus {
+        NEW,
+        REPLAY
+    }
+
+    /**
+     * For operations returning void / HTTP 204.
+     * Returns REPLAY if key is already completed with the same request payload.
+     * Returns NEW if key is null/blank or newly started in IN_PROGRESS state.
+     * Throws ConflictException if currently IN_PROGRESS.
+     * Throws UnprocessableException if key was used with a different payload.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public ReplayStatus startOrCheckReplay(String key, Object payload) {
+        if (key == null || key.isBlank()) {
+            return ReplayStatus.NEW;
+        }
+
+        String requestHash = computeHash(payload);
+        Instant now = clock.instant();
+
+        Optional<IdempotencyRecord> existing = repository.findByIdempotencyKey(key);
+        if (existing.isPresent()) {
+            IdempotencyRecord record = existing.get();
+            if (record.getStatus() == IdempotencyRecord.Status.IN_PROGRESS) {
+                throw new ConflictException(ErrorCode.IDEMPOTENCY_KEY_IN_USE,
+                        "A request with Idempotency-Key '" + key + "' is currently being processed");
+            }
+
+            if (!record.getRequestHash().equals(requestHash)) {
+                throw new UnprocessableException(ErrorCode.IDEMPOTENCY_KEY_REUSED,
+                        "Idempotency-Key '" + key + "' was previously used with a different request payload");
+            }
+
+            return ReplayStatus.REPLAY;
+        }
+
+        try {
+            IdempotencyRecord newRecord = new IdempotencyRecord(key, requestHash, now, now.plus(TTL));
+            repository.save(newRecord);
+            return ReplayStatus.NEW;
+        } catch (DataIntegrityViolationException e) {
+            return repository.findByIdempotencyKey(key)
+                    .map(rec -> {
+                        if (rec.getStatus() == IdempotencyRecord.Status.IN_PROGRESS) {
+                            throw new ConflictException(ErrorCode.IDEMPOTENCY_KEY_IN_USE,
+                                    "A request with Idempotency-Key '" + key + "' is currently being processed");
+                        }
+                        if (!rec.getRequestHash().equals(requestHash)) {
+                            throw new UnprocessableException(ErrorCode.IDEMPOTENCY_KEY_REUSED,
+                                    "Idempotency-Key '" + key + "' was previously used with a different request payload");
+                        }
+                        return ReplayStatus.REPLAY;
+                    })
+                    .orElseThrow(() -> new ConflictException(ErrorCode.IDEMPOTENCY_KEY_IN_USE,
+                            "A request with Idempotency-Key '" + key + "' is currently being processed"));
         }
     }
 
@@ -78,9 +138,30 @@ public class IdempotencyService {
             }
         }
 
-        IdempotencyRecord newRecord = new IdempotencyRecord(key, requestHash, now, now.plus(TTL));
-        repository.save(newRecord);
-        return Optional.empty();
+        try {
+            IdempotencyRecord newRecord = new IdempotencyRecord(key, requestHash, now, now.plus(TTL));
+            repository.save(newRecord);
+            return Optional.empty();
+        } catch (DataIntegrityViolationException e) {
+            return repository.findByIdempotencyKey(key)
+                    .map(record -> {
+                        if (record.getStatus() == IdempotencyRecord.Status.IN_PROGRESS) {
+                            throw new ConflictException(ErrorCode.IDEMPOTENCY_KEY_IN_USE,
+                                    "A request with Idempotency-Key '" + key + "' is currently being processed");
+                        }
+                        if (!record.getRequestHash().equals(requestHash)) {
+                            throw new UnprocessableException(ErrorCode.IDEMPOTENCY_KEY_REUSED,
+                                    "Idempotency-Key '" + key + "' was previously used with a different request payload");
+                        }
+                        try {
+                            return Optional.of(objectMapper.readValue(record.getResponseBody(), responseType));
+                        } catch (JsonProcessingException ex) {
+                            throw new IllegalStateException("Failed to deserialize cached idempotent response", ex);
+                        }
+                    })
+                    .orElseThrow(() -> new ConflictException(ErrorCode.IDEMPOTENCY_KEY_IN_USE,
+                            "A request with Idempotency-Key '" + key + "' is currently being processed"));
+        }
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -90,7 +171,7 @@ public class IdempotencyService {
         }
 
         try {
-            String json = objectMapper.writeValueAsString(responseBody);
+            String json = responseBody != null ? objectMapper.writeValueAsString(responseBody) : "";
             repository.findByIdempotencyKey(key).ifPresent(record -> {
                 record.markCompleted(status, json);
                 repository.save(record);

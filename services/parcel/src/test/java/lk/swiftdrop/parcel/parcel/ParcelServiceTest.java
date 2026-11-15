@@ -219,6 +219,121 @@ class ParcelServiceTest {
     }
 
     @Test
+    @DisplayName("Legitimate assignment workflow assigns courier to unassigned parcel")
+    void testLegitimateAssignmentWorkflow() {
+        UUID parcelId = UUID.randomUUID();
+        Parcel parcel = Parcel.create(
+                parcelId, "SD260004ASSIGN", "cust-1", null, "Recipient", "+94770000000", null,
+                "Pickup", "Colombo", "00100", "Dropoff", "Colombo", "00200",
+                new BigDecimal("1.00"), ParcelSize.SMALL, "Gift", DeliveryType.STANDARD, null, null, NOW
+        );
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(parcel));
+        when(historyRepository.findMaxSequenceNumber(parcelId)).thenReturn(Optional.of(1));
+
+        var updateRequest = new CourierStatusUpdateRequest(
+                "CR-NEW-COURIER", ParcelStatus.ASSIGNED, null, null, null, null, "Assigned to courier"
+        );
+
+        parcelService.updateCourierStatus(parcelId, updateRequest, "key-assign-1");
+
+        assertThat(parcel.getStatus()).isEqualTo(ParcelStatus.ASSIGNED);
+        assertThat(parcel.getCourierId()).isEqualTo("CR-NEW-COURIER");
+        verify(outboxService).recordEvent(eq("parcel.assigned"), eq(parcelId.toString()), any());
+        verify(historyRepository).save(any());
+        verify(idempotencyService).recordCompleted("key-assign-1", 204, null);
+    }
+
+    @Test
+    @DisplayName("Arbitrary courier updating unassigned parcel with delivery status is rejected")
+    void testUnassignedParcelDeliveryStatusUpdateThrowsConflict() {
+        UUID parcelId = UUID.randomUUID();
+        Parcel parcel = Parcel.create(
+                parcelId, "SD260004UNASSIGNED", "cust-1", null, "Recipient", "+94770000000", null,
+                "Pickup", "Colombo", "00100", "Dropoff", "Colombo", "00200",
+                new BigDecimal("1.00"), ParcelSize.SMALL, "Gift", DeliveryType.STANDARD, null, null, NOW
+        );
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(parcel));
+
+        var updateRequest = new CourierStatusUpdateRequest(
+                "CR-ARBITRARY", ParcelStatus.PICKED_UP, null, null, null, null, null
+        );
+
+        assertThatThrownBy(() -> parcelService.updateCourierStatus(parcelId, updateRequest))
+                .isInstanceOf(ConflictException.class)
+                .extracting("code")
+                .isEqualTo(ErrorCode.COURIER_MISMATCH);
+
+        verify(parcelRepository, never()).save(any());
+        verify(outboxService, never()).recordEvent(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Reassigning already assigned parcel to different courier is rejected")
+    void testReassigningDifferentCourierThrowsConflict() {
+        UUID parcelId = UUID.randomUUID();
+        Parcel parcel = Parcel.create(
+                parcelId, "SD260004REASSIGN", "cust-1", null, "Recipient", "+94770000000", null,
+                "Pickup", "Colombo", "00100", "Dropoff", "Colombo", "00200",
+                new BigDecimal("1.00"), ParcelSize.SMALL, "Gift", DeliveryType.STANDARD, null, null, NOW
+        );
+        parcel.updateStatus(ParcelStatus.ASSIGNED, "CR-ORIGINAL", null, null, null, NOW);
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(parcel));
+
+        var updateRequest = new CourierStatusUpdateRequest(
+                "CR-DIFFERENT", ParcelStatus.ASSIGNED, null, null, null, null, null
+        );
+
+        assertThatThrownBy(() -> parcelService.updateCourierStatus(parcelId, updateRequest))
+                .isInstanceOf(ConflictException.class)
+                .extracting("code")
+                .isEqualTo(ErrorCode.COURIER_MISMATCH);
+    }
+
+    @Test
+    @DisplayName("Repeated same-state request without idempotency key does not create duplicate history or outbox event")
+    void testRepeatedSameStateWithoutKeyDeduplicates() {
+        UUID parcelId = UUID.randomUUID();
+        String courierId = "CR-101";
+        Parcel parcel = Parcel.create(
+                parcelId, "SD260004SAME", "cust-1", null, "Recipient", "+94770000000", null,
+                "Pickup", "Colombo", "00100", "Dropoff", "Colombo", "00200",
+                new BigDecimal("1.00"), ParcelSize.SMALL, "Gift", DeliveryType.STANDARD, null, null, NOW
+        );
+        parcel.updateStatus(ParcelStatus.IN_TRANSIT, courierId, null, null, null, NOW);
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(parcel));
+
+        var updateRequest = new CourierStatusUpdateRequest(
+                courierId, ParcelStatus.IN_TRANSIT, null, null, null, null, "Still in transit"
+        );
+
+        parcelService.updateCourierStatus(parcelId, updateRequest, null);
+
+        verify(historyRepository, never()).save(any());
+        verify(outboxService, never()).recordEvent(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Duplicate retry with same idempotency key returning REPLAY skips processing")
+    void testDuplicateRetryWithIdempotencyKeySkipsProcessing() {
+        UUID parcelId = UUID.randomUUID();
+        String courierId = "CR-101";
+        String key = "idem-retry-key-1";
+
+        var updateRequest = new CourierStatusUpdateRequest(
+                courierId, ParcelStatus.IN_TRANSIT, null, null, null, null, null
+        );
+
+        when(idempotencyService.startOrCheckReplay(eq(key), any()))
+                .thenReturn(IdempotencyService.ReplayStatus.REPLAY);
+
+        parcelService.updateCourierStatus(parcelId, updateRequest, key);
+
+        verify(parcelRepository, never()).findById(any());
+        verify(historyRepository, never()).save(any());
+        verify(outboxService, never()).recordEvent(any(), any(), any());
+    }
+
+    @Test
     @DisplayName("Customer authorization check blocks non-admin from accessing other customer's parcel")
     void testCustomerAuthorizationCheck() {
         UUID parcelId = UUID.randomUUID();
