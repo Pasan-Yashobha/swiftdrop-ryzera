@@ -2,7 +2,6 @@ package lk.swiftdrop.parcel.pricing;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
-import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.UUID;
 import lk.swiftdrop.parcel.common.CorrelationIdFilter;
@@ -15,7 +14,7 @@ import lk.swiftdrop.parcel.security.InternalTokenFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -30,17 +29,23 @@ public class HttpPricingClient implements PricingClient {
     private final String internalToken;
 
     public HttpPricingClient(AppProperties properties) {
-        var pricing = properties.pricing();
-        var requestFactory = new JdkClientHttpRequestFactory(HttpClient.newBuilder()
-                .connectTimeout(Duration.ofMillis(pricing.connectTimeoutMs()))
-                .build());
+        this(buildRestClient(properties.pricing()), properties.security().internalToken());
+    }
+
+    HttpPricingClient(RestClient restClient, String internalToken) {
+        this.restClient = restClient;
+        this.internalToken = internalToken;
+    }
+
+    private static RestClient buildRestClient(AppProperties.Pricing pricing) {
+        var requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(Duration.ofMillis(pricing.connectTimeoutMs()));
         requestFactory.setReadTimeout(Duration.ofMillis(pricing.readTimeoutMs()));
 
-        this.restClient = RestClient.builder()
+        return RestClient.builder()
                 .baseUrl(pricing.baseUrl())
                 .requestFactory(requestFactory)
                 .build();
-        this.internalToken = properties.security().internalToken();
     }
 
     @Override
