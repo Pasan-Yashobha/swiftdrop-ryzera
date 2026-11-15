@@ -37,6 +37,10 @@
       "arguments": { "x-dead-letter-exchange": "swiftdrop.dlx", "x-dead-letter-routing-key": "dispatch.courier.q.dlq" } },
     { "name": "dispatch.courier.q.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {} },
 
+    { "name": "courier.assignments.q", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "swiftdrop.dlx", "x-dead-letter-routing-key": "courier.assignments.dlq" } },
+    { "name": "courier.assignments.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {} },
+
     { "name": "audit.q", "vhost": "/", "durable": true, "auto_delete": false,
       "arguments": { "x-dead-letter-exchange": "swiftdrop.dlx", "x-dead-letter-routing-key": "audit.dlq" } },
     { "name": "audit.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {} },
@@ -79,6 +83,10 @@
 
     { "source": "swiftdrop.events", "vhost": "/", "destination": "dispatch.courier.q", "destination_type": "queue", "routing_key": "courier.availability.changed", "arguments": {} },
     { "source": "swiftdrop.dlx", "vhost": "/", "destination": "dispatch.courier.q.dlq", "destination_type": "queue", "routing_key": "dispatch.courier.q.dlq", "arguments": {} },
+
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "courier.assignments.q", "destination_type": "queue", "routing_key": "parcel.assigned", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "courier.assignments.q", "destination_type": "queue", "routing_key": "parcel.reassigned", "arguments": {} },
+    { "source": "swiftdrop.dlx", "vhost": "/", "destination": "courier.assignments.dlq", "destination_type": "queue", "routing_key": "courier.assignments.dlq", "arguments": {} },
 
     { "source": "swiftdrop.events", "vhost": "/", "destination": "audit.q", "destination_type": "queue", "routing_key": "user.#", "arguments": {} },
     { "source": "swiftdrop.events", "vhost": "/", "destination": "audit.q", "destination_type": "queue", "routing_key": "merchant.#", "arguments": {} },
