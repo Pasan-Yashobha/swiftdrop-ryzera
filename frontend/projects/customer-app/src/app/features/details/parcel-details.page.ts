@@ -62,6 +62,11 @@ import { CustomerParcelDetail } from '../../core/models/parcel.model';
           <p style="margin-top: var(--space-1);">
             You must be signed in with a valid customer account to view full parcel details.
           </p>
+          <div style="margin-top: var(--space-2);">
+            <a routerLink="/login" [queryParams]="{ returnUrl: '/parcels/' + parcelId() }" class="btn btn-primary btn-sm">
+              Sign In to View Details
+            </a>
+          </div>
         </section>
       }
 

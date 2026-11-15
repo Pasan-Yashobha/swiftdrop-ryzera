@@ -10,7 +10,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { ParcelApi } from '../../core/api/parcel.api';
-import { AuthTokenService } from '../../core/auth/auth-token.service';
+import { AuthService } from '../../core/auth/auth.service';
 import { CustomerParcelSummary, ParcelStatus } from '../../core/models/parcel.model';
 
 @Component({
@@ -95,9 +95,13 @@ import { CustomerParcelSummary, ParcelStatus } from '../../core/models/parcel.mo
         <section class="card" role="alert" style="border-left: 4px solid var(--tone-warning-fg); background: var(--tone-warning-bg); color: var(--tone-warning-fg);">
           <h3>Authentication Required</h3>
           <p style="margin-top: var(--space-1);">
-            Parcel Service requires an authenticated customer JWT token to list personal delivery history.
-            Once customer sign-in is complete, your deliveries will load automatically.
+            Parcel Service requires an authenticated customer session to list personal delivery history.
           </p>
+          <div style="margin-top: var(--space-2);">
+            <a routerLink="/login" [queryParams]="{ returnUrl: '/history' }" class="btn btn-primary btn-sm">
+              Sign In to View Deliveries
+            </a>
+          </div>
         </section>
       }
 
@@ -202,7 +206,7 @@ import { CustomerParcelSummary, ParcelStatus } from '../../core/models/parcel.mo
 })
 export class DeliveryHistoryPage implements OnInit {
   private readonly parcelApi = inject(ParcelApi);
-  private readonly auth = inject(AuthTokenService);
+  private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly parcels = signal<CustomerParcelSummary[]>([]);

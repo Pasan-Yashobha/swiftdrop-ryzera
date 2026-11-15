@@ -1,44 +1,20 @@
-import { Injectable, signal } from '@angular/core';
-
-const TOKEN_STORAGE_KEY = 'swiftdrop_customer_token';
+import { inject, Injectable } from '@angular/core';
+import { AuthService } from './auth.service';
 
 /**
- * Lightweight token state holder preparing Customer App for JWT authentication.
- * Does not invent mock login endpoints or authentication flows; stores and supplies
- * the bearer token for outgoing authenticated Parcel Service requests.
+ * Adapter delegating to AuthService to preserve compatibility.
  */
 @Injectable({ providedIn: 'root' })
 export class AuthTokenService {
-  private readonly _token = signal<string | null>(this.loadStoredToken());
+  private readonly auth = inject(AuthService);
 
-  readonly token = this._token.asReadonly();
+  readonly token = this.auth.token;
 
   hasToken(): boolean {
-    return !!this._token();
-  }
-
-  setToken(token: string | null): void {
-    this._token.set(token);
-    try {
-      if (token) {
-        localStorage.setItem(TOKEN_STORAGE_KEY, token);
-      } else {
-        localStorage.removeItem(TOKEN_STORAGE_KEY);
-      }
-    } catch {
-      // Ignore storage errors in restricted contexts
-    }
+    return this.auth.hasToken();
   }
 
   clearToken(): void {
-    this.setToken(null);
-  }
-
-  private loadStoredToken(): string | null {
-    try {
-      return localStorage.getItem(TOKEN_STORAGE_KEY);
-    } catch {
-      return null;
-    }
+    this.auth.logout();
   }
 }

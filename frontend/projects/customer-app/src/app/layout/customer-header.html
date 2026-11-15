@@ -35,10 +35,25 @@
         }
       </ul>
 
-      <div class="header__actions">
-        <a routerLink="/book" class="btn btn-primary btn-sm">
-          + Book Delivery
-        </a>
+      <div class="header__actions cluster" style="gap: var(--space-2);">
+        @if (isAuthenticated()) {
+          <span class="muted small header__user-name">
+            {{ user()?.fullName }}
+          </span>
+          <a routerLink="/book" class="btn btn-primary btn-sm">
+            + Book Delivery
+          </a>
+          <button type="button" class="btn btn-secondary btn-sm" (click)="onSignOut()">
+            Sign Out
+          </button>
+        } @else {
+          <a routerLink="/login" class="header__link" style="margin-right: var(--space-1);">
+            Sign In
+          </a>
+          <a routerLink="/signup" class="btn btn-primary btn-sm">
+            Sign Up
+          </a>
+        }
       </div>
     </nav>
   </div>
