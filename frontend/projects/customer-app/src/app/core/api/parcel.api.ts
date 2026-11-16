@@ -1,4 +1,4 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { API_BASE_URL } from '../config/app-config';
@@ -10,6 +10,7 @@ import {
   CustomerParcelSummary,
   ParcelStatusHistoryDto,
 } from '../models/parcel.model';
+import { generateId } from '../util/id.util';
 
 @Injectable({ providedIn: 'root' })
 export class ParcelApi {
@@ -20,12 +21,22 @@ export class ParcelApi {
     return `${this.baseUrl}/parcels`;
   }
 
+  /** A new Idempotency-Key. Generate one per submit attempt and keep it for retries of the same payload. */
+  newIdempotencyKey(): string {
+    return generateId();
+  }
+
   /**
    * Book a customer parcel delivery with an accepted pricing quote.
    * Calls POST /api/v1/parcels
+   * Optionally sends Idempotency-Key header to prevent duplicate orders across network retries.
    */
-  create(request: CreateCustomerParcelRequest): Observable<CustomerParcelDetail> {
-    return this.http.post<CustomerParcelDetail>(this.parcelsUrl, request);
+  create(request: CreateCustomerParcelRequest, idempotencyKey?: string): Observable<CustomerParcelDetail> {
+    let headers = new HttpHeaders();
+    if (idempotencyKey && idempotencyKey.trim()) {
+      headers = headers.set('Idempotency-Key', idempotencyKey.trim());
+    }
+    return this.http.post<CustomerParcelDetail>(this.parcelsUrl, request, { headers });
   }
 
   /**

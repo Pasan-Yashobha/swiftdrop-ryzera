@@ -8,6 +8,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import lk.swiftdrop.parcel.common.BadRequestException;
 import lk.swiftdrop.parcel.common.ConflictException;
 import lk.swiftdrop.parcel.common.ErrorCode;
 import lk.swiftdrop.parcel.common.ForbiddenException;
@@ -56,6 +57,23 @@ public class ParcelService {
 
     @Transactional
     public CustomerParcelDetailResponse createCustomerParcel(CreateCustomerParcelRequest request, String customerId) {
+        return createCustomerParcel(request, customerId, null);
+    }
+
+    @Transactional
+    public CustomerParcelDetailResponse createCustomerParcel(
+            CreateCustomerParcelRequest request,
+            String customerId,
+            String idempotencyKey) {
+        String scopedKey = resolveCustomerScopedKey(customerId, idempotencyKey);
+        if (scopedKey != null) {
+            Optional<CustomerParcelDetailResponse> cached =
+                    idempotencyService.startOrGetReplay(scopedKey, request, CustomerParcelDetailResponse.class);
+            if (cached.isPresent()) {
+                return cached.get();
+            }
+        }
+
         PricingSnapshot pricing = pricingClient.acceptQuote(request.quoteId());
         String trackingNumber = generateUniqueTrackingNumber();
         UUID parcelId = UUID.randomUUID();
@@ -97,7 +115,24 @@ public class ParcelService {
         eventData.put("customerId", customerId);
         outboxService.recordEvent("parcel.created", parcelId.toString(), eventData);
 
-        return toDetailResponse(parcel, List.of(toHistoryDto(history)));
+        CustomerParcelDetailResponse response = toDetailResponse(parcel, List.of(toHistoryDto(history)));
+
+        if (scopedKey != null) {
+            idempotencyService.recordCompleted(scopedKey, 201, response);
+        }
+
+        return response;
+    }
+
+    private String resolveCustomerScopedKey(String customerId, String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            return null;
+        }
+        String trimmedKey = idempotencyKey.trim();
+        if (trimmedKey.length() > 120) {
+            throw new BadRequestException(ErrorCode.VALIDATION_FAILED, "Idempotency-Key must not exceed 120 characters");
+        }
+        return "customer:" + customerId + ":" + trimmedKey;
     }
 
     @Transactional
@@ -165,6 +200,7 @@ public class ParcelService {
         return response;
     }
 
+    @Transactional
     public void updateCourierStatus(UUID parcelId, CourierStatusUpdateRequest request) {
         updateCourierStatus(parcelId, request, null);
     }

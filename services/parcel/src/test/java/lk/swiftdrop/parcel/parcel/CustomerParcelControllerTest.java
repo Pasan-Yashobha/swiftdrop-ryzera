@@ -29,9 +29,11 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -58,8 +60,8 @@ class CustomerParcelControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/parcels returns 201 Created on valid booking request")
-    void testCreateDeliveryReturnsCreated() throws Exception {
+    @DisplayName("POST /api/v1/parcels returns 201 Created on valid booking request without Idempotency-Key")
+    void testCreateDeliveryReturnsCreatedWithoutIdempotencyKey() throws Exception {
         UUID quoteId = UUID.randomUUID();
         UUID parcelId = UUID.randomUUID();
 
@@ -81,16 +83,53 @@ class CustomerParcelControllerTest {
                 pricing, null, null, null, Instant.now(), Instant.now(), Collections.emptyList()
         );
 
-        when(parcelService.createCustomerParcel(any(), eq("cust-user-1"))).thenReturn(detailResponse);
+        when(parcelService.createCustomerParcel(any(), eq("cust-user-1"), isNull())).thenReturn(detailResponse);
 
         mockMvc.perform(post("/api/v1/parcels")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
+                .andExpect(header().string("Location", "/api/v1/parcels/" + parcelId))
                 .andExpect(jsonPath("$.id").value(parcelId.toString()))
                 .andExpect(jsonPath("$.trackingNumber").value("SD26000100ABC"))
                 .andExpect(jsonPath("$.status").value("CREATED"))
                 .andExpect(jsonPath("$.pricing.totalFee").value(450.00));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/parcels passes Idempotency-Key header to service")
+    void testCreateDeliveryWithIdempotencyKey() throws Exception {
+        UUID quoteId = UUID.randomUUID();
+        UUID parcelId = UUID.randomUUID();
+
+        var recipient = new RecipientDto("John Doe", "+94771234567", "john@example.com");
+        var pickup = new AddressDto("10 Galle Road", "Colombo", "00300");
+        var dropoff = new AddressDto("45 Temple Street", "Kandy", "20000");
+        var request = new CreateCustomerParcelRequest(
+                recipient, pickup, dropoff, new BigDecimal("2.50"), ParcelSize.MEDIUM,
+                "Electronics", DeliveryType.STANDARD, "Fragile", quoteId
+        );
+
+        var pricing = new CustomerParcelDetailResponse.PricingBreakdownDto(
+                quoteId, new BigDecimal("300.00"), new BigDecimal("100.00"), new BigDecimal("50.00"),
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("450.00"), "LKR"
+        );
+        var detailResponse = new CustomerParcelDetailResponse(
+                parcelId, "SD26000100ABC", ParcelStatus.CREATED, recipient, pickup, dropoff,
+                new BigDecimal("2.50"), ParcelSize.MEDIUM, DeliveryType.STANDARD, "Electronics", "Fragile",
+                pricing, null, null, null, Instant.now(), Instant.now(), Collections.emptyList()
+        );
+
+        when(parcelService.createCustomerParcel(any(), eq("cust-user-1"), eq("idem-key-123"))).thenReturn(detailResponse);
+
+        mockMvc.perform(post("/api/v1/parcels")
+                        .header("Idempotency-Key", "idem-key-123")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Location", "/api/v1/parcels/" + parcelId))
+                .andExpect(jsonPath("$.id").value(parcelId.toString()))
+                .andExpect(jsonPath("$.trackingNumber").value("SD26000100ABC"));
     }
 
     @Test

@@ -7,9 +7,11 @@ import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import lk.swiftdrop.parcel.common.BadRequestException;
 import lk.swiftdrop.parcel.common.ConflictException;
 import lk.swiftdrop.parcel.common.ErrorCode;
 import lk.swiftdrop.parcel.common.ForbiddenException;
+import lk.swiftdrop.parcel.common.UnprocessableException;
 import lk.swiftdrop.parcel.event.OutboxService;
 import lk.swiftdrop.parcel.idempotency.IdempotencyService;
 import lk.swiftdrop.parcel.parcel.dto.AddressDto;
@@ -384,5 +386,167 @@ class ParcelServiceTest {
         assertThat(response.currency()).isEqualTo("LKR");
         assertThat(response.pricing().baseAmount()).isEqualByComparingTo("200.00");
         assertThat(response.pricing().totalAmount()).isEqualByComparingTo("280.00");
+    }
+
+    @Test
+    @DisplayName("Customer parcel creation with new idempotency key stores scoped key and completes execution")
+    void testCreateCustomerParcelWithIdempotencyKey_FirstExecution() {
+        UUID quoteId = UUID.randomUUID();
+        String customerId = "cust-100";
+        String rawKey = "client-req-001";
+        String expectedScopedKey = "customer:cust-100:client-req-001";
+        String trackingNo = "SD260007NEW";
+
+        var recipient = new RecipientDto("Kasun Perera", "+94771234567", "kasun@example.com");
+        var pickup = new AddressDto("10 Temple Rd", "Colombo", "00300");
+        var dropoff = new AddressDto("25 Main St", "Kandy", "20000");
+        var request = new CreateCustomerParcelRequest(
+                recipient, pickup, dropoff, new BigDecimal("2.50"), ParcelSize.SMALL,
+                "Books", DeliveryType.STANDARD, "Fragile", quoteId
+        );
+
+        PricingSnapshot pricing = PricingSnapshot.of(
+                quoteId, new BigDecimal("300.00"), new BigDecimal("100.00"), new BigDecimal("50.00"),
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("450.00"), "LKR"
+        );
+
+        when(idempotencyService.startOrGetReplay(expectedScopedKey, request, CustomerParcelDetailResponse.class))
+                .thenReturn(Optional.empty());
+        when(pricingClient.acceptQuote(quoteId)).thenReturn(pricing);
+        when(trackingNumberGenerator.generate()).thenReturn(trackingNo);
+        when(parcelRepository.existsByTrackingNumber(trackingNo)).thenReturn(false);
+
+        CustomerParcelDetailResponse response = parcelService.createCustomerParcel(request, customerId, rawKey);
+
+        assertThat(response).isNotNull();
+        assertThat(response.trackingNumber()).isEqualTo(trackingNo);
+
+        verify(parcelRepository).save(any(Parcel.class));
+        verify(historyRepository).save(any(ParcelStatusHistory.class));
+        verify(outboxService).recordEvent(eq("parcel.created"), any(), any());
+        verify(idempotencyService).recordCompleted(eq(expectedScopedKey), eq(201), any(CustomerParcelDetailResponse.class));
+    }
+
+    @Test
+    @DisplayName("Customer parcel creation with existing idempotency key replays cached response without duplicate side-effects")
+    void testCreateCustomerParcelWithIdempotencyKey_ReplayCached() {
+        UUID quoteId = UUID.randomUUID();
+        String customerId = "cust-100";
+        String rawKey = "client-req-001";
+        String expectedScopedKey = "customer:cust-100:client-req-001";
+
+        var recipient = new RecipientDto("Kasun Perera", "+94771234567", "kasun@example.com");
+        var pickup = new AddressDto("10 Temple Rd", "Colombo", "00300");
+        var dropoff = new AddressDto("25 Main St", "Kandy", "20000");
+        var request = new CreateCustomerParcelRequest(
+                recipient, pickup, dropoff, new BigDecimal("2.50"), ParcelSize.SMALL,
+                "Books", DeliveryType.STANDARD, "Fragile", quoteId
+        );
+
+        var pricing = new CustomerParcelDetailResponse.PricingBreakdownDto(
+                quoteId, new BigDecimal("300.00"), new BigDecimal("100.00"), new BigDecimal("50.00"),
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("450.00"), "LKR"
+        );
+        var cachedResponse = new CustomerParcelDetailResponse(
+                UUID.randomUUID(), "SD260007CACHED", ParcelStatus.CREATED, recipient, pickup, dropoff,
+                new BigDecimal("2.50"), ParcelSize.SMALL, DeliveryType.STANDARD, "Books", "Fragile",
+                pricing, null, null, null, NOW, NOW, java.util.Collections.emptyList()
+        );
+
+        when(idempotencyService.startOrGetReplay(expectedScopedKey, request, CustomerParcelDetailResponse.class))
+                .thenReturn(Optional.of(cachedResponse));
+
+        CustomerParcelDetailResponse response = parcelService.createCustomerParcel(request, customerId, rawKey);
+
+        assertThat(response).isEqualTo(cachedResponse);
+        verify(pricingClient, never()).acceptQuote(any());
+        verify(parcelRepository, never()).save(any());
+        verify(historyRepository, never()).save(any());
+        verify(outboxService, never()).recordEvent(any(), any(), any());
+        verify(idempotencyService, never()).recordCompleted(any(), any(Integer.class), any());
+    }
+
+    @Test
+    @DisplayName("Customer idempotency keys are scoped by customer ID preventing cross-customer disclosure")
+    void testCreateCustomerParcel_TenantIsolation() {
+        UUID quoteId = UUID.randomUUID();
+        String sharedRawKey = "identical-key-uuid";
+
+        var recipient = new RecipientDto("Kasun Perera", "+94771234567", "kasun@example.com");
+        var pickup = new AddressDto("10 Temple Rd", "Colombo", "00300");
+        var dropoff = new AddressDto("25 Main St", "Kandy", "20000");
+        var request = new CreateCustomerParcelRequest(
+                recipient, pickup, dropoff, new BigDecimal("2.50"), ParcelSize.SMALL,
+                "Books", DeliveryType.STANDARD, "Fragile", quoteId
+        );
+
+        PricingSnapshot pricing = PricingSnapshot.of(
+                quoteId, new BigDecimal("300.00"), new BigDecimal("100.00"), new BigDecimal("50.00"),
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("450.00"), "LKR"
+        );
+
+        when(pricingClient.acceptQuote(quoteId)).thenReturn(pricing);
+        when(trackingNumberGenerator.generate()).thenReturn("SD260008A", "SD260008B");
+        when(parcelRepository.existsByTrackingNumber(any())).thenReturn(false);
+
+        // When Customer 1 calls with rawKey
+        parcelService.createCustomerParcel(request, "cust-1", sharedRawKey);
+        verify(idempotencyService).startOrGetReplay("customer:cust-1:identical-key-uuid", request, CustomerParcelDetailResponse.class);
+        verify(idempotencyService).recordCompleted(eq("customer:cust-1:identical-key-uuid"), eq(201), any());
+
+        // When Customer 2 calls with identical rawKey
+        parcelService.createCustomerParcel(request, "cust-2", sharedRawKey);
+        verify(idempotencyService).startOrGetReplay("customer:cust-2:identical-key-uuid", request, CustomerParcelDetailResponse.class);
+        verify(idempotencyService).recordCompleted(eq("customer:cust-2:identical-key-uuid"), eq(201), any());
+    }
+
+    @Test
+    @DisplayName("Customer parcel creation rejects idempotency key longer than 120 characters")
+    void testCreateCustomerParcel_IdempotencyKeyTooLong_ThrowsBadRequest() {
+        UUID quoteId = UUID.randomUUID();
+        String customerId = "cust-100";
+        String longKey = "a".repeat(121);
+
+        var recipient = new RecipientDto("Kasun Perera", "+94771234567", "kasun@example.com");
+        var pickup = new AddressDto("10 Temple Rd", "Colombo", "00300");
+        var dropoff = new AddressDto("25 Main St", "Kandy", "20000");
+        var request = new CreateCustomerParcelRequest(
+                recipient, pickup, dropoff, new BigDecimal("2.50"), ParcelSize.SMALL,
+                "Books", DeliveryType.STANDARD, "Fragile", quoteId
+        );
+
+        assertThatThrownBy(() -> parcelService.createCustomerParcel(request, customerId, longKey))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Idempotency-Key must not exceed 120 characters");
+
+        verify(idempotencyService, never()).startOrGetReplay(any(), any(), any());
+        verify(pricingClient, never()).acceptQuote(any());
+    }
+
+    @Test
+    @DisplayName("Customer parcel creation propagates in-use conflict and payload reuse errors from IdempotencyService")
+    void testCreateCustomerParcel_PropagatesIdempotencyExceptions() {
+        UUID quoteId = UUID.randomUUID();
+        String customerId = "cust-100";
+        String rawKey = "in-progress-key";
+        String scopedKey = "customer:cust-100:in-progress-key";
+
+        var recipient = new RecipientDto("Kasun Perera", "+94771234567", "kasun@example.com");
+        var pickup = new AddressDto("10 Temple Rd", "Colombo", "00300");
+        var dropoff = new AddressDto("25 Main St", "Kandy", "20000");
+        var request = new CreateCustomerParcelRequest(
+                recipient, pickup, dropoff, new BigDecimal("2.50"), ParcelSize.SMALL,
+                "Books", DeliveryType.STANDARD, "Fragile", quoteId
+        );
+
+        when(idempotencyService.startOrGetReplay(scopedKey, request, CustomerParcelDetailResponse.class))
+                .thenThrow(new ConflictException(ErrorCode.IDEMPOTENCY_KEY_IN_USE, "A request is currently being processed"));
+
+        assertThatThrownBy(() -> parcelService.createCustomerParcel(request, customerId, rawKey))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("A request is currently being processed");
+
+        verify(pricingClient, never()).acceptQuote(any());
+        verify(parcelRepository, never()).save(any());
     }
 }

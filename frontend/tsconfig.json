@@ -35,6 +35,12 @@
     },
     {
       "path": "./projects/admin-console/tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/customer-app/tsconfig.app.json"
+    },
+    {
+      "path": "./projects/customer-app/tsconfig.spec.json"
     }
   ]
 }

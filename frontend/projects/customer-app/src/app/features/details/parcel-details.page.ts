@@ -10,8 +10,11 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { map, Subscription, switchMap } from 'rxjs';
 import { ParcelApi } from '../../core/api/parcel.api';
+import { ReceiptApi } from '../../core/api/receipt.api';
 import { CustomerParcelDetail } from '../../core/models/parcel.model';
+import { ReceiptMetadata } from '../../core/models/receipt.model';
 
 @Component({
   selector: 'app-parcel-details-page',
@@ -179,6 +182,57 @@ import { CustomerParcelDetail } from '../../core/models/parcel.model';
 
           <!-- Pricing Snapshot & Courier Card -->
           <div class="stack">
+            @if (p.status === 'DELIVERED') {
+              <section class="card stack" aria-labelledby="receipt-heading">
+                <div class="cluster" style="justify-content: space-between; align-items: center; gap: var(--space-2);">
+                  <div>
+                    <h2 id="receipt-heading" style="margin: 0;">Delivery Receipt</h2>
+                    <p class="muted small" style="margin-top: var(--space-1);">
+                      Official receipt generated upon successful delivery.
+                    </p>
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      class="btn btn-primary btn-sm"
+                      data-testid="download-receipt-btn"
+                      [disabled]="downloadingReceipt()"
+                      (click)="downloadReceipt()"
+                    >
+                      @if (downloadingReceipt()) {
+                        <span>Downloading Receipt...</span>
+                      } @else {
+                        <span>Download Receipt</span>
+                      }
+                    </button>
+                  </div>
+                </div>
+
+                @if (downloadingReceipt()) {
+                  <div class="cluster" role="status" aria-live="polite" style="gap: var(--space-2); color: var(--color-primary);">
+                    <span class="small">Retrieving receipt document...</span>
+                  </div>
+                }
+
+                @if (receiptError()) {
+                  <div class="card" role="alert" style="border-left: 4px solid var(--tone-danger-fg); background: var(--tone-danger-bg); color: var(--tone-danger-fg); padding: var(--space-2) var(--space-3); margin-top: var(--space-1);">
+                    <p class="small"><strong>Error:</strong> {{ receiptError() }}</p>
+                    <div style="margin-top: var(--space-2);">
+                      <button
+                        type="button"
+                        class="btn btn-secondary btn-sm"
+                        data-testid="retry-receipt-btn"
+                        [disabled]="downloadingReceipt()"
+                        (click)="downloadReceipt()"
+                      >
+                        Retry Download
+                      </button>
+                    </div>
+                  </div>
+                }
+              </section>
+            }
+
             @if (p.pricing; as pr) {
               <section class="card stack" aria-labelledby="pricing-heading">
                 <h2 id="pricing-heading">Pricing Snapshot</h2>
@@ -292,7 +346,9 @@ export class ParcelDetailsPage implements OnInit {
 
   private readonly route = inject(ActivatedRoute);
   private readonly parcelApi = inject(ParcelApi);
+  private readonly receiptApi = inject(ReceiptApi);
   private readonly destroyRef = inject(DestroyRef);
+  private receiptSub?: Subscription;
 
   protected readonly parcelId = signal<string>('');
   protected readonly parcel = signal<CustomerParcelDetail | null>(null);
@@ -300,6 +356,15 @@ export class ParcelDetailsPage implements OnInit {
   protected readonly error = signal<string | null>(null);
   protected readonly isUnauthorized = signal(false);
   protected readonly isNotFound = signal(false);
+
+  readonly downloadingReceipt = signal(false);
+  readonly receiptError = signal<string | null>(null);
+
+  constructor() {
+    this.destroyRef.onDestroy(() => {
+      this.receiptSub?.unsubscribe();
+    });
+  }
 
   ngOnInit(): void {
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
@@ -313,6 +378,11 @@ export class ParcelDetailsPage implements OnInit {
 
   protected loadParcel(id: string): void {
     if (!id) return;
+
+    this.receiptSub?.unsubscribe();
+    this.receiptSub = undefined;
+    this.downloadingReceipt.set(false);
+    this.receiptError.set(null);
 
     this.loading.set(true);
     this.error.set(null);
@@ -346,6 +416,105 @@ export class ParcelDetailsPage implements OnInit {
           this.error.set('Failed to connect to the Parcel Service. Please check if the backend is running.');
         },
       });
+  }
+
+  downloadReceipt(): void {
+    const currentParcel = this.parcel();
+    if (!currentParcel || currentParcel.status !== 'DELIVERED') {
+      return;
+    }
+
+    if (this.downloadingReceipt()) {
+      return;
+    }
+
+    this.downloadingReceipt.set(true);
+    this.receiptError.set(null);
+
+    this.receiptSub?.unsubscribe();
+    this.receiptSub = this.receiptApi
+      .getByParcel(currentParcel.id)
+      .pipe(
+        switchMap((metadata: ReceiptMetadata) =>
+          this.receiptApi.download(metadata.id).pipe(
+            map((blob: Blob) => ({ blob, metadata }))
+          )
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: ({ blob, metadata }) => {
+          this.downloadingReceipt.set(false);
+          this.triggerBlobDownload(blob, metadata.receiptNo);
+        },
+        error: (err: unknown) => {
+          this.downloadingReceipt.set(false);
+          this.handleReceiptError(err);
+        },
+      });
+  }
+
+  triggerBlobDownload(blob: Blob, receiptNo?: string): void {
+    const rawNo = receiptNo?.trim() || 'delivered';
+    const safeNo = rawNo.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `receipt-${safeNo}.pdf`;
+
+    if (
+      typeof window !== 'undefined' &&
+      typeof document !== 'undefined' &&
+      window.URL &&
+      typeof window.URL.createObjectURL === 'function'
+    ) {
+      const objectUrl = window.URL.createObjectURL(blob);
+      let link: HTMLAnchorElement | null = null;
+      try {
+        link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = filename;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+      } finally {
+        if (link && link.parentNode) {
+          link.parentNode.removeChild(link);
+        }
+        setTimeout(() => {
+          if (typeof window !== 'undefined' && window.URL && typeof window.URL.revokeObjectURL === 'function') {
+            window.URL.revokeObjectURL(objectUrl);
+          }
+        }, 1000);
+      }
+    }
+  }
+
+  protected handleReceiptError(err: unknown): void {
+    if (err instanceof HttpErrorResponse) {
+      if (err.status === 401 || err.status === 403) {
+        this.receiptError.set(
+          'Authentication required to download receipt. Please sign in again.'
+        );
+        return;
+      }
+      if (err.status === 404) {
+        this.receiptError.set(
+          'Receipt is not available yet. Generation may still be pending, or no receipt was issued for this parcel.'
+        );
+        return;
+      }
+      if (err.status === 0) {
+        this.receiptError.set(
+          'Network error while connecting to the Document Service. Please check your connection and retry.'
+        );
+        return;
+      }
+      if (err.error?.message && typeof err.error.message === 'string') {
+        this.receiptError.set(err.error.message);
+        return;
+      }
+    }
+    this.receiptError.set(
+      'Failed to download receipt. Please try again later.'
+    );
   }
 
   protected formatStatus(status: string): string {

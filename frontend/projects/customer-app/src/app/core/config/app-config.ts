@@ -1,5 +1,11 @@
 import { inject, InjectionToken } from '@angular/core';
-import { CustomerAppConfig, environment } from '../../../environments/environment';
+import { environment } from '../../../environments/environment';
+
+export interface CustomerAppConfig {
+  production: boolean;
+  apiBase: string;
+  port: number;
+}
 
 export const APP_CONFIG = new InjectionToken<CustomerAppConfig>('APP_CONFIG', {
   providedIn: 'root',

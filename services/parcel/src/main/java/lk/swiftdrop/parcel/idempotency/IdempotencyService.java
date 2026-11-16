@@ -164,7 +164,7 @@ public class IdempotencyService {
         }
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional(propagation = Propagation.REQUIRED)
     public void recordCompleted(String key, int status, Object responseBody) {
         if (key == null || key.isBlank()) {
             return;

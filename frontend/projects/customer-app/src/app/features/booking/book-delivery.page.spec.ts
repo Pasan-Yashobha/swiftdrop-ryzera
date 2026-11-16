@@ -1,4 +1,4 @@
-import { provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
@@ -195,37 +195,133 @@ describe('BookDeliveryPage', () => {
 
     component['onConfirmBooking']();
 
-    expect(parcelApiSpy.create).toHaveBeenCalledWith({
-      recipient: {
-        name: 'Kasun Jayawardena',
-        phone: '+94771234567',
-        email: 'kasun@example.com',
+    expect(parcelApiSpy.create).toHaveBeenCalledWith(
+      {
+        recipient: {
+          name: 'Kasun Jayawardena',
+          phone: '+94771234567',
+          email: 'kasun@example.com',
+        },
+        pickup: {
+          addressLine: '12 Galle Rd',
+          city: 'Colombo 03',
+          postalCode: null,
+        },
+        dropoff: {
+          addressLine: '45 Temple St',
+          city: 'Kandy',
+          postalCode: null,
+        },
+        weightKg: 2.5,
+        size: 'MEDIUM',
+        deliveryType: 'STANDARD',
+        description: 'Electronics',
+        notes: 'Handle with care',
+        quoteId: mockQuote.quoteId,
       },
-      pickup: {
-        addressLine: '12 Galle Rd',
-        city: 'Colombo 03',
-        postalCode: null,
-      },
-      dropoff: {
-        addressLine: '45 Temple St',
-        city: 'Kandy',
-        postalCode: null,
-      },
-      weightKg: 2.5,
-      size: 'MEDIUM',
-      deliveryType: 'STANDARD',
-      description: 'Electronics',
-      notes: 'Handle with care',
-      quoteId: mockQuote.quoteId,
-    });
+      jasmine.stringMatching(/^[0-9a-f-]{36}$/)
+    );
 
     expect(component['bookedParcel']()).toEqual(mockCreatedParcel);
     // Duplicate submission prevention: quote is cleared
     expect(component['currentQuote']()).toBeNull();
   });
 
+  it('reuses the same idempotency key when retrying identical booking attempt after error', () => {
+    const error503 = new HttpErrorResponse({ status: 503, statusText: 'Service Unavailable' });
+    parcelApiSpy.create.and.returnValue(throwError(() => error503));
+
+    component['recipientName'].set('Kasun Jayawardena');
+    component['recipientPhone'].set('+94771234567');
+    component['pickupAddress'].set('12 Galle Rd');
+    component['pickupCity'].set('Colombo 03');
+    component['dropoffAddress'].set('45 Temple St');
+    component['dropoffCity'].set('Kandy');
+    component['currentQuote'].set(mockQuote);
+
+    // First attempt fails with 503
+    component['onConfirmBooking']();
+    expect(parcelApiSpy.create).toHaveBeenCalledTimes(1);
+    const firstCallKey = parcelApiSpy.create.calls.argsFor(0)[1];
+    expect(firstCallKey).toMatch(/^[0-9a-f-]{36}$/);
+
+    // Second attempt (user retries without changing payload) succeeds
+    parcelApiSpy.create.and.returnValue(of(mockCreatedParcel));
+    component['onConfirmBooking']();
+    expect(parcelApiSpy.create).toHaveBeenCalledTimes(2);
+    const secondCallKey = parcelApiSpy.create.calls.argsFor(1)[1];
+
+    expect(secondCallKey).toBe(firstCallKey);
+  });
+
+  it('generates a new idempotency key when booking request payload changes', () => {
+    const error503 = new HttpErrorResponse({ status: 503, statusText: 'Service Unavailable' });
+    parcelApiSpy.create.and.returnValue(throwError(() => error503));
+
+    component['recipientName'].set('Kasun Jayawardena');
+    component['recipientPhone'].set('+94771234567');
+    component['pickupAddress'].set('12 Galle Rd');
+    component['pickupCity'].set('Colombo 03');
+    component['dropoffAddress'].set('45 Temple St');
+    component['dropoffCity'].set('Kandy');
+    component['currentQuote'].set(mockQuote);
+
+    component['onConfirmBooking']();
+    const firstCallKey = parcelApiSpy.create.calls.argsFor(0)[1];
+
+    // Change notes
+    component['notes'].set('Fragile items inside');
+    component['onConfirmBooking']();
+    const secondCallKey = parcelApiSpy.create.calls.argsFor(1)[1];
+
+    expect(secondCallKey).not.toBe(firstCallKey);
+  });
+
+  it('handles 409 IDEMPOTENCY_KEY_IN_USE error with an in-progress message', () => {
+    const inUseError = new HttpErrorResponse({
+      status: 409,
+      error: { code: 'IDEMPOTENCY_KEY_IN_USE', message: 'In progress' },
+    });
+    parcelApiSpy.create.and.returnValue(throwError(() => inUseError));
+
+    component['recipientName'].set('Kasun Jayawardena');
+    component['recipientPhone'].set('+94771234567');
+    component['pickupAddress'].set('12 Galle Rd');
+    component['pickupCity'].set('Colombo 03');
+    component['dropoffAddress'].set('45 Temple St');
+    component['dropoffCity'].set('Kandy');
+    component['currentQuote'].set(mockQuote);
+
+    component['onConfirmBooking']();
+
+    expect(component['bookingError']()).toContain('currently being processed');
+  });
+
+  it('handles 422 IDEMPOTENCY_KEY_REUSED error by resetting attempt and displaying conflict message', () => {
+    const reusedError = new HttpErrorResponse({
+      status: 422,
+      error: { code: 'IDEMPOTENCY_KEY_REUSED', message: 'Reused key' },
+    });
+    parcelApiSpy.create.and.returnValue(throwError(() => reusedError));
+
+    component['recipientName'].set('Kasun Jayawardena');
+    component['recipientPhone'].set('+94771234567');
+    component['pickupAddress'].set('12 Galle Rd');
+    component['pickupCity'].set('Colombo 03');
+    component['dropoffAddress'].set('45 Temple St');
+    component['dropoffCity'].set('Kandy');
+    component['currentQuote'].set(mockQuote);
+
+    component['onConfirmBooking']();
+
+    expect(component['bookingError']()).toContain('booking attempt conflict occurred');
+  });
+
   it('handles 409/410 quote conflicts by clearing quote and showing recalculation message', () => {
-    const conflictError = { status: 409, error: { message: 'Quote already accepted' } };
+    const conflictError = new HttpErrorResponse({
+      status: 409,
+      error: { message: 'Quote already accepted' },
+    });
     parcelApiSpy.create.and.returnValue(throwError(() => conflictError));
 
     component['recipientName'].set('Kasun Jayawardena');

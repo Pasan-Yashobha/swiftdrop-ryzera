@@ -1,4 +1,4 @@
-import { provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
@@ -67,7 +67,7 @@ describe('LoginPage', () => {
   });
 
   it('displays error message when login fails with 401', () => {
-    const errorResponse = { status: 401, error: { message: 'Invalid credentials' } };
+    const errorResponse = new HttpErrorResponse({ status: 401, error: { message: 'Invalid credentials' } });
     authServiceSpy.login.and.returnValue(throwError(() => errorResponse));
 
     component['email'].set('wrong@swiftdrop.lk');

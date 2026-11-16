@@ -191,7 +191,6 @@ public class Parcel {
 
         p.createdAt = now;
         p.updatedAt = now;
-        p.version = 0L;
         return p;
     }
 

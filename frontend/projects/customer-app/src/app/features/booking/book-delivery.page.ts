@@ -23,6 +23,7 @@ import {
   PricingEstimateResponse,
   PricingZone,
 } from '../../core/models/pricing.model';
+import { generateId } from '../../core/util/id.util';
 
 @Component({
   selector: 'app-book-delivery-page',
@@ -507,6 +508,12 @@ export class BookDeliveryPage implements OnInit {
   private readonly parcelApi = inject(ParcelApi);
   private readonly destroyRef = inject(DestroyRef);
 
+  /**
+   * The Idempotency-Key of the latest booking submission. Submitting the same booking again (a retry after
+   * a timeout or network error) reuses it, so the backend cannot create duplicate parcels; changing anything starts a new attempt.
+   */
+  private attempt: { fingerprint: string; idempotencyKey: string } | null = null;
+
   // Delivery Zones
   protected readonly zones = signal<PricingZone[]>([]);
   protected readonly loadingZones = signal(false);
@@ -727,6 +734,14 @@ export class BookDeliveryPage implements OnInit {
       });
   }
 
+  private idempotencyKeyFor(request: CreateCustomerParcelRequest): string {
+    const fingerprint = JSON.stringify(request);
+    if (this.attempt?.fingerprint !== fingerprint) {
+      this.attempt = { fingerprint, idempotencyKey: generateId() };
+    }
+    return this.attempt.idempotencyKey;
+  }
+
   // Confirm booking with accepted quote
   protected onConfirmBooking(): void {
     const quote = this.currentQuote();
@@ -767,11 +782,14 @@ export class BookDeliveryPage implements OnInit {
       quoteId: quote.quoteId,
     };
 
+    const idempotencyKey = this.idempotencyKeyFor(bookingRequest);
+
     this.parcelApi
-      .create(bookingRequest)
+      .create(bookingRequest, idempotencyKey)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (parcel) => {
+          this.attempt = null;
           this.submitting.set(false);
           this.bookedParcel.set(parcel);
           this.currentQuote.set(null); // prevent duplicate booking
@@ -779,7 +797,18 @@ export class BookDeliveryPage implements OnInit {
         error: (err: unknown) => {
           this.submitting.set(false);
           if (err instanceof HttpErrorResponse) {
-            if (err.status === 409 || err.status === 410) {
+            if (err.status === 409) {
+              if (err.error?.code === 'IDEMPOTENCY_KEY_IN_USE') {
+                this.bookingError.set('A booking request is currently being processed. Please wait a moment.');
+                return;
+              }
+              this.bookingError.set(
+                'The price quote expired or has already been accepted. Please recalculate your estimate.',
+              );
+              this.currentQuote.set(null);
+              return;
+            }
+            if (err.status === 410) {
               this.bookingError.set(
                 'The price quote expired or has already been accepted. Please recalculate your estimate.',
               );
@@ -787,6 +816,11 @@ export class BookDeliveryPage implements OnInit {
               return;
             }
             if (err.status === 422) {
+              if (err.error?.code === 'IDEMPOTENCY_KEY_REUSED') {
+                this.bookingError.set('A booking attempt conflict occurred. Please recalculate and try again.');
+                this.attempt = null;
+                return;
+              }
               this.bookingError.set(
                 err.error?.message || 'Booking validation failed. Please check your delivery information.',
               );
@@ -807,6 +841,7 @@ export class BookDeliveryPage implements OnInit {
   }
 
   protected resetForm(): void {
+    this.attempt = null;
     this.bookedParcel.set(null);
     this.currentQuote.set(null);
     this.estimateError.set(null);

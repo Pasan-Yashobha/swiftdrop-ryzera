@@ -74,7 +74,34 @@ describe('ParcelApi', () => {
     const req = http.expectOne('/api/v1/parcels');
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual(request);
+    expect(req.request.headers.has('Idempotency-Key')).toBeFalse();
     req.flush(mockDetail);
+  });
+
+  it('sends Idempotency-Key header when provided in create', () => {
+    const request: CreateCustomerParcelRequest = {
+      recipient: { name: 'Nimal Silva', phone: '+94771234567', email: 'nimal@example.com' },
+      pickup: { addressLine: '12 Flower Rd', city: 'Colombo 07', postalCode: '00700' },
+      dropoff: { addressLine: '45 Galle Rd', city: 'Colombo 03', postalCode: '00300' },
+      weightKg: 1.5,
+      size: 'SMALL',
+      description: 'Documents',
+      deliveryType: 'EXPRESS',
+      notes: 'Fragile',
+      quoteId: 'e2b34a91-4cf1-4560-8f92-5dbce299b830',
+    };
+
+    api.create(request, 'test-idem-key-123').subscribe();
+
+    const req = http.expectOne('/api/v1/parcels');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.headers.get('Idempotency-Key')).toBe('test-idem-key-123');
+    req.flush({});
+  });
+
+  it('generates a valid UUID via newIdempotencyKey()', () => {
+    const key = api.newIdempotencyKey();
+    expect(key).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
   });
 
   it('calls GET /api/v1/parcels/{id} for parcel details', () => {

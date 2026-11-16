@@ -1,4 +1,4 @@
-import { provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
@@ -80,7 +80,7 @@ describe('SignupPage', () => {
   });
 
   it('displays conflict message when email is already registered (409)', () => {
-    const errorResponse = { status: 409, error: { message: 'Email taken' } };
+    const errorResponse = new HttpErrorResponse({ status: 409, error: { message: 'Email taken' } });
     authServiceSpy.signup.and.returnValue(throwError(() => errorResponse));
 
     component['fullName'].set('New Customer');

@@ -1,4 +1,6 @@
-import type { CustomerAppConfig } from './environment';
+import type { CustomerAppConfig } from '../app/core/config/app-config';
+
+export type { CustomerAppConfig };
 
 export const environment: CustomerAppConfig = {
   production: true,

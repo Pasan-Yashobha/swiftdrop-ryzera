@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { AuthApi } from '../api/auth.api';
 import { AuthSession } from '../models/auth.model';
 import { AuthService } from './auth.service';
@@ -99,12 +99,22 @@ describe('AuthService', () => {
   });
 
   it('deduplicates concurrent refresh requests', () => {
-    authApiSpy.refresh.and.returnValue(of(mockSession));
+    const refreshSubject = new Subject<AuthSession>();
+    authApiSpy.refresh.and.returnValue(refreshSubject);
 
-    service.refresh().subscribe();
-    service.refresh().subscribe();
+    let token1: string | null = null;
+    let token2: string | null = null;
+
+    service.refresh().subscribe((t) => (token1 = t));
+    service.refresh().subscribe((t) => (token2 = t));
 
     expect(authApiSpy.refresh).toHaveBeenCalledTimes(1);
+
+    refreshSubject.next(mockSession);
+    refreshSubject.complete();
+
+    expect(token1 as string | null).toBe('valid-jwt-token');
+    expect(token2 as string | null).toBe('valid-jwt-token');
   });
 
   it('clears state and navigates to /login on logout', () => {
