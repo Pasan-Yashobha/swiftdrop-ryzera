@@ -175,6 +175,33 @@ services:
       - "8084:8080"
     networks: [ swiftdrop ]
 
+  tracking:
+    build:
+      context: ./services/tracking
+    restart: unless-stopped
+    # Longer than the 30 s graceful shutdown of the service, or Docker kills it after 10 s.
+    stop_grace_period: 40s
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${TRACKING_SPRING_PROFILES:-dev}
+      SERVER_PORT: 8080
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-dev_redis_pw}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-swiftdrop}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev_rabbit_pw}
+      CORS_ALLOWED_ORIGINS: ${TRACKING_CORS_ALLOWED_ORIGINS:-http://localhost:4201,http://localhost:4200}
+    ports:
+      # 8087 is the port the gateway (M1) gives the tracking service; 8088 belongs to notification (M9).
+      - "8087:8080"
+    networks: [ swiftdrop ]
+
   notification:
     build:
       context: ./services/notification
@@ -248,6 +275,81 @@ services:
       - "8089:8080"
     networks: [ swiftdrop ]
 
+  pricing:
+    build:
+      context: ./services/pricing
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${PRICING_SPRING_PROFILES:-dev}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/pricing_db
+      SPRING_DATASOURCE_USERNAME: pricing_svc
+      SPRING_DATASOURCE_PASSWORD: ${SERVICE_DB_PASSWORD:-dev_service_pw}
+      IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://host.docker.internal:8081/.well-known/jwks.json}
+      # Shared service secret: the Parcel service accepts quotes with it (POST /internal/quotes/{id}/accept).
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-token}
+      DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev-only-hmac-secret-change-me-0123456789}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      # PRICING_PORT lets you run the container next to a copy started from the IDE (port 8085).
+      - "${PRICING_PORT:-8085}:8080"
+    networks: [ swiftdrop ]
+
+  document:
+    build:
+      context: ./services/document
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${DOCUMENT_SPRING_PROFILES:-dev}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/document_db
+      SPRING_DATASOURCE_USERNAME: document_svc
+      SPRING_DATASOURCE_PASSWORD: ${SERVICE_DB_PASSWORD:-dev_service_pw}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-swiftdrop}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev_rabbit_pw}
+      # Shared secret for service-to-service calls (the Notification service fetches receipt PDFs with it).
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-token}
+      # Blank = never ask Parcel; the delivered event must then carry customer, tracking number and price breakdown.
+      DOCUMENT_PARCEL_URL: ${DOCUMENT_PARCEL_URL:-}
+      IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://host.docker.internal:8081/.well-known/jwks.json}
+      DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev-only-hmac-secret-change-me-0123456789}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${DOCUMENT_PORT:-8092}:8080"
+    networks: [ swiftdrop ]
+
+  assistant:
+    build:
+      context: ./services/assistant
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: ${ASSISTANT_SPRING_PROFILES:-dev}
+      IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://host.docker.internal:8081/.well-known/jwks.json}
+      DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev-only-hmac-secret-change-me-0123456789}
+      PRICING_SERVICE_URL: ${PRICING_SERVICE_URL:-http://pricing:8080}
+      # track_parcel uses Member 8's Tracking service (public lookup, no token). Blank = labelled sample data.
+      TRACKING_SERVICE_URL: ${ASSISTANT_TRACKING_URL:-http://tracking:8080}
+      # get_history stays on labelled sample data until the Parcel service (Member 4) exists.
+      PARCEL_SERVICE_URL: ${ASSISTANT_PARCEL_URL:-}
+      # Set these in your local .env (never committed). Without both, chat answers 503 and the MCP tools still work.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${ASSISTANT_PORT:-8093}:8080"
+    networks: [ swiftdrop ]
+
   admin-console:
     build:
       context: ./frontend
@@ -275,6 +377,7 @@ services:
       - merchant
     environment:
       API_UPSTREAM: ${MERCHANT_PORTAL_API_UPSTREAM:-http://merchant:8080}
+      TRACKING_UPSTREAM: ${MERCHANT_PORTAL_TRACKING_UPSTREAM:-http://tracking:8080}
     ports:
       - "4201:8080"
     networks: [ swiftdrop ]
@@ -331,6 +434,7 @@ services:
       REPORTING_URI: http://reporting:8080
       AUDIT_URI: http://audit:8080
       DOCUMENT_URI: http://document:8080
+      ASSISTANT_URI: http://assistant:8080
       CORS_ALLOWED_ORIGINS: ${GATEWAY_CORS_ALLOWED_ORIGINS:-http://localhost:4201,http://localhost:4200}
     ports:
       - "8080:8080"

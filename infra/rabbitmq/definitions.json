@@ -37,13 +37,21 @@
       "arguments": { "x-dead-letter-exchange": "swiftdrop.dlx", "x-dead-letter-routing-key": "dispatch.courier.q.dlq" } },
     { "name": "dispatch.courier.q.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {} },
 
+    { "name": "courier.assignments.q", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "swiftdrop.dlx", "x-dead-letter-routing-key": "courier.assignments.dlq" } },
+    { "name": "courier.assignments.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {} },
+
     { "name": "audit.q", "vhost": "/", "durable": true, "auto_delete": false,
       "arguments": { "x-dead-letter-exchange": "swiftdrop.dlx", "x-dead-letter-routing-key": "audit.dlq" } },
     { "name": "audit.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {} },
 
     { "name": "document.receipts.q", "vhost": "/", "durable": true, "auto_delete": false,
       "arguments": { "x-dead-letter-exchange": "swiftdrop.dlx", "x-dead-letter-routing-key": "document.receipts.dlq" } },
-    { "name": "document.receipts.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {} }
+    { "name": "document.receipts.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {} },
+
+    { "name": "tracking.q", "vhost": "/", "durable": true, "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "swiftdrop.dlx", "x-dead-letter-routing-key": "tracking.q.dlq" } },
+    { "name": "tracking.q.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {} }
   ],
   "bindings": [
     { "source": "swiftdrop.events", "vhost": "/", "destination": "notification.q", "destination_type": "queue", "routing_key": "parcel.created", "arguments": {} },
@@ -76,6 +84,10 @@
     { "source": "swiftdrop.events", "vhost": "/", "destination": "dispatch.courier.q", "destination_type": "queue", "routing_key": "courier.availability.changed", "arguments": {} },
     { "source": "swiftdrop.dlx", "vhost": "/", "destination": "dispatch.courier.q.dlq", "destination_type": "queue", "routing_key": "dispatch.courier.q.dlq", "arguments": {} },
 
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "courier.assignments.q", "destination_type": "queue", "routing_key": "parcel.assigned", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "courier.assignments.q", "destination_type": "queue", "routing_key": "parcel.reassigned", "arguments": {} },
+    { "source": "swiftdrop.dlx", "vhost": "/", "destination": "courier.assignments.dlq", "destination_type": "queue", "routing_key": "courier.assignments.dlq", "arguments": {} },
+
     { "source": "swiftdrop.events", "vhost": "/", "destination": "audit.q", "destination_type": "queue", "routing_key": "user.#", "arguments": {} },
     { "source": "swiftdrop.events", "vhost": "/", "destination": "audit.q", "destination_type": "queue", "routing_key": "merchant.#", "arguments": {} },
     { "source": "swiftdrop.events", "vhost": "/", "destination": "audit.q", "destination_type": "queue", "routing_key": "admin.#", "arguments": {} },
@@ -84,6 +96,10 @@
     { "source": "swiftdrop.dlx", "vhost": "/", "destination": "audit.dlq", "destination_type": "queue", "routing_key": "audit.dlq", "arguments": {} },
 
     { "source": "swiftdrop.events", "vhost": "/", "destination": "document.receipts.q", "destination_type": "queue", "routing_key": "parcel.status.delivered", "arguments": {} },
-    { "source": "swiftdrop.dlx", "vhost": "/", "destination": "document.receipts.dlq", "destination_type": "queue", "routing_key": "document.receipts.dlq", "arguments": {} }
+    { "source": "swiftdrop.dlx", "vhost": "/", "destination": "document.receipts.dlq", "destination_type": "queue", "routing_key": "document.receipts.dlq", "arguments": {} },
+
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "tracking.q", "destination_type": "queue", "routing_key": "parcel.#", "arguments": {} },
+    { "source": "swiftdrop.events", "vhost": "/", "destination": "tracking.q", "destination_type": "queue", "routing_key": "courier.location.#", "arguments": {} },
+    { "source": "swiftdrop.dlx", "vhost": "/", "destination": "tracking.q.dlq", "destination_type": "queue", "routing_key": "tracking.q.dlq", "arguments": {} }
   ]
 }

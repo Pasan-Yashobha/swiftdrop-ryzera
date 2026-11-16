@@ -1,0 +1,6 @@
+<div class="rb-map-wrap">
+  <div #map class="rb-map" role="region" [attr.aria-label]="description()"></div>
+  @if (!plan()) {
+    <p class="rb-map-placeholder">The route appears on the map once it is known.</p>
+  }
+</div>

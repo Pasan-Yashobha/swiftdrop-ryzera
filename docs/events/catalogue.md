@@ -22,11 +22,13 @@ catalogue as a diagram.
 
 | eventType | Producer | aggregateId | data | Consumers (queue) |
 |---|---|---|---|---|
-| `parcel.created` | parcel-service | parcelId | `parcelId, trackingNo, merchantId?, customerId` | merchant (`merchant.orders.q`), notification, webhook |
-| `parcel.assigned` | parcel-service | parcelId | `parcelId, trackingNo, courierId, merchantId?` | merchant, webhook, audit |
+| `parcel.created` | parcel-service | parcelId | `parcelId, trackingNo, merchantId?, customerId` | merchant (`merchant.orders.q`), notification, webhook, tracking |
+| `parcel.assigned` | dispatch-service | parcelId | `parcelId, courierId, strategy, assignedBy` | courier (`courier.assignments.q`), merchant, webhook, tracking, audit |
+| `parcel.reassigned` | dispatch-service | parcelId | `parcelId, courierId (= newCourierId), newCourierId, oldCourierId, previousCourierId, reason, reassignedBy` | courier (`courier.assignments.q`), tracking |
 | `parcel.status.<status>` (`picked_up`, `in_transit`, `out_for_delivery`, `delivered`, `failed`, `rescheduled`, `returned`) | parcel-service | parcelId | `parcelId, trackingNo, fromStatus, toStatus, courierId, customerId, merchantId?, etaMinutes?, failureReason?` | merchant, notification, webhook, tracking, reporting; `delivered` also document (`document.receipts.q`) |
-| `parcel.cancelled` | parcel-service | parcelId | `parcelId, trackingNo, merchantId?, customerId, reason?` | merchant, notification, webhook |
+| `parcel.cancelled` | parcel-service | parcelId | `parcelId, trackingNo, merchantId?, customerId, reason?` | merchant, notification, webhook, tracking |
 | `courier.availability.changed` | courier-service | courierId | `courierId, available, zoneId?` | dispatch (`dispatch.courier.q`) |
+| `courier.location.updated` | courier-service | courierId | `courierId, lat, lng, recordedAt, parcelId?, trackingNo?` | tracking (`tracking.q`, binding `courier.location.#`) |
 | `merchant.registered` | merchant-service | merchantId | `merchantId, businessName` | audit |
 | `merchant.approved` | merchant-service | merchantId | `merchantId, decidedBy` | notification (email to owner), audit |
 | `merchant.rejected` | merchant-service | merchantId | `merchantId, decidedBy, reason` | notification (email to owner), audit |
@@ -38,6 +40,11 @@ catalogue as a diagram.
 
 `merchantId?` means the field is present only for parcels booked by a merchant. The Webhook Delivery Service skips
 events without it.
+
+Dispatch also repeats `data` under a legacy `payload` key in its envelopes; consumers must ignore unknown fields.
+`courier.location.updated` is high frequency and replaced by the next ping, so the Courier Service may publish it
+directly (publisher confirms, no outbox) and should throttle to at most one ping per courier every 10 seconds.
+`lat`/`lng` are decimal degrees (WGS84); `recordedAt` is the device time in ISO-8601 UTC.
 
 ## Example
 
@@ -74,8 +81,10 @@ otherwise RabbitMQ refuses the declaration with `PRECONDITION_FAILED`. When you 
 | `webhook.delay.5s`, `.30s`, `.2min`, `.10min`, `.30min` | webhook (M9) | exchange `swiftdrop.webhook.delay` (direct), TTL then dead-lettered to `webhook.retry.q` |
 | `merchant.orders.q` / `merchant.orders.dlq` | merchant (M3) | `parcel.created`, `parcel.status.*`, `parcel.assigned`, `parcel.cancelled` |
 | `dispatch.courier.q` / `dispatch.courier.q.dlq` | dispatch (M6) | `courier.availability.changed` |
+| `courier.assignments.q` / `courier.assignments.dlq` | courier (M7) | `parcel.assigned`, `parcel.reassigned` |
 | `audit.q` / `audit.dlq` | audit (M1) | `user.#`, `merchant.#`, `admin.#`, `parcel.assigned`, `webhook.delivery.#` |
 | `document.receipts.q` / `document.receipts.dlq` | document (M5) | `parcel.status.delivered` |
+| `tracking.q` / `tracking.q.dlq` | tracking (M8) | `parcel.#` (every parcel event), `courier.location.#` |
 
 Consumer DLQs are replayed by hand with "Move messages" in the RabbitMQ management UI (http://localhost:15672; the
 shovel plugins are enabled in docker-compose). Webhook deliveries also have a Replay button in the admin console.

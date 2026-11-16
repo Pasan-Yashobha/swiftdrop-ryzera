@@ -79,7 +79,7 @@ class GatewayIntegrationTest {
         String backend = "http://127.0.0.1:" + BACKEND.getAddress().getPort();
         registry.add("swiftdrop.gateway.jwks-uri", () -> backend + "/.well-known/jwks.json");
         for (String service : List.of("identity", "parcel", "merchant", "dispatch", "courier", "tracking",
-                "notification", "webhook", "reporting", "audit", "document")) {
+                "notification", "webhook", "reporting", "audit", "document", "assistant")) {
             registry.add("swiftdrop.gateway.uris." + service, () -> backend);
         }
         registry.add("swiftdrop.gateway.uris.pricing", () -> "http://127.0.0.1:1"); // nothing listens here
@@ -216,11 +216,52 @@ class GatewayIntegrationTest {
     @Test
     void backendThatIsDownGivesStandard503() throws Exception {
         String token = token("user-down", List.of("CUSTOMER"), ISSUER, minutes(10), KEY);
-        client.get().uri("/api/v1/quotes/1")
+        client.get().uri("/api/v1/pricing/zones")
                 .header("Authorization", "Bearer " + token)
                 .exchange()
                 .expectStatus().isEqualTo(503)
                 .expectBody().jsonPath("$.code").isEqualTo("SERVICE_UNAVAILABLE");
+    }
+
+    // ---------------------------------------------------------------- Member 5 routes
+
+    @Test
+    void receiptsInvoicesAndAssistantReachTheirServices() throws Exception {
+        String token = token("user-m5", List.of("CUSTOMER"), ISSUER, minutes(10), KEY);
+        for (String path : List.of("/api/v1/receipts", "/api/v1/invoices/1")) {
+            client.get().uri(path).header("Authorization", "Bearer " + token)
+                    .exchange().expectStatus().isOk();
+        }
+        client.post().uri("/api/v1/assistant/chat").header("Authorization", "Bearer " + token)
+                .exchange().expectStatus().isOk();
+    }
+
+    @Test
+    void pricingPathsAreRoutedToThePricingService() throws Exception {
+        // Pricing points at an address where nothing listens, so reaching it gives the pricing 503.
+        String admin = token("admin-m5", List.of("ADMIN"), ISSUER, minutes(10), KEY);
+        for (String path : List.of("/api/v1/pricing/zones", "/api/v1/admin/zones",
+                "/api/v1/admin/rate-cards", "/api/v1/admin/promo-codes")) {
+            client.get().uri(path).header("Authorization", "Bearer " + admin)
+                    .exchange()
+                    .expectStatus().isEqualTo(503)
+                    .expectBody().jsonPath("$.message").value(message ->
+                            assertThat((String) message).contains("pricing"));
+        }
+    }
+
+    @Test
+    void customerCannotReachPricingAdministration() throws Exception {
+        String token = token("user-m5-admin", List.of("CUSTOMER"), ISSUER, minutes(10), KEY);
+        client.get().uri("/api/v1/admin/rate-cards").header("Authorization", "Bearer " + token)
+                .exchange().expectStatus().isForbidden();
+    }
+
+    @Test
+    void oldPricingPathsThatNoServiceServesGive404() throws Exception {
+        String token = token("user-m5-old", List.of("CUSTOMER"), ISSUER, minutes(10), KEY);
+        client.get().uri("/api/v1/quotes/1").header("Authorization", "Bearer " + token)
+                .exchange().expectStatus().isNotFound();
     }
 
     @Test

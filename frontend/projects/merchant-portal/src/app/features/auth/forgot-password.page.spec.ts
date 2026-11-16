@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { API_BASE_URL } from '../../core/config/app-config';
 import { buttonByText, element, inputByLabel, query, type } from '../../core/testing/dom';
 import { ForgotPasswordPage } from './forgot-password.page';
@@ -53,15 +53,24 @@ describe('ForgotPasswordPage', () => {
     expect(element(fixture).textContent).toContain('Return to Log in');
   });
 
-  it('updates live tracking hint when quick track is submitted', () => {
+  it('opens the public tracking page for a quick track number', () => {
+    const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
     const trackInput = query<HTMLInputElement>(fixture, '#quickTrackInputForgot');
-    trackInput.value = 'SD-7777-9999';
-    trackInput.dispatchEvent(new Event('input'));
+    trackInput.value = ' sd-7777-9999 ';
     buttonByText(fixture, 'GO').click();
     fixture.detectChanges();
 
-    expect(element(fixture).textContent).toContain('SD-7777-9999');
-    expect(element(fixture).textContent).toContain('In Transit');
+    expect(navigate).toHaveBeenCalledWith(['/track', 'SD-7777-9999']);
+  });
+
+  it('asks for a real tracking number in quick track', () => {
+    const navigate = spyOn(TestBed.inject(Router), 'navigate');
+    query<HTMLInputElement>(fixture, '#quickTrackInputForgot').value = 'hello';
+    buttonByText(fixture, 'GO').click();
+    fixture.detectChanges();
+
+    expect(navigate).not.toHaveBeenCalled();
+    expect(element(fixture).textContent).toContain('Enter a tracking number such as SD-2641-7788.');
   });
 });
 

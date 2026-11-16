@@ -184,16 +184,26 @@ describe('LoginPage', () => {
     expect(element(fixture).textContent).toContain('Security verification failed');
   });
 
-  it('updates live tracking hint when quick track is submitted', () => {
+  it('opens the public tracking page for a quick track number', () => {
     const fixture = create();
+    const navigate = router.navigate as jasmine.Spy;
     const trackInput = query<HTMLInputElement>(fixture, '#quickTrackInputLogin');
-    trackInput.value = 'SD-9999-1234';
-    trackInput.dispatchEvent(new Event('input'));
+    trackInput.value = ' sd-9999-1234 ';
     buttonByText(fixture, 'Go').click();
     fixture.detectChanges();
 
-    expect(element(fixture).textContent).toContain('SD-9999-1234');
-    expect(element(fixture).textContent).toContain('In Transit');
+    expect(navigate).toHaveBeenCalledWith(['/track', 'SD-9999-1234']);
+  });
+
+  it('asks for a real tracking number in quick track', () => {
+    const fixture = create();
+    const navigate = router.navigate as jasmine.Spy;
+    query<HTMLInputElement>(fixture, '#quickTrackInputLogin').value = 'hello';
+    buttonByText(fixture, 'Go').click();
+    fixture.detectChanges();
+
+    expect(navigate).not.toHaveBeenCalled();
+    expect(element(fixture).textContent).toContain('Enter a tracking number such as SD-2641-7788.');
   });
 });
 

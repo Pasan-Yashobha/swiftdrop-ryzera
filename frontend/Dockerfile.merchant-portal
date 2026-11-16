@@ -20,10 +20,12 @@ RUN npx ng build merchant-portal --configuration ${NG_CONFIGURATION}
 # The unprivileged nginx image runs as a non-root user and listens on 8080.
 FROM nginxinc/nginx-unprivileged:1.27-alpine
 # API_UPSTREAM: where /api/ is proxied. DNS_RESOLVER: Docker's embedded DNS; override it elsewhere
-# (for example the cluster DNS service in Kubernetes). Only these two variables are substituted into the template.
+# (for example the cluster DNS service in Kubernetes). TRACKING_UPSTREAM: the Tracking Service. Only these variables
+# are substituted into the template.
 ENV API_UPSTREAM=http://merchant:8080 \
+    TRACKING_UPSTREAM=http://tracking:8080 \
     DNS_RESOLVER=127.0.0.11 \
-    NGINX_ENVSUBST_FILTER='^(API_UPSTREAM|DNS_RESOLVER)$'
+    NGINX_ENVSUBST_FILTER='^(API_UPSTREAM|TRACKING_UPSTREAM|DNS_RESOLVER)$'
 COPY nginx/merchant-portal.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /workspace/dist/merchant-portal/browser /usr/share/nginx/html
 EXPOSE 8080

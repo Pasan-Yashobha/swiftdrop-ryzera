@@ -1,0 +1,116 @@
+<div class="page">
+  <div class="page__header">
+    <div>
+      <p class="rb-eyebrow">Documents</p>
+      <h1>Invoices</h1>
+      <p class="page__lead">Your SwiftDrop invoices, with the parcels billed on each.</p>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-spinner label="Loading invoices" />
+  } @else if (error(); as error) {
+    <app-error-alert [error]="error" [retryable]="true" (retry)="load(0)" />
+  } @else if (page(); as page) {
+    @if (page.items.length === 0) {
+      <app-empty-state
+        heading="No invoices yet"
+        message="Invoices appear here once SwiftDrop bills your deliveries."
+      />
+    } @else {
+      <div class="table-wrap">
+        <table class="table">
+          <caption class="visually-hidden">
+            Invoices
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Invoice</th>
+              <th scope="col">Period</th>
+              <th scope="col">Parcels</th>
+              <th scope="col">Total</th>
+              <th scope="col"><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (invoice of page.items; track invoice.id) {
+              <tr>
+                <td class="mono">{{ invoice.invoiceNo }}</td>
+                <td class="small">{{ invoice.periodStart }} → {{ invoice.periodEnd }}</td>
+                <td>{{ invoice.lineCount }}</td>
+                <td>{{ invoice.totalAmount | money: invoice.currency }}</td>
+                <td>
+                  <div class="row-actions">
+                    <button
+                      type="button"
+                      class="btn btn-sm"
+                      [attr.aria-expanded]="selected()?.invoice?.id === invoice.id"
+                      [disabled]="opening() === invoice.id"
+                      (click)="toggleLines(invoice)"
+                    >
+                      {{ selected()?.invoice?.id === invoice.id ? 'Hide lines' : 'Lines' }}
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-sm"
+                      [disabled]="downloading() === invoice.id"
+                      (click)="download(invoice)"
+                    >
+                      {{ downloading() === invoice.id ? 'Downloading…' : 'PDF' }}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (pageInfo(); as info) {
+        @if (info.totalPages > 1) {
+          <app-pagination [info]="info" (pageChange)="load($event)" />
+        }
+      }
+    }
+  }
+
+  @if (selected(); as detail) {
+    <section class="card stack" aria-label="Invoice lines">
+      <h2 class="lines-title">
+        {{ detail.invoice.invoiceNo }} · generated
+        {{ detail.invoice.generatedAt | date: 'd MMM y' : '+0530' }}
+      </h2>
+      <div class="table-wrap">
+        <table class="table">
+          <caption class="visually-hidden">
+            Lines of invoice
+            {{
+              detail.invoice.invoiceNo
+            }}
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">Tracking number</th>
+              <th scope="col">Description</th>
+              <th scope="col">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of detail.lines; track line.lineNo) {
+              <tr>
+                <td>{{ line.lineNo }}</td>
+                <td class="mono">{{ line.trackingNumber }}</td>
+                <td>{{ line.description }}</td>
+                <td>{{ line.amount | money: detail.invoice.currency }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <p class="quote-total">
+        <span>Total</span>
+        <strong>{{ detail.invoice.totalAmount | money: detail.invoice.currency }}</strong>
+      </p>
+    </section>
+  }
+</div>

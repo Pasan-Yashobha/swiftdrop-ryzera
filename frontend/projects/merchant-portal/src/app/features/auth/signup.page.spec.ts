@@ -172,14 +172,23 @@ describe('SignupPage', () => {
     expect(googleLink.getAttribute('href')).toBe('/api/v1/auth/google?role=CUSTOMER');
   });
 
-  it('updates live tracking hint when quick track is submitted', () => {
+  it('opens the public tracking page for a quick track number', () => {
+    const navigate = spyOn(router, 'navigate').and.resolveTo(true);
     const trackInput = query<HTMLInputElement>(fixture, '#quickTrackInputSignup');
-    trackInput.value = 'SD-8888-5678';
-    trackInput.dispatchEvent(new Event('input'));
+    trackInput.value = ' sd-8888-5678 ';
     buttonByText(fixture, 'Go').click();
     fixture.detectChanges();
 
-    expect(element(fixture).textContent).toContain('SD-8888-5678');
-    expect(element(fixture).textContent).toContain('In Transit');
+    expect(navigate).toHaveBeenCalledWith(['/track', 'SD-8888-5678']);
+  });
+
+  it('asks for a real tracking number in quick track', () => {
+    const navigate = spyOn(router, 'navigate');
+    query<HTMLInputElement>(fixture, '#quickTrackInputSignup').value = 'hello';
+    buttonByText(fixture, 'Go').click();
+    fixture.detectChanges();
+
+    expect(navigate).not.toHaveBeenCalled();
+    expect(element(fixture).textContent).toContain('Enter a tracking number such as SD-2641-7788.');
   });
 });
