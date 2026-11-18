@@ -7,10 +7,13 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.UUID;
 import lk.swiftdrop.parcel.common.ApiErrorFactory;
+import lk.swiftdrop.parcel.common.ConflictException;
+import lk.swiftdrop.parcel.common.ErrorCode;
 import lk.swiftdrop.parcel.common.ForbiddenException;
 import lk.swiftdrop.parcel.common.GlobalExceptionHandler;
 import lk.swiftdrop.parcel.common.NotFoundException;
 import lk.swiftdrop.parcel.parcel.dto.AddressDto;
+import lk.swiftdrop.parcel.parcel.dto.CancelParcelRequest;
 import lk.swiftdrop.parcel.parcel.dto.CreateCustomerParcelRequest;
 import lk.swiftdrop.parcel.parcel.dto.CustomerParcelDetailResponse;
 import lk.swiftdrop.parcel.parcel.dto.RecipientDto;
@@ -156,5 +159,87 @@ class CustomerParcelControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"))
                 .andExpect(jsonPath("$.status").value(404));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/parcels/{id}/cancel cancels parcel and returns 200 with updated details")
+    void testCancelParcelSuccess() throws Exception {
+        UUID parcelId = UUID.randomUUID();
+        var cancelReq = new CancelParcelRequest("Customer requested cancellation");
+
+        var recipient = new RecipientDto("John Doe", "+94771234567", "john@example.com");
+        var pickup = new AddressDto("10 Galle Road", "Colombo", "00300");
+        var dropoff = new AddressDto("45 Temple Street", "Kandy", "20000");
+        var pricing = new CustomerParcelDetailResponse.PricingBreakdownDto(
+                UUID.randomUUID(), new BigDecimal("300.00"), new BigDecimal("100.00"), new BigDecimal("50.00"),
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("450.00"), "LKR"
+        );
+        var detailResponse = new CustomerParcelDetailResponse(
+                parcelId, "SD26000100ABC", ParcelStatus.CANCELLED, recipient, pickup, dropoff,
+                new BigDecimal("2.50"), ParcelSize.MEDIUM, DeliveryType.STANDARD, "Electronics", "Fragile",
+                pricing, null, "Customer requested cancellation", null, Instant.now(), Instant.now(), Collections.emptyList()
+        );
+
+        when(parcelService.cancelCustomerParcel(eq(parcelId), eq("cust-user-1"), eq(false), eq("Customer requested cancellation")))
+                .thenReturn(detailResponse);
+
+        mockMvc.perform(post("/api/v1/parcels/{id}/cancel", parcelId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(cancelReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(parcelId.toString()))
+                .andExpect(jsonPath("$.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.failureReason").value("Customer requested cancellation"));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/parcels/{id}/cancel without body cancels parcel")
+    void testCancelParcelWithoutBody() throws Exception {
+        UUID parcelId = UUID.randomUUID();
+
+        var recipient = new RecipientDto("John Doe", "+94771234567", "john@example.com");
+        var pickup = new AddressDto("10 Galle Road", "Colombo", "00300");
+        var dropoff = new AddressDto("45 Temple Street", "Kandy", "20000");
+        var pricing = new CustomerParcelDetailResponse.PricingBreakdownDto(
+                UUID.randomUUID(), new BigDecimal("300.00"), new BigDecimal("100.00"), new BigDecimal("50.00"),
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("450.00"), "LKR"
+        );
+        var detailResponse = new CustomerParcelDetailResponse(
+                parcelId, "SD26000100ABC", ParcelStatus.CANCELLED, recipient, pickup, dropoff,
+                new BigDecimal("2.50"), ParcelSize.MEDIUM, DeliveryType.STANDARD, "Electronics", "Fragile",
+                pricing, null, null, null, Instant.now(), Instant.now(), Collections.emptyList()
+        );
+
+        when(parcelService.cancelCustomerParcel(eq(parcelId), eq("cust-user-1"), eq(false), isNull()))
+                .thenReturn(detailResponse);
+
+        mockMvc.perform(post("/api/v1/parcels/{id}/cancel", parcelId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(parcelId.toString()))
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/parcels/{id}/cancel returns 403 Forbidden when customer does not own parcel")
+    void testCancelParcelForbidden() throws Exception {
+        UUID parcelId = UUID.randomUUID();
+        when(parcelService.cancelCustomerParcel(eq(parcelId), eq("cust-user-1"), eq(false), any()))
+                .thenThrow(new ForbiddenException("You do not have permission to cancel this parcel"));
+
+        mockMvc.perform(post("/api/v1/parcels/{id}/cancel", parcelId))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/parcels/{id}/cancel returns 409 Conflict when parcel is already cancelled or picked up")
+    void testCancelParcelConflict() throws Exception {
+        UUID parcelId = UUID.randomUUID();
+        when(parcelService.cancelCustomerParcel(eq(parcelId), eq("cust-user-1"), eq(false), any()))
+                .thenThrow(new ConflictException(ErrorCode.INVALID_STATE, "Parcel is already cancelled"));
+
+        mockMvc.perform(post("/api/v1/parcels/{id}/cancel", parcelId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
     }
 }

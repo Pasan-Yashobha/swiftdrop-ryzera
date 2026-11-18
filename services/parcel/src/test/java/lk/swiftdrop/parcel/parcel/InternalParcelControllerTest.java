@@ -3,6 +3,9 @@ package lk.swiftdrop.parcel.parcel;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Instant;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 import lk.swiftdrop.parcel.common.ApiErrorFactory;
 import lk.swiftdrop.parcel.common.GlobalExceptionHandler;
@@ -12,6 +15,7 @@ import lk.swiftdrop.parcel.parcel.dto.InternalParcelBookingResponse;
 import lk.swiftdrop.parcel.parcel.dto.InternalParcelDetailResponse;
 import lk.swiftdrop.parcel.parcel.dto.MoneyDto;
 import lk.swiftdrop.parcel.parcel.dto.RecipientDto;
+import lk.swiftdrop.parcel.parcel.dto.UnassignedParcelResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -100,5 +104,55 @@ class InternalParcelControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.trackingNo").value("SD260001234"))
                 .andExpect(jsonPath("$.customerId").value("cust-user-1"));
+    }
+
+    @Test
+    @DisplayName("GET /internal/parcels defaults to CREATED status and returns list")
+    void testGetUnassignedParcelsDefaultStatus() throws Exception {
+        UUID parcelId = UUID.randomUUID();
+        Instant now = Instant.parse("2026-11-17T12:00:00Z");
+        var parcel = new UnassignedParcelResponse(
+                parcelId, "SD260005555", null, "Colombo", "SMALL", 1.5, now
+        );
+
+        when(parcelService.getUnassignedParcels(ParcelStatus.CREATED)).thenReturn(List.of(parcel));
+
+        mockMvc.perform(get("/internal/parcels"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].parcelId").value(parcelId.toString()))
+                .andExpect(jsonPath("$[0].trackingNumber").value("SD260005555"))
+                .andExpect(jsonPath("$[0].pickupArea").value("Colombo"))
+                .andExpect(jsonPath("$[0].size").value("SMALL"))
+                .andExpect(jsonPath("$[0].weight").value(1.5));
+    }
+
+    @Test
+    @DisplayName("GET /internal/parcels?status=RESCHEDULED passes status filter")
+    void testGetUnassignedParcelsWithStatusFilter() throws Exception {
+        UUID parcelId = UUID.randomUUID();
+        Instant now = Instant.parse("2026-11-17T12:00:00Z");
+        var parcel = new UnassignedParcelResponse(
+                parcelId, "SD260007777", null, "Kandy", "MEDIUM", 2.8, now
+        );
+
+        when(parcelService.getUnassignedParcels(ParcelStatus.RESCHEDULED)).thenReturn(List.of(parcel));
+
+        mockMvc.perform(get("/internal/parcels").param("status", "RESCHEDULED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].trackingNumber").value("SD260007777"))
+                .andExpect(jsonPath("$[0].pickupArea").value("Kandy"))
+                .andExpect(jsonPath("$[0].size").value("MEDIUM"))
+                .andExpect(jsonPath("$[0].weight").value(2.8));
+    }
+
+    @Test
+    @DisplayName("GET /internal/parcels returns empty list when no parcels match")
+    void testGetUnassignedParcelsEmpty() throws Exception {
+        when(parcelService.getUnassignedParcels(ParcelStatus.CREATED)).thenReturn(Collections.emptyList());
+
+        mockMvc.perform(get("/internal/parcels"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(0));
     }
 }

@@ -1,5 +1,6 @@
 package lk.swiftdrop.parcel.parcel;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -16,9 +17,15 @@ public interface ParcelRepository extends JpaRepository<Parcel, UUID> {
 
     boolean existsByTrackingNumber(String trackingNumber);
 
+    List<Parcel> findByStatusOrderByCreatedAtAsc(ParcelStatus status);
+
+    Page<Parcel> findByCustomerId(String customerId, Pageable pageable);
+
+    Page<Parcel> findByCustomerIdAndStatus(String customerId, ParcelStatus status, Pageable pageable);
+
     @Query("SELECT p FROM Parcel p WHERE p.customerId = :customerId " +
            "AND (:status IS NULL OR p.status = :status) " +
-           "AND (:search IS NULL OR LOWER(p.trackingNumber) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "AND (LOWER(p.trackingNumber) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "     OR LOWER(p.recipientName) LIKE LOWER(CONCAT('%', :search, '%')))")
     Page<Parcel> findByCustomerFiltered(
             @Param("customerId") String customerId,

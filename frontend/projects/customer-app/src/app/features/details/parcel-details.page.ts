@@ -2,6 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   DestroyRef,
   inject,
   input,
@@ -44,12 +45,82 @@ import { ReceiptMetadata } from '../../core/models/receipt.model';
             <span class="badge" [class]="'badge--' + p.status.toLowerCase()" style="font-size: var(--text-md); padding: var(--space-2) var(--space-4);">
               {{ formatStatus(p.status) }}
             </span>
-            <a [routerLink]="['/track']" [queryParams]="{ trackingNo: p.trackingNumber }" class="btn btn-primary btn-sm">
+            <a [routerLink]="['/track']" [queryParams]="{ trackingNo: p.trackingNumber }" class="btn btn-secondary btn-sm">
               Track Publicly &rarr;
             </a>
+            @if (canCancel()) {
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                data-testid="cancel-delivery-btn"
+                style="color: var(--tone-danger-fg); border-color: var(--tone-danger-fg);"
+                [disabled]="cancelling()"
+                (click)="openCancelConfirm()"
+              >
+                Cancel Delivery
+              </button>
+            }
           </div>
         }
       </header>
+
+      <!-- Cancellation Success Alert -->
+      @if (cancelSuccess(); as successMsg) {
+        <section class="card" role="status" aria-live="polite" style="border-left: 4px solid var(--tone-success-fg); background: var(--tone-success-bg); color: var(--tone-success-fg); margin-bottom: var(--space-3);">
+          <p><strong>Success:</strong> {{ successMsg }}</p>
+        </section>
+      }
+
+      <!-- Cancellation Error Alert -->
+      @if (cancelError(); as cancelErr) {
+        <section class="card" role="alert" style="border-left: 4px solid var(--tone-danger-fg); background: var(--tone-danger-bg); color: var(--tone-danger-fg); margin-bottom: var(--space-3);">
+          <p><strong>Cancellation Error:</strong> {{ cancelErr }}</p>
+        </section>
+      }
+
+      <!-- Cancellation Confirmation Dialog -->
+      @if (showCancelConfirm()) {
+        <section class="card stack" role="dialog" aria-labelledby="cancel-dialog-title" style="border: 2px solid var(--tone-danger-fg); margin-bottom: var(--space-4);">
+          <h3 id="cancel-dialog-title" style="color: var(--tone-danger-fg);">Confirm Delivery Cancellation</h3>
+          <p>Are you sure you want to cancel delivery order <strong>{{ parcel()?.trackingNumber }}</strong>? This action cannot be undone.</p>
+          <div class="form-group">
+            <label class="form-label" for="cancel-reason-input">Reason for Cancellation (Optional)</label>
+            <input
+              id="cancel-reason-input"
+              type="text"
+              class="form-input"
+              placeholder="e.g. Changed delivery plans, order cancelled"
+              [value]="cancelReason()"
+              (input)="cancelReason.set($any($event.target).value)"
+              [disabled]="cancelling()"
+            />
+          </div>
+          <div class="cluster" style="gap: var(--space-2); justify-content: flex-end;">
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              data-testid="cancel-abort-btn"
+              [disabled]="cancelling()"
+              (click)="closeCancelConfirm()"
+            >
+              Keep Delivery
+            </button>
+            <button
+              type="button"
+              class="btn btn-danger btn-sm"
+              data-testid="cancel-confirm-btn"
+              [disabled]="cancelling()"
+              (click)="confirmCancellation()"
+            >
+              @if (cancelling()) {
+                Cancelling Delivery...
+              } @else {
+                Confirm Cancellation
+              }
+            </button>
+          </div>
+        </section>
+      }
 
       <!-- Loading State -->
       @if (loading()) {
@@ -351,7 +422,7 @@ export class ParcelDetailsPage implements OnInit {
   private receiptSub?: Subscription;
 
   protected readonly parcelId = signal<string>('');
-  protected readonly parcel = signal<CustomerParcelDetail | null>(null);
+  readonly parcel = signal<CustomerParcelDetail | null>(null);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly isUnauthorized = signal(false);
@@ -359,6 +430,18 @@ export class ParcelDetailsPage implements OnInit {
 
   readonly downloadingReceipt = signal(false);
   readonly receiptError = signal<string | null>(null);
+
+  readonly showCancelConfirm = signal(false);
+  readonly cancelReason = signal('');
+  readonly cancelling = signal(false);
+  readonly cancelSuccess = signal<string | null>(null);
+  readonly cancelError = signal<string | null>(null);
+
+  readonly canCancel = computed(() => {
+    const p = this.parcel();
+    if (!p) return false;
+    return p.status === 'CREATED' || p.status === 'ASSIGNED' || p.status === 'RESCHEDULED';
+  });
 
   constructor() {
     this.destroyRef.onDestroy(() => {
@@ -414,6 +497,64 @@ export class ParcelDetailsPage implements OnInit {
             }
           }
           this.error.set('Failed to connect to the Parcel Service. Please check if the backend is running.');
+        },
+      });
+  }
+
+  openCancelConfirm(): void {
+    this.cancelReason.set('');
+    this.cancelError.set(null);
+    this.cancelSuccess.set(null);
+    this.showCancelConfirm.set(true);
+  }
+
+  closeCancelConfirm(): void {
+    if (this.cancelling()) return;
+    this.showCancelConfirm.set(false);
+    this.cancelReason.set('');
+  }
+
+  confirmCancellation(): void {
+    const currentParcel = this.parcel();
+    if (!currentParcel || !this.canCancel() || this.cancelling()) return;
+
+    this.cancelling.set(true);
+    this.cancelError.set(null);
+    this.cancelSuccess.set(null);
+
+    this.parcelApi
+      .cancel(currentParcel.id, this.cancelReason())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updated) => {
+          this.cancelling.set(false);
+          this.showCancelConfirm.set(false);
+          this.parcel.set(updated);
+          this.cancelSuccess.set('Delivery has been successfully cancelled.');
+        },
+        error: (err: unknown) => {
+          this.cancelling.set(false);
+          if (err instanceof HttpErrorResponse) {
+            if (err.status === 409) {
+              this.cancelError.set(
+                err.error?.message ||
+                  'Parcel cannot be cancelled in its current state (it may have already been picked up or cancelled).'
+              );
+              this.loadParcel(currentParcel.id);
+              return;
+            }
+            if (err.status === 403) {
+              this.cancelError.set('You do not have permission to cancel this delivery.');
+              return;
+            }
+            if (err.error?.message) {
+              this.cancelError.set(err.error.message);
+              return;
+            }
+          }
+          this.cancelError.set(
+            'Failed to cancel delivery. Please check the backend connection and retry.'
+          );
         },
       });
   }

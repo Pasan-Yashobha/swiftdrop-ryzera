@@ -82,4 +82,16 @@ export class ParcelApi {
       `${this.parcelsUrl}/${encodeURIComponent(id)}/history`,
     );
   }
+
+  /**
+   * Cancel an eligible pre-pickup parcel delivery.
+   * Calls POST /api/v1/parcels/{id}/cancel
+   */
+  cancel(id: string, reason?: string): Observable<CustomerParcelDetail> {
+    const body = reason && reason.trim() ? { reason: reason.trim() } : {};
+    return this.http.post<CustomerParcelDetail>(
+      `${this.parcelsUrl}/${encodeURIComponent(id)}/cancel`,
+      body,
+    );
+  }
 }

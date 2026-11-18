@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -11,6 +12,7 @@ import lk.swiftdrop.parcel.common.BadRequestException;
 import lk.swiftdrop.parcel.common.ConflictException;
 import lk.swiftdrop.parcel.common.ErrorCode;
 import lk.swiftdrop.parcel.common.ForbiddenException;
+import lk.swiftdrop.parcel.common.NotFoundException;
 import lk.swiftdrop.parcel.common.UnprocessableException;
 import lk.swiftdrop.parcel.event.OutboxService;
 import lk.swiftdrop.parcel.idempotency.IdempotencyService;
@@ -547,6 +549,142 @@ class ParcelServiceTest {
                 .hasMessageContaining("A request is currently being processed");
 
         verify(pricingClient, never()).acceptQuote(any());
+        verify(parcelRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("getUnassignedParcels maps parcels and queries by status defaulting to CREATED")
+    void testGetUnassignedParcels() {
+        UUID parcelId = UUID.randomUUID();
+        PricingSnapshot pricing = PricingSnapshot.of(
+                UUID.randomUUID(), new BigDecimal("250.00"), new BigDecimal("50.00"), BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("300.00"), "LKR"
+        );
+        Parcel p = Parcel.create(
+                parcelId, "SD260009999", "cust-1", null, "Recipient", "+94770000000", null,
+                "Pickup Line", "Colombo", "00100", "Dropoff Line", "Kandy", "20000",
+                new BigDecimal("1.50"), ParcelSize.SMALL, "Books", DeliveryType.STANDARD, null, pricing, NOW
+        );
+
+        when(parcelRepository.findByStatusOrderByCreatedAtAsc(ParcelStatus.CREATED)).thenReturn(List.of(p));
+
+        var result = parcelService.getUnassignedParcels(null);
+
+        assertThat(result).hasSize(1);
+        var dto = result.get(0);
+        assertThat(dto.parcelId()).isEqualTo(parcelId);
+        assertThat(dto.trackingNumber()).isEqualTo("SD260009999");
+        assertThat(dto.pickupZone()).isNull();
+        assertThat(dto.pickupArea()).isEqualTo("Colombo");
+        assertThat(dto.size()).isEqualTo("SMALL");
+        assertThat(dto.weight()).isEqualTo(1.50);
+        assertThat(dto.createdAt()).isEqualTo(NOW);
+
+        verify(parcelRepository).findByStatusOrderByCreatedAtAsc(ParcelStatus.CREATED);
+    }
+
+    @Test
+    @DisplayName("cancelCustomerParcel cancels pre-pickup parcel, appends history, and publishes outbox event")
+    void testCancelCustomerParcel_Success() {
+        UUID parcelId = UUID.randomUUID();
+        PricingSnapshot pricing = PricingSnapshot.of(
+                UUID.randomUUID(), new BigDecimal("250.00"), new BigDecimal("50.00"), BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("300.00"), "LKR"
+        );
+        Parcel p = Parcel.create(
+                parcelId, "SD260001CANCEL", "cust-1", null, "Recipient", "+94770000000", null,
+                "Pickup", "Colombo", "00100", "Dropoff", "Kandy", "20000",
+                new BigDecimal("1.50"), ParcelSize.SMALL, "Books", DeliveryType.STANDARD, null, pricing, NOW
+        );
+
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(p));
+        when(historyRepository.findMaxSequenceNumber(parcelId)).thenReturn(Optional.of(1));
+        when(historyRepository.findByParcelIdOrderBySequenceNumberAsc(parcelId)).thenReturn(List.of(
+                new ParcelStatusHistory(UUID.randomUUID(), parcelId, 1, null, "CREATED", "cust-1", "CUSTOMER", "Initial booking", NOW),
+                new ParcelStatusHistory(UUID.randomUUID(), parcelId, 2, "CREATED", "CANCELLED", "cust-1", "CUSTOMER", "Changed plans", NOW)
+        ));
+
+        CustomerParcelDetailResponse res = parcelService.cancelCustomerParcel(parcelId, "cust-1", false, "Changed plans");
+
+        assertThat(res).isNotNull();
+        assertThat(p.getStatus()).isEqualTo(ParcelStatus.CANCELLED);
+        assertThat(p.getFailureReason()).isEqualTo("Changed plans");
+
+        verify(parcelRepository).save(p);
+        verify(historyRepository).save(any(ParcelStatusHistory.class));
+        verify(outboxService).recordEvent(eq("parcel.cancelled"), eq(parcelId.toString()), any());
+    }
+
+    @Test
+    @DisplayName("cancelCustomerParcel throws ForbiddenException if user is not the parcel owner")
+    void testCancelCustomerParcel_ForbiddenForNonOwner() {
+        UUID parcelId = UUID.randomUUID();
+        PricingSnapshot pricing = PricingSnapshot.of(
+                UUID.randomUUID(), new BigDecimal("250.00"), new BigDecimal("50.00"), BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("300.00"), "LKR"
+        );
+        Parcel p = Parcel.create(
+                parcelId, "SD260001CANCEL", "cust-owner", null, "Recipient", "+94770000000", null,
+                "Pickup", "Colombo", "00100", "Dropoff", "Kandy", "20000",
+                new BigDecimal("1.50"), ParcelSize.SMALL, "Books", DeliveryType.STANDARD, null, pricing, NOW
+        );
+
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(p));
+
+        assertThatThrownBy(() -> parcelService.cancelCustomerParcel(parcelId, "attacker-cust", false, "Cancel"))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessageContaining("You do not have permission to cancel this parcel");
+
+        verify(parcelRepository, never()).save(any());
+        verify(historyRepository, never()).save(any());
+        verify(outboxService, never()).recordEvent(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("cancelCustomerParcel throws ConflictException if parcel is already CANCELLED")
+    void testCancelCustomerParcel_RepeatedCancellationThrowsConflict() {
+        UUID parcelId = UUID.randomUUID();
+        PricingSnapshot pricing = PricingSnapshot.of(
+                UUID.randomUUID(), new BigDecimal("250.00"), new BigDecimal("50.00"), BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("300.00"), "LKR"
+        );
+        Parcel p = Parcel.create(
+                parcelId, "SD260001CANCEL", "cust-1", null, "Recipient", "+94770000000", null,
+                "Pickup", "Colombo", "00100", "Dropoff", "Kandy", "20000",
+                new BigDecimal("1.50"), ParcelSize.SMALL, "Books", DeliveryType.STANDARD, null, pricing, NOW
+        );
+        p.updateStatus(ParcelStatus.CANCELLED, null, null, null, "First cancel", NOW);
+
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(p));
+
+        assertThatThrownBy(() -> parcelService.cancelCustomerParcel(parcelId, "cust-1", false, "Second cancel"))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("Parcel is already cancelled");
+
+        verify(parcelRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("cancelCustomerParcel throws ConflictException if parcel is already PICKED_UP")
+    void testCancelCustomerParcel_PickedUpThrowsConflict() {
+        UUID parcelId = UUID.randomUUID();
+        PricingSnapshot pricing = PricingSnapshot.of(
+                UUID.randomUUID(), new BigDecimal("250.00"), new BigDecimal("50.00"), BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("300.00"), "LKR"
+        );
+        Parcel p = Parcel.create(
+                parcelId, "SD260001CANCEL", "cust-1", null, "Recipient", "+94770000000", null,
+                "Pickup", "Colombo", "00100", "Dropoff", "Kandy", "20000",
+                new BigDecimal("1.50"), ParcelSize.SMALL, "Books", DeliveryType.STANDARD, null, pricing, NOW
+        );
+        p.updateStatus(ParcelStatus.PICKED_UP, "courier-1", null, null, null, NOW);
+
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(p));
+
+        assertThatThrownBy(() -> parcelService.cancelCustomerParcel(parcelId, "cust-1", false, "Cancel"))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("Invalid parcel state transition");
+
         verify(parcelRepository, never()).save(any());
     }
 }

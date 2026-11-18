@@ -351,11 +351,69 @@ public class ParcelService {
         return toDetailResponse(parcel, history);
     }
 
+    @Transactional
+    public CustomerParcelDetailResponse cancelCustomerParcel(UUID parcelId, String customerId, boolean isAdmin, String reason) {
+        Parcel parcel = parcelRepository.findById(parcelId)
+                .orElseThrow(() -> new NotFoundException(ErrorCode.PARCEL_NOT_FOUND, "Parcel not found: " + parcelId));
+
+        if (!isAdmin && (parcel.getCustomerId() == null || !parcel.getCustomerId().equals(customerId))) {
+            throw new ForbiddenException(ErrorCode.FORBIDDEN, "You do not have permission to cancel this parcel");
+        }
+
+        if (parcel.getStatus() == ParcelStatus.CANCELLED) {
+            throw new ConflictException(ErrorCode.INVALID_STATE, "Parcel is already cancelled");
+        }
+
+        ParcelStatus fromStatus = parcel.getStatus();
+        stateMachine.validateTransition(fromStatus, ParcelStatus.CANCELLED);
+
+        Instant now = clock.instant();
+        String cancelReason = (reason != null && !reason.isBlank()) ? reason.trim() : "Cancelled by customer";
+        parcel.updateStatus(ParcelStatus.CANCELLED, null, null, null, cancelReason, now);
+        parcelRepository.save(parcel);
+
+        int nextSeq = historyRepository.findMaxSequenceNumber(parcelId).orElse(0) + 1;
+        ParcelStatusHistory history = new ParcelStatusHistory(
+                UUID.randomUUID(), parcelId, nextSeq, fromStatus.name(), ParcelStatus.CANCELLED.name(),
+                customerId, isAdmin ? "ADMIN" : "CUSTOMER", cancelReason, now
+        );
+        historyRepository.save(history);
+
+        recordStatusEvent(parcel, fromStatus, ParcelStatus.CANCELLED, null, cancelReason, now);
+
+        List<ParcelStatusHistoryDto> historyList = historyRepository.findByParcelIdOrderBySequenceNumberAsc(parcelId)
+                .stream().map(this::toHistoryDto).toList();
+        return toDetailResponse(parcel, historyList);
+    }
+
     @Transactional(readOnly = true)
     public PageResponse<CustomerParcelSummaryResponse> listCustomerParcels(
             String customerId, ParcelStatus status, String search, Pageable pageable) {
-        Page<Parcel> page = parcelRepository.findByCustomerFiltered(customerId, status, search, pageable);
+        String trimmed = (search != null && !search.isBlank()) ? search.trim() : null;
+        Page<Parcel> page;
+        if (trimmed != null) {
+            page = parcelRepository.findByCustomerFiltered(customerId, status, trimmed, pageable);
+        } else if (status != null) {
+            page = parcelRepository.findByCustomerIdAndStatus(customerId, status, pageable);
+        } else {
+            page = parcelRepository.findByCustomerId(customerId, pageable);
+        }
         return PageResponse.from(page, this::toSummaryResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UnassignedParcelResponse> getUnassignedParcels(ParcelStatus status) {
+        ParcelStatus targetStatus = status != null ? status : ParcelStatus.CREATED;
+        return parcelRepository.findByStatusOrderByCreatedAtAsc(targetStatus).stream()
+                .map(p -> new UnassignedParcelResponse(
+                        p.getId(),
+                        p.getTrackingNumber(),
+                        null,
+                        p.getPickupCity(),
+                        p.getSize() != null ? p.getSize().name() : null,
+                        p.getWeightKg() != null ? p.getWeightKg().doubleValue() : 0.0,
+                        p.getCreatedAt()))
+                .toList();
     }
 
     @Transactional(readOnly = true)

@@ -93,4 +93,48 @@ describe('SignupPage', () => {
     expect(component['errorMessage']()).toContain('An account with this email already exists');
     expect(component['loading']()).toBeFalse();
   });
+
+  it('normalizes local Sri Lankan phone format 07xxxxxxxx to +947xxxxxxxx on submit', () => {
+    authServiceSpy.signup.and.returnValue(of(mockUser));
+
+    component['fullName'].set('Minothma Sithumini');
+    component['email'].set('minothma@example.com');
+    component['phone'].set('0719319477');
+    component['password'].set('Password123!');
+    component['confirmPassword'].set('Password123!');
+
+    expect(component['isPhoneValid']()).toBeTrue();
+    expect(component['canSubmit']()).toBeTrue();
+
+    component['onSubmit'](new Event('submit'));
+
+    expect(authServiceSpy.signup).toHaveBeenCalledWith({
+      fullName: 'Minothma Sithumini',
+      email: 'minothma@example.com',
+      phone: '+94719319477',
+      password: 'Password123!',
+    });
+  });
+
+  it('displays detailed validation messages from backend error response', () => {
+    const errorResponse = new HttpErrorResponse({
+      status: 400,
+      error: {
+        code: 'VALIDATION_FAILED',
+        message: 'Validation failed',
+        details: [{ field: 'phone', message: 'Phone must be a valid E.164 phone number, e.g. +94771234567' }],
+      },
+    });
+    authServiceSpy.signup.and.returnValue(throwError(() => errorResponse));
+
+    component['fullName'].set('New Customer');
+    component['email'].set('customer@swiftdrop.lk');
+    component['phone'].set('+94771234567');
+    component['password'].set('Password123!');
+    component['confirmPassword'].set('Password123!');
+
+    component['onSubmit'](new Event('submit'));
+
+    expect(component['errorMessage']()).toContain('Phone must be a valid E.164 phone number');
+  });
 });

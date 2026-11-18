@@ -5,6 +5,7 @@ import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 import lk.swiftdrop.parcel.common.PageResponse;
+import lk.swiftdrop.parcel.parcel.dto.CancelParcelRequest;
 import lk.swiftdrop.parcel.parcel.dto.CreateCustomerParcelRequest;
 import lk.swiftdrop.parcel.parcel.dto.CustomerParcelDetailResponse;
 import lk.swiftdrop.parcel.parcel.dto.CustomerParcelSummaryResponse;
@@ -43,6 +44,18 @@ public class CustomerParcelController {
         CustomerParcelDetailResponse response = parcelService.createCustomerParcel(request, customerId, idempotencyKey);
         URI location = URI.create("/api/v1/parcels/" + response.id());
         return ResponseEntity.created(location).body(response);
+    }
+
+    @PostMapping("/{id}/cancel")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
+    public ResponseEntity<CustomerParcelDetailResponse> cancelParcel(
+            @PathVariable UUID id,
+            @Valid @RequestBody(required = false) CancelParcelRequest request) {
+        String customerId = CurrentUser.requireUserId();
+        boolean isAdmin = CurrentUser.isAdmin();
+        String reason = request != null ? request.reason() : null;
+        CustomerParcelDetailResponse response = parcelService.cancelCustomerParcel(id, customerId, isAdmin, reason);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")

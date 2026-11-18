@@ -13,6 +13,7 @@ import lk.swiftdrop.parcel.config.AppProperties;
 import lk.swiftdrop.parcel.security.InternalTokenFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -28,6 +29,7 @@ public class HttpPricingClient implements PricingClient {
     private final RestClient restClient;
     private final String internalToken;
 
+    @Autowired
     public HttpPricingClient(AppProperties properties) {
         this(buildRestClient(properties.pricing()), properties.security().internalToken());
     }

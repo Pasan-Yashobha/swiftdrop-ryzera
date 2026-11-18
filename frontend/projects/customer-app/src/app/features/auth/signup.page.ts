@@ -11,6 +11,21 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 
+function normalizePhone(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const cleaned = raw.trim().replace(/[\s-]/g, '');
+  if (!cleaned) return null;
+  // Local Sri Lankan format (e.g. 0719319477 -> +94719319477)
+  if (/^0\d{9}$/.test(cleaned)) {
+    return '+94' + cleaned.substring(1);
+  }
+  // Missing '+' prefix for international format (e.g. 94719319477 -> +94719319477)
+  if (/^94\d{9}$/.test(cleaned)) {
+    return '+' + cleaned;
+  }
+  return cleaned;
+}
+
 @Component({
   selector: 'app-signup-page',
   imports: [RouterLink],
@@ -74,13 +89,19 @@ import { AuthService } from '../../core/auth/auth.service';
               id="signup-phone"
               type="tel"
               class="form-input"
-              placeholder="+94 77 123 4567"
+              placeholder="+94 77 123 4567 or 0771234567"
               [value]="phone()"
               (input)="phone.set($any($event.target).value.trim())"
               autocomplete="tel"
               [disabled]="loading()"
             />
-            <span class="muted small">Used for courier delivery notifications & OTP verification.</span>
+            @if (phone() && !isPhoneValid()) {
+              <span class="small" style="color: var(--tone-danger-fg);">
+                Enter a valid phone number (e.g. +94771234567 or 0771234567).
+              </span>
+            } @else {
+              <span class="muted small">Used for courier delivery notifications & OTP verification.</span>
+            }
           </div>
 
           <div class="grid-2">
@@ -165,6 +186,13 @@ export class SignupPage {
     return e.length > 3 && e.includes('@') && e.includes('.');
   });
 
+  protected readonly isPhoneValid = computed(() => {
+    const p = this.phone().trim();
+    if (!p) return true; // Optional field
+    const normalized = normalizePhone(p);
+    return !!normalized && /^\+[1-9]\d{6,14}$/.test(normalized);
+  });
+
   protected readonly passwordsMatch = computed(() => {
     return this.password() === this.confirmPassword();
   });
@@ -173,6 +201,7 @@ export class SignupPage {
     return (
       this.fullName().trim().length >= 2 &&
       this.isEmailValid() &&
+      this.isPhoneValid() &&
       this.password().length >= 8 &&
       this.passwordsMatch()
     );
@@ -187,11 +216,13 @@ export class SignupPage {
     this.loading.set(true);
     this.errorMessage.set(null);
 
+    const normalizedPhone = normalizePhone(this.phone());
+
     this.auth
       .signup({
         fullName: this.fullName().trim(),
         email: this.email().trim().toLowerCase(),
-        phone: this.phone().trim() || null,
+        phone: normalizedPhone,
         password: this.password(),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -207,7 +238,17 @@ export class SignupPage {
               this.errorMessage.set('An account with this email already exists. Please sign in instead.');
               return;
             }
-            if (err.error?.message) {
+            if (err.error?.details && Array.isArray(err.error.details) && err.error.details.length > 0) {
+              const detailMessages = err.error.details
+                .map((d: { message?: string; field?: string }) => d.message || `${d.field} is invalid`)
+                .filter(Boolean)
+                .join('. ');
+              if (detailMessages) {
+                this.errorMessage.set(detailMessages);
+                return;
+              }
+            }
+            if (err.error?.message && err.error.message !== 'Validation failed') {
               this.errorMessage.set(err.error.message);
               return;
             }

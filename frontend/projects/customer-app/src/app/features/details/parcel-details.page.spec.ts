@@ -55,6 +55,14 @@ describe('ParcelDetailsPage Receipt Integration', () => {
     deliveredAt: null,
   };
 
+  const mockCreatedParcel: CustomerParcelDetail = {
+    ...mockDeliveredParcel,
+    id: 'parcel-uuid-789',
+    trackingNumber: 'SD260001003',
+    status: 'CREATED',
+    deliveredAt: null,
+  };
+
   const mockReceiptMetadata: ReceiptMetadata = {
     id: 'receipt-uuid-999',
     receiptNo: 'REC-20261115-001',
@@ -69,11 +77,12 @@ describe('ParcelDetailsPage Receipt Integration', () => {
   const mockBlob = new Blob(['%PDF-1.4 test receipt content'], { type: 'application/pdf' });
 
   beforeEach(async () => {
-    parcelApiSpy = jasmine.createSpyObj<ParcelApi>('ParcelApi', ['get']);
+    parcelApiSpy = jasmine.createSpyObj<ParcelApi>('ParcelApi', ['get', 'cancel']);
     receiptApiSpy = jasmine.createSpyObj<ReceiptApi>('ReceiptApi', ['getByParcel', 'download']);
     paramMapSubject = new BehaviorSubject(convertToParamMap({ id: 'parcel-uuid-123' }));
 
     parcelApiSpy.get.and.returnValue(of(mockDeliveredParcel));
+    parcelApiSpy.cancel.and.returnValue(of({ ...mockCreatedParcel, status: 'CANCELLED' }));
     receiptApiSpy.getByParcel.and.returnValue(of(mockReceiptMetadata));
     receiptApiSpy.download.and.returnValue(of(mockBlob));
 
@@ -319,6 +328,113 @@ describe('ParcelDetailsPage Receipt Integration', () => {
 
       expect(createdAnchor).not.toBeNull();
       expect(createdAnchor!.download).toBe('receipt-REC_2026_11_15_001.pdf');
+    });
+  });
+
+  describe('Customer Parcel Cancellation', () => {
+    it('shows Cancel Delivery button when parcel is in CREATED status', () => {
+      parcelApiSpy.get.and.returnValue(of(mockCreatedParcel));
+      paramMapSubject.next(convertToParamMap({ id: mockCreatedParcel.id }));
+      fixture.detectChanges();
+
+      const cancelBtn = fixture.debugElement.query(By.css('[data-testid="cancel-delivery-btn"]'));
+      expect(cancelBtn).not.toBeNull();
+      expect(cancelBtn.nativeElement.textContent).toContain('Cancel Delivery');
+    });
+
+    it('hides Cancel Delivery button when parcel is in DELIVERED status', () => {
+      parcelApiSpy.get.and.returnValue(of(mockDeliveredParcel));
+      paramMapSubject.next(convertToParamMap({ id: mockDeliveredParcel.id }));
+      fixture.detectChanges();
+
+      const cancelBtn = fixture.debugElement.query(By.css('[data-testid="cancel-delivery-btn"]'));
+      expect(cancelBtn).toBeNull();
+    });
+
+    it('hides Cancel Delivery button when parcel is in IN_TRANSIT status', () => {
+      parcelApiSpy.get.and.returnValue(of(mockInTransitParcel));
+      paramMapSubject.next(convertToParamMap({ id: mockInTransitParcel.id }));
+      fixture.detectChanges();
+
+      const cancelBtn = fixture.debugElement.query(By.css('[data-testid="cancel-delivery-btn"]'));
+      expect(cancelBtn).toBeNull();
+    });
+
+    it('opens confirmation dialog when Cancel Delivery is clicked', () => {
+      parcelApiSpy.get.and.returnValue(of(mockCreatedParcel));
+      paramMapSubject.next(convertToParamMap({ id: mockCreatedParcel.id }));
+      fixture.detectChanges();
+
+      const cancelBtn = fixture.debugElement.query(By.css('[data-testid="cancel-delivery-btn"]'));
+      cancelBtn.nativeElement.click();
+      fixture.detectChanges();
+
+      expect(component.showCancelConfirm()).toBeTrue();
+      const dialog = fixture.debugElement.query(By.css('[role="dialog"]'));
+      expect(dialog).not.toBeNull();
+      expect(dialog.nativeElement.textContent).toContain('Confirm Delivery Cancellation');
+    });
+
+    it('cancels confirmation and keeps delivery when Keep Delivery is clicked', () => {
+      parcelApiSpy.get.and.returnValue(of(mockCreatedParcel));
+      paramMapSubject.next(convertToParamMap({ id: mockCreatedParcel.id }));
+      fixture.detectChanges();
+
+      component.openCancelConfirm();
+      fixture.detectChanges();
+
+      const abortBtn = fixture.debugElement.query(By.css('[data-testid="cancel-abort-btn"]'));
+      abortBtn.nativeElement.click();
+      fixture.detectChanges();
+
+      expect(component.showCancelConfirm()).toBeFalse();
+      expect(parcelApiSpy.cancel).not.toHaveBeenCalled();
+    });
+
+    it('submits cancellation and updates parcel on confirmation', () => {
+      parcelApiSpy.get.and.returnValue(of(mockCreatedParcel));
+      const cancelledParcel: CustomerParcelDetail = {
+        ...mockCreatedParcel,
+        status: 'CANCELLED',
+        failureReason: 'Order cancelled by customer',
+      };
+      parcelApiSpy.cancel.and.returnValue(of(cancelledParcel));
+
+      paramMapSubject.next(convertToParamMap({ id: mockCreatedParcel.id }));
+      fixture.detectChanges();
+
+      component.openCancelConfirm();
+      component.cancelReason.set('Order cancelled by customer');
+      fixture.detectChanges();
+
+      const confirmBtn = fixture.debugElement.query(By.css('[data-testid="cancel-confirm-btn"]'));
+      confirmBtn.nativeElement.click();
+      fixture.detectChanges();
+
+      expect(parcelApiSpy.cancel).toHaveBeenCalledWith(mockCreatedParcel.id, 'Order cancelled by customer');
+      expect(component.parcel()?.status).toBe('CANCELLED');
+      expect(component.showCancelConfirm()).toBeFalse();
+      expect(component.cancelSuccess()).toContain('successfully cancelled');
+    });
+
+    it('handles cancellation error (409 Conflict) and reloads parcel state', () => {
+      parcelApiSpy.get.and.returnValue(of(mockCreatedParcel));
+      const conflictError = new HttpErrorResponse({
+        status: 409,
+        error: { message: 'Parcel cannot be cancelled in its current state' },
+      });
+      parcelApiSpy.cancel.and.returnValue(throwError(() => conflictError));
+
+      paramMapSubject.next(convertToParamMap({ id: mockCreatedParcel.id }));
+      fixture.detectChanges();
+
+      component.openCancelConfirm();
+      component.confirmCancellation();
+      fixture.detectChanges();
+
+      expect(component.cancelling()).toBeFalse();
+      expect(component.cancelError()).toContain('Parcel cannot be cancelled');
+      expect(parcelApiSpy.get).toHaveBeenCalled();
     });
   });
 });
