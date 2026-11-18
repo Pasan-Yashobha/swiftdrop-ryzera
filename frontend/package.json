@@ -7,12 +7,16 @@
     "start": "npm run start:merchant",
     "start:merchant": "ng serve merchant-portal --proxy-config proxy.conf.json",
     "start:admin": "ng serve admin-console",
+    "start:customer": "ng serve customer-app",
     "build": "ng build merchant-portal && ng build admin-console",
     "build:merchant": "ng build merchant-portal",
     "build:admin": "ng build admin-console",
+    "build:customer": "ng build customer-app",
     "watch": "ng build merchant-portal --watch --configuration development",
     "test": "ng test",
+    "test:customer": "ng test customer-app --watch=false",
     "lint": "ng lint",
+    "lint:customer": "ng lint customer-app",
     "format": "prettier --write \"projects/**/*.{ts,html,css}\""
   },
   "prettier": {

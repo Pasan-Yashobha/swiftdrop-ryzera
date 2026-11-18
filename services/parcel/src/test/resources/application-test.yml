@@ -1,0 +1,36 @@
+# Test profile for Parcel Service: H2 in PostgreSQL mode running real Flyway migrations (V1__init.sql)
+# RabbitMQ broker replaced by mock boundary; outbox scheduled polling delay set to 1 hour to prevent background execution
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:parcel-${random.uuid};MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: false
+      direct:
+        auto-startup: false
+
+management:
+  health:
+    rabbit:
+      enabled: false
+
+swiftdrop:
+  security:
+    dev-hmac-secret: swiftdrop-dev-secret-key-at-least-32-bytes-long
+    internal-token: test_internal_token
+  pricing:
+    base-url: http://localhost:8080
+  rabbit:
+    exchange: swiftdrop.events
+    dead-letter-exchange: swiftdrop.dlx
+    outbox-poll-interval-ms: 3600000

@@ -233,6 +233,120 @@
           }
         }
       }
+    },
+    "customer-app": {
+      "projectType": "application",
+      "schematics": {},
+      "root": "projects/customer-app",
+      "sourceRoot": "projects/customer-app/src",
+      "prefix": "app",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "browser": "projects/customer-app/src/main.ts",
+            "index": "projects/customer-app/src/index.html",
+            "polyfills": [
+              "zone.js"
+            ],
+            "tsConfig": "projects/customer-app/tsconfig.app.json",
+            "assets": [
+              {
+                "glob": "**/*",
+                "input": "projects/customer-app/public"
+              }
+            ],
+            "styles": [
+              "projects/customer-app/src/styles.css"
+            ]
+          },
+          "configurations": {
+            "production": {
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "500kB",
+                  "maximumError": "1MB"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "16kB",
+                  "maximumError": "24kB"
+                }
+              ],
+              "outputHashing": "all",
+              "fileReplacements": [
+                {
+                  "replace": "projects/customer-app/src/environments/environment.ts",
+                  "with": "projects/customer-app/src/environments/environment.production.ts"
+                }
+              ],
+              "optimization": {
+                "scripts": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": false
+                },
+                "fonts": true
+              }
+            },
+            "development": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "options": {
+            "port": 4203,
+            "proxyConfig": "projects/customer-app/proxy.conf.json"
+          },
+          "configurations": {
+            "production": {
+              "buildTarget": "customer-app:build:production"
+            },
+            "development": {
+              "buildTarget": "customer-app:build:development"
+            }
+          },
+          "defaultConfiguration": "development"
+        },
+        "extract-i18n": {
+          "builder": "@angular/build:extract-i18n"
+        },
+        "test": {
+          "builder": "@angular/build:karma",
+          "options": {
+            "polyfills": [
+              "zone.js",
+              "zone.js/testing"
+            ],
+            "tsConfig": "projects/customer-app/tsconfig.spec.json",
+            "assets": [
+              {
+                "glob": "**/*",
+                "input": "projects/customer-app/public"
+              }
+            ],
+            "styles": [
+              "projects/customer-app/src/styles.css"
+            ]
+          }
+        },
+        "lint": {
+          "builder": "@angular-eslint/builder:lint",
+          "options": {
+            "lintFilePatterns": [
+              "projects/customer-app/**/*.ts",
+              "projects/customer-app/**/*.html"
+            ],
+            "eslintConfig": "projects/customer-app/eslint.config.js"
+          }
+        }
+      }
     }
   }
 }
