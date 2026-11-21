@@ -39,6 +39,16 @@ describe('AdminShell', () => {
     expect(element(fixture).textContent).toContain('Kasun Silva');
   });
 
+  it('lists only reports for a signed-in dispatcher', () => {
+    signIn(http, 'DISPATCHER');
+    const fixture = TestBed.createComponent(AdminShell);
+    fixture.detectChanges();
+
+    const links = Array.from(element(fixture).querySelectorAll('nav[aria-label="Admin"] a'));
+    expect(links.map((link) => link.textContent?.trim())).toEqual(['Reports']);
+    expect(links.map((link) => link.getAttribute('href'))).toEqual(['/admin/reports']);
+  });
+
   it('signs out', () => {
     signIn(http);
     const fixture = TestBed.createComponent(AdminShell);

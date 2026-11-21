@@ -8,6 +8,8 @@ export interface AdminNavItem {
   label: string;
   /** Absolute router path, e.g. `/admin/notifications`. */
   path: string;
+  /** Roles that can view this item in navigation. Defaults to ADMIN only if omitted. */
+  roles?: readonly ('ADMIN' | 'DISPATCHER')[];
 }
 
 export interface AdminNavSection {
@@ -16,6 +18,19 @@ export interface AdminNavSection {
 }
 
 export const ADMIN_NAV: readonly AdminNavSection[] = [
+  {
+    // Member 10: Reporting Service (Analytics)
+    heading: 'Analytics',
+    items: [{ label: 'Reports', path: '/admin/reports', roles: ['ADMIN', 'DISPATCHER'] }],
+  },
+  {
+    // Member 10: Merchant and User Management
+    heading: 'Management',
+    items: [
+      { label: 'Merchants', path: '/admin/merchants', roles: ['ADMIN'] },
+      { label: 'Users', path: '/admin/users', roles: ['ADMIN'] },
+    ],
+  },
   {
     // Member 9: Notification Service and Webhook Delivery Service.
     heading: 'Messaging',

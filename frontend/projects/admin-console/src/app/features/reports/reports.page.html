@@ -1,0 +1,560 @@
+<div class="reports-container stack">
+  <!-- Header -->
+  <header class="reports-header">
+    <div>
+      <p class="rb-eyebrow">Analytics</p>
+      <h1>Reports Dashboard</h1>
+      <p class="page__lead">Performance, delivery completion rates and operational throughput.</p>
+    </div>
+
+    @if (summary()?.lastUpdatedAt; as updated) {
+      <div class="reports-updated badge">
+        <span class="muted">Data updated at:</span>
+        <strong>{{ updated | date: 'medium' }}</strong>
+      </div>
+    }
+  </header>
+
+  <!-- Filter Bar -->
+  <section class="card filter-bar" aria-label="Report Filters">
+    <div class="filter-group">
+      <span class="filter-label">Range:</span>
+      <div class="btn-group" role="group" aria-label="Date presets">
+        <button
+          type="button"
+          class="btn btn-sm"
+          [class.btn-primary]="preset() === 'today'"
+          (click)="applyPreset('today')"
+        >
+          Today
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm"
+          [class.btn-primary]="preset() === '7d'"
+          (click)="applyPreset('7d')"
+        >
+          7 days
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm"
+          [class.btn-primary]="preset() === '30d'"
+          (click)="applyPreset('30d')"
+        >
+          30 days
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm"
+          [class.btn-primary]="preset() === 'custom'"
+          (click)="preset.set('custom')"
+        >
+          Custom
+        </button>
+      </div>
+
+      @if (preset() === 'custom') {
+        <div class="custom-dates">
+          <label>
+            <span class="sr-only">From date</span>
+            <input
+              type="date"
+              class="form-control"
+              [ngModel]="from()"
+              (ngModelChange)="from.set($event); onCustomDateChange()"
+            />
+          </label>
+          <span class="date-sep">to</span>
+          <label>
+            <span class="sr-only">To date</span>
+            <input
+              type="date"
+              class="form-control"
+              [ngModel]="to()"
+              (ngModelChange)="to.set($event); onCustomDateChange()"
+            />
+          </label>
+        </div>
+      }
+    </div>
+
+    <div class="filter-group">
+      <label for="zone-select" class="filter-label">Zone:</label>
+      <select
+        id="zone-select"
+        class="form-control"
+        [ngModel]="selectedZone()"
+        (ngModelChange)="onZoneChange($event)"
+      >
+        <option value="">All Zones</option>
+        @for (z of zones(); track z.zoneId) {
+          <option [value]="z.zoneId">{{ z.zoneName }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="filter-actions">
+      <label class="auto-refresh-toggle" title="Toggle automatic 60-second dashboard refresh">
+        <input
+          type="checkbox"
+          [checked]="autoRefresh()"
+          (change)="toggleAutoRefresh()"
+        />
+        <span>Auto-refresh (60s)</span>
+      </label>
+
+      <button
+        type="button"
+        class="btn btn-sm"
+        [disabled]="loading()"
+        (click)="loadData()"
+        title="Refresh data manually"
+      >
+        @if (loading()) {
+          <span class="spinner-inline" aria-hidden="true"></span>
+        } @else {
+          <span aria-hidden="true">↻</span>
+        }
+        Refresh
+      </button>
+
+      <button
+        type="button"
+        class="btn btn-primary btn-sm"
+        [disabled]="exporting()"
+        (click)="exportCsv()"
+        title="Export current summary metrics to CSV"
+      >
+        @if (exporting()) {
+          Exporting...
+        } @else {
+          ↓ Export CSV
+        }
+      </button>
+    </div>
+  </section>
+
+  <!-- Error Alert -->
+  @if (error()) {
+    <app-error-alert [error]="error()" [retryable]="true" (retry)="loadData()" />
+  }
+
+  <!-- Loading Skeleton -->
+  @if (loading() && !summary()) {
+    <div class="skeleton-grid" aria-busy="true" aria-label="Loading reports data">
+      <div class="card skeleton skeleton-card"></div>
+      <div class="card skeleton skeleton-card"></div>
+      <div class="card skeleton skeleton-card"></div>
+      <div class="card skeleton skeleton-card"></div>
+    </div>
+    <div class="card skeleton skeleton-chart" aria-busy="true"></div>
+  }
+
+  <!-- Main Content -->
+  @if (summary(); as s) {
+    <!-- Reconciliation Warning Banner -->
+    @if (s.reconciliationMismatch) {
+      <div class="alert alert--danger" role="alert">
+        <strong>Warning:</strong> Nightly reconciliation flagged a discrepancy between Reporting and
+        Parcel service stats.
+      </div>
+    }
+
+    @if (isEmpty()) {
+      <app-empty-state
+        heading="No delivery data recorded"
+        message="No events or parcels found for the selected time window and zone filters."
+      />
+    } @else {
+      <!-- KPI Cards -->
+      <section class="kpi-grid" aria-label="Key Performance Indicators">
+        <!-- Card 1: Created -->
+        <div class="card kpi-card">
+          <p class="kpi-eyebrow">Created</p>
+          <p class="kpi-value">{{ s.created | number }}</p>
+          <p class="kpi-sub">Total parcels created in period</p>
+        </div>
+
+        <!-- Card 2: Delivered + Attempt Rate -->
+        <div class="card kpi-card">
+          <p class="kpi-eyebrow">Delivered</p>
+          <p class="kpi-value text-lagoon">{{ s.delivered | number }}</p>
+          <div class="rate-badge">
+            <span class="rate-value">
+              @if (s.attemptRate !== null && s.attemptRate !== undefined) {
+                {{ s.attemptRate * 100 | number: '1.1-1' }}%
+              } @else {
+                —
+              }
+            </span>
+            <span class="rate-label">Attempt Rate</span>
+            <span
+              class="rate-tooltip-icon"
+              tabindex="0"
+              title="Attempt Rate = Delivered / (Delivered + Failed Attempts). Reflects driver run efficiency."
+              aria-label="Attempt Rate explanation"
+              >?</span
+            >
+          </div>
+        </div>
+
+        <!-- Card 3: Failed + Final-Outcome Rate -->
+        <div class="card kpi-card">
+          <p class="kpi-eyebrow">Failed / Returned</p>
+          <p class="kpi-value text-chilli">{{ s.failed | number }}</p>
+          <div class="rate-badge">
+            <span class="rate-value">
+              @if (s.finalOutcomeRate !== null && s.finalOutcomeRate !== undefined) {
+                {{ s.finalOutcomeRate * 100 | number: '1.1-1' }}%
+              } @else {
+                —
+              }
+            </span>
+            <span class="rate-label">Outcome Rate</span>
+            <span
+              class="rate-tooltip-icon"
+              tabindex="0"
+              title="Final Outcome Rate = Delivered / (Delivered + Returned). Reflects true delivery resolution."
+              aria-label="Final Outcome Rate explanation"
+              >?</span
+            >
+          </div>
+        </div>
+
+        <!-- Card 4: Active Couriers -->
+        <div class="card kpi-card">
+          <p class="kpi-eyebrow">Active Couriers</p>
+          <p class="kpi-value">{{ s.activeCouriers | number }}</p>
+          <p class="kpi-sub">Couriers with activity in period</p>
+        </div>
+      </section>
+
+      <!-- SVG Charts Grid -->
+      <section class="charts-grid" aria-label="Trend Charts">
+        <!-- Chart 1: Line Chart (Created vs Delivered per Day) -->
+        <div class="card chart-card">
+          <div class="chart-header">
+            <div>
+              <h3>Daily Deliveries Trend</h3>
+              <p class="muted small">Created vs Delivered daily progression</p>
+            </div>
+            <div class="chart-legend">
+              <span class="legend-item"><span class="legend-color legend-hivis"></span> Created</span>
+              <span class="legend-item"><span class="legend-color legend-lagoon"></span> Delivered</span>
+            </div>
+          </div>
+
+          @if (lineChart(); as c) {
+            <div class="chart-svg-wrap">
+              <svg
+                [attr.viewBox]="'0 0 ' + c.width + ' ' + c.height"
+                preserveAspectRatio="xMidYMid meet"
+                class="chart-svg"
+                role="img"
+                aria-label="Daily created versus delivered trend line chart"
+              >
+                <!-- Grid Lines -->
+                @for (grid of c.gridLines; track grid.y) {
+                  <line
+                    x1="40"
+                    [attr.y1]="grid.y"
+                    x2="560"
+                    [attr.y2]="grid.y"
+                    class="grid-line"
+                  />
+                  <text x="35" [attr.y]="grid.y + 4" class="axis-label-y" text-anchor="end">
+                    {{ grid.label }}
+                  </text>
+                }
+
+                <!-- Created Line (Hi-vis gold, dashed) -->
+                <polyline
+                  [attr.points]="c.createdPath"
+                  class="chart-line line-created"
+                />
+
+                <!-- Delivered Line (Lagoon green, solid) -->
+                <polyline
+                  [attr.points]="c.deliveredPath"
+                  class="chart-line line-delivered"
+                />
+
+                <!-- Created Dots -->
+                @for (pt of c.createdPoints; track pt.date) {
+                  <circle
+                    [attr.cx]="pt.x"
+                    [attr.cy]="pt.y"
+                    r="4.5"
+                    class="dot-created"
+                  >
+                    <title>{{ pt.date }}: Created {{ pt.val }}</title>
+                  </circle>
+                  <text [attr.x]="pt.x" y="232" class="axis-label-x" text-anchor="middle">
+                    {{ pt.date | slice: 5 }}
+                  </text>
+                }
+
+                <!-- Delivered Dots -->
+                @for (pt of c.deliveredPoints; track pt.date) {
+                  <circle
+                    [attr.cx]="pt.x"
+                    [attr.cy]="pt.y"
+                    r="4.5"
+                    class="dot-delivered"
+                  >
+                    <title>{{ pt.date }}: Delivered {{ pt.val }}</title>
+                  </circle>
+                }
+              </svg>
+            </div>
+          } @else {
+            <p class="muted p-4">No daily data available for this range.</p>
+          }
+        </div>
+
+        <!-- Chart 2: Stacked Bar Chart (Delivered vs Failed per Day) -->
+        <div class="card chart-card">
+          <div class="chart-header">
+            <div>
+              <h3>Outcome Breakdown per Day</h3>
+              <p class="muted small">Delivered volume stacked with failed attempts</p>
+            </div>
+            <div class="chart-legend">
+              <span class="legend-item"><span class="legend-color legend-lagoon"></span> Delivered</span>
+              <span class="legend-item"><span class="legend-color legend-chilli"></span> Failed</span>
+            </div>
+          </div>
+
+          @if (stackedBarChart(); as sb) {
+            <div class="chart-svg-wrap">
+              <svg
+                [attr.viewBox]="'0 0 ' + sb.width + ' ' + sb.height"
+                preserveAspectRatio="xMidYMid meet"
+                class="chart-svg"
+                role="img"
+                aria-label="Delivered versus failed daily stacked bar chart"
+              >
+                <!-- Grid Lines -->
+                @for (grid of sb.gridLines; track grid.y) {
+                  <line
+                    x1="40"
+                    [attr.y1]="grid.y"
+                    x2="560"
+                    [attr.y2]="grid.y"
+                    class="grid-line"
+                  />
+                  <text x="35" [attr.y]="grid.y + 4" class="axis-label-y" text-anchor="end">
+                    {{ grid.label }}
+                  </text>
+                }
+
+                <!-- Stacked Bars -->
+                @for (b of sb.bars; track b.date) {
+                  <!-- Failed Segment (top) -->
+                  @if (b.failed > 0) {
+                    <rect
+                      [attr.x]="b.x"
+                      [attr.y]="b.failY"
+                      [attr.width]="b.barW"
+                      [attr.height]="b.failH"
+                      class="bar-failed"
+                      rx="2"
+                    >
+                      <title>{{ b.date }}: Failed {{ b.failed }}</title>
+                    </rect>
+                  }
+
+                  <!-- Delivered Segment (bottom) -->
+                  @if (b.delivered > 0) {
+                    <rect
+                      [attr.x]="b.x"
+                      [attr.y]="b.delY"
+                      [attr.width]="b.barW"
+                      [attr.height]="b.delH"
+                      class="bar-delivered"
+                      rx="2"
+                    >
+                      <title>{{ b.date }}: Delivered {{ b.delivered }}</title>
+                    </rect>
+                  }
+
+                  <text
+                    [attr.x]="b.x + b.barW / 2"
+                    y="232"
+                    class="axis-label-x"
+                    text-anchor="middle"
+                  >
+                    {{ b.date | slice: 5 }}
+                  </text>
+                }
+              </svg>
+            </div>
+          } @else {
+            <p class="muted p-4">No daily outcome breakdown available.</p>
+          }
+        </div>
+      </section>
+
+      <!-- Chart 3: Zone Volume Bar Chart -->
+      <section class="card chart-card" aria-label="Zone Distribution">
+        <div class="chart-header">
+          <div>
+            <h3>Volume per Delivery Zone</h3>
+            <p class="muted small">Created and delivered parcel distribution across zones</p>
+          </div>
+          <div class="chart-legend">
+            <span class="legend-item"><span class="legend-color legend-hivis"></span> Created</span>
+            <span class="legend-item"><span class="legend-color legend-lagoon"></span> Delivered</span>
+          </div>
+        </div>
+
+        @if (zoneChart(); as zc) {
+          <div class="chart-svg-wrap">
+            <svg
+              [attr.viewBox]="'0 0 ' + zc.width + ' ' + zc.height"
+              preserveAspectRatio="xMidYMid meet"
+              class="chart-svg"
+              role="img"
+              aria-label="Zone volume bar chart"
+            >
+              <!-- Grid Lines -->
+              @for (grid of zc.gridLines; track grid.y) {
+                <line
+                  x1="45"
+                  [attr.y1]="grid.y"
+                  x2="560"
+                  [attr.y2]="grid.y"
+                  class="grid-line"
+                />
+                <text x="40" [attr.y]="grid.y + 4" class="axis-label-y" text-anchor="end">
+                  {{ grid.label }}
+                </text>
+              }
+
+              <!-- Zone Pair Bars -->
+              @for (zb of zc.bars; track zb.zoneName) {
+                <!-- Created bar -->
+                <rect
+                  [attr.x]="zb.createdX"
+                  [attr.y]="zb.createdY"
+                  [attr.width]="zb.barW"
+                  [attr.height]="zb.createdH"
+                  class="bar-created"
+                  rx="2"
+                >
+                  <title>{{ zb.zoneName }}: Created {{ zb.createdCount }}</title>
+                </rect>
+
+                <!-- Delivered bar -->
+                <rect
+                  [attr.x]="zb.delX"
+                  [attr.y]="zb.delY"
+                  [attr.width]="zb.barW"
+                  [attr.height]="zb.delH"
+                  class="bar-delivered"
+                  rx="2"
+                >
+                  <title>{{ zb.zoneName }}: Delivered {{ zb.deliveredCount }}</title>
+                </rect>
+
+                <text
+                  [attr.x]="(zb.createdX + zb.delX + zb.barW) / 2"
+                  y="232"
+                  class="axis-label-x"
+                  text-anchor="middle"
+                >
+                  {{ zb.zoneName }}
+                </text>
+              }
+            </svg>
+          </div>
+        } @else {
+          <p class="muted p-4">No zone data available for this range.</p>
+        }
+      </section>
+
+      <!-- Courier Performance Table -->
+      <section class="card table-wrap stack" aria-label="Courier Performance Table">
+        <div class="table-header-bar">
+          <div>
+            <h3>Courier Performance</h3>
+            <p class="muted small">Throughput, attempt failures and turnaround times per courier</p>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th scope="col" (click)="setSorting('courierName')" class="sortable-th">
+                  Courier Name
+                  @if (sortField() === 'courierName') {
+                    <span>{{ sortDirection() === 'asc' ? '▲' : '▼' }}</span>
+                  }
+                </th>
+                <th scope="col" (click)="setSorting('assignedCount')" class="sortable-th text-right">
+                  Assigned
+                  @if (sortField() === 'assignedCount') {
+                    <span>{{ sortDirection() === 'asc' ? '▲' : '▼' }}</span>
+                  }
+                </th>
+                <th scope="col" (click)="setSorting('reassignedAwayCount')" class="sortable-th text-right">
+                  Reassigned
+                  @if (sortField() === 'reassignedAwayCount') {
+                    <span>{{ sortDirection() === 'asc' ? '▲' : '▼' }}</span>
+                  }
+                </th>
+                <th scope="col" (click)="setSorting('deliveredCount')" class="sortable-th text-right">
+                  Delivered
+                  @if (sortField() === 'deliveredCount') {
+                    <span>{{ sortDirection() === 'asc' ? '▲' : '▼' }}</span>
+                  }
+                </th>
+                <th scope="col" (click)="setSorting('failedAttempts')" class="sortable-th text-right">
+                  Failed Attempts
+                  @if (sortField() === 'failedAttempts') {
+                    <span>{{ sortDirection() === 'asc' ? '▲' : '▼' }}</span>
+                  }
+                </th>
+                <th scope="col" (click)="setSorting('averageDeliveryMinutes')" class="sortable-th text-right">
+                  Avg Delivery Time
+                  @if (sortField() === 'averageDeliveryMinutes') {
+                    <span>{{ sortDirection() === 'asc' ? '▲' : '▼' }}</span>
+                  }
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (c of sortedCouriers(); track c.courierId) {
+                <tr>
+                  <td>
+                    <strong>{{ c.courierName }}</strong>
+                    <div class="muted small mono">{{ c.courierId }}</div>
+                  </td>
+                  <td class="text-right">{{ c.assignedCount | number }}</td>
+                  <td class="text-right">{{ c.reassignedAwayCount | number }}</td>
+                  <td class="text-right font-bold text-lagoon">{{ c.deliveredCount | number }}</td>
+                  <td class="text-right text-chilli">{{ c.failedAttempts | number }}</td>
+                  <td class="text-right mono">
+                    @if (c.averageDeliveryMinutes !== null && c.averageDeliveryMinutes !== undefined) {
+                      {{ c.averageDeliveryMinutes | number: '1.1-1' }} min
+                    } @else {
+                      <span class="muted">—</span>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="text-center muted p-4">
+                    No active courier records for this period.
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+  }
+</div>

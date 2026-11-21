@@ -7,6 +7,8 @@ export interface AppConfig {
   apiBase: string;
   /** Shows the development-only sign-in (POST /dev/tokens). Always false in production builds. */
   devLogin: boolean;
+  /** Enables mock API data for demo/testing when backend is unavailable. Default false. */
+  useMockApi?: boolean;
 }
 
 export const APP_CONFIG = new InjectionToken<AppConfig>('APP_CONFIG', {

@@ -10,7 +10,7 @@ import {
   UrlTree,
 } from '@angular/router';
 import { signIn } from '../testing/auth';
-import { adminGuard, guestGuard } from './admin.guard';
+import { adminGuard, guestGuard, reportsGuard } from './admin.guard';
 
 describe('admin guards', () => {
   let http: HttpTestingController;
@@ -70,10 +70,40 @@ describe('admin guards', () => {
       expect(target(run(guestGuard, '/login'))).toBe('/admin/notifications');
     });
 
+    it('sends signed-in dispatchers to the reports dashboard', () => {
+      signIn(http, 'DISPATCHER');
+
+      expect(target(run(guestGuard, '/login'))).toBe('/admin/reports');
+    });
+
     it('sends other signed-in users to the not-authorised page', () => {
       signIn(http, 'COURIER');
 
       expect(target(run(guestGuard, '/login'))).toBe('/not-authorised');
+    });
+  });
+
+  describe('reportsGuard', () => {
+    it('sends anonymous users to the login page with a return URL', () => {
+      expect(target(run(reportsGuard, '/admin/reports'))).toBe('/login?returnUrl=%2Fadmin%2Freports');
+    });
+
+    it('shows the not-authorised page to signed-in users without ADMIN or DISPATCHER role', () => {
+      signIn(http, 'MERCHANT');
+
+      expect(target(run(reportsGuard, '/admin/reports'))).toBe('/not-authorised');
+    });
+
+    it('lets admins in', () => {
+      signIn(http, 'ADMIN');
+
+      expect(run(reportsGuard, '/admin/reports')).toBeTrue();
+    });
+
+    it('lets dispatchers in', () => {
+      signIn(http, 'DISPATCHER');
+
+      expect(run(reportsGuard, '/admin/reports')).toBeTrue();
     });
   });
 });

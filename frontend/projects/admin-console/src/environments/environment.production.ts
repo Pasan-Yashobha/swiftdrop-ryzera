@@ -4,4 +4,5 @@ export const environment: AppConfig = {
   production: true,
   apiBase: '/api/v1',
   devLogin: false,
+  useMockApi: false,
 };

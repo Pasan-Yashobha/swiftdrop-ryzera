@@ -6,4 +6,5 @@ export const environment: AppConfig = {
   apiBase: '/api/v1',
   // The dev token endpoint lets the console be demoed before Identity issues ADMIN accounts.
   devLogin: true,
+  useMockApi: false,
 };
