@@ -107,11 +107,12 @@ describe('DeliveryHistoryPage', () => {
     );
 
     // Filter by CANCELLED
-    const buttons = fixture.nativeElement.querySelectorAll('button');
+    const buttons = (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button');
     const cancelledBtn = Array.from(buttons).find(
-      (b: any) => b.textContent.trim() === 'Cancelled'
-    ) as HTMLButtonElement;
-    cancelledBtn.click();
+      (b: HTMLButtonElement) => b.textContent?.trim() === 'Cancelled'
+    );
+    expect(cancelledBtn).toBeTruthy();
+    cancelledBtn?.click();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('No delivery records found');
@@ -121,11 +122,12 @@ describe('DeliveryHistoryPage', () => {
     parcelApiSpy.list.calls.reset();
     parcelApiSpy.list.and.returnValue(of(mockPageResponse));
 
-    const buttons = fixture.nativeElement.querySelectorAll('button');
+    const buttons = (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button');
     const inTransitBtn = Array.from(buttons).find(
-      (b: any) => b.textContent.trim() === 'In Transit'
-    ) as HTMLButtonElement;
-    inTransitBtn.click();
+      (b: HTMLButtonElement) => b.textContent?.trim() === 'In Transit'
+    );
+    expect(inTransitBtn).toBeTruthy();
+    inTransitBtn?.click();
     fixture.detectChanges();
 
     expect(parcelApiSpy.list).toHaveBeenCalledWith(
@@ -182,12 +184,13 @@ describe('DeliveryHistoryPage', () => {
       })
     );
 
-    const buttons = fixture.nativeElement.querySelectorAll('button');
+    const buttons = (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button');
     const nextBtn = Array.from(buttons).find(
-      (b: any) => b.textContent.includes('Next')
-    ) as HTMLButtonElement;
-    expect(nextBtn.disabled).toBeFalse();
-    nextBtn.click();
+      (b: HTMLButtonElement) => b.textContent?.includes('Next')
+    );
+    expect(nextBtn).toBeTruthy();
+    expect(nextBtn?.disabled).toBeFalse();
+    nextBtn?.click();
     fixture.detectChanges();
 
     expect(parcelApiSpy.list).toHaveBeenCalledWith(
@@ -225,10 +228,11 @@ describe('DeliveryHistoryPage', () => {
     parcelApiSpy.list.calls.reset();
     parcelApiSpy.list.and.returnValue(of(mockPageResponse));
 
-    const retryBtn = Array.from(fixture.nativeElement.querySelectorAll('button')).find(
-      (b: any) => b.textContent.trim() === 'Retry'
-    ) as HTMLButtonElement;
-    retryBtn.click();
+    const retryBtn = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button')
+    ).find((b: HTMLButtonElement) => b.textContent?.trim() === 'Retry');
+    expect(retryBtn).toBeTruthy();
+    retryBtn?.click();
     fixture.detectChanges();
 
     expect(parcelApiSpy.list).toHaveBeenCalled();
