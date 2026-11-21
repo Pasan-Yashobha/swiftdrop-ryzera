@@ -465,6 +465,28 @@ services:
       - "8091:8080"
     networks: [ swiftdrop ]
 
+  reporting:
+    build:
+      context: ./services/reporting
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/reporting_db
+      SPRING_DATASOURCE_USERNAME: reporting_svc
+      SPRING_DATASOURCE_PASSWORD: ${SERVICE_DB_PASSWORD:-dev_service_pw}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-swiftdrop}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev_rabbit_pw}
+      IDENTITY_JWKS_URI: http://identity:8080/.well-known/jwks.json
+    ports:
+      - "8090:8080"
+    networks: [ swiftdrop ]
+
 networks:
   swiftdrop:
     name: swiftdrop
