@@ -182,7 +182,7 @@
           <p class="kpi-value text-lagoon">{{ s.delivered | number }}</p>
           <div class="rate-badge">
             <span class="rate-value">
-              @if (s.attemptRate != null) {
+              @if (s.attemptRate !== null && s.attemptRate !== undefined) {
                 {{ s.attemptRate * 100 | number: '1.1-1' }}%
               } @else {
                 —
@@ -205,7 +205,7 @@
           <p class="kpi-value text-chilli">{{ s.failed | number }}</p>
           <div class="rate-badge">
             <span class="rate-value">
-              @if (s.finalOutcomeRate != null) {
+              @if (s.finalOutcomeRate !== null && s.finalOutcomeRate !== undefined) {
                 {{ s.finalOutcomeRate * 100 | number: '1.1-1' }}%
               } @else {
                 —
@@ -537,7 +537,7 @@
                   <td class="text-right font-bold text-lagoon">{{ c.deliveredCount | number }}</td>
                   <td class="text-right text-chilli">{{ c.failedAttempts | number }}</td>
                   <td class="text-right mono">
-                    @if (c.averageDeliveryMinutes != null) {
+                    @if (c.averageDeliveryMinutes !== null && c.averageDeliveryMinutes !== undefined) {
                       {{ c.averageDeliveryMinutes | number: '1.1-1' }} min
                     } @else {
                       <span class="muted">—</span>

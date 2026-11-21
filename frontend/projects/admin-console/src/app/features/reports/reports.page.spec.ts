@@ -9,7 +9,6 @@ import {
   ZoneDeliveryStats,
 } from '../../core/models/reports.model';
 import { buttonByText, element } from '../../core/testing/dom';
-import * as downloadUtil from '../../shared/util/download-file';
 import { ReportsPage } from './reports.page';
 
 describe('ReportsPage', () => {

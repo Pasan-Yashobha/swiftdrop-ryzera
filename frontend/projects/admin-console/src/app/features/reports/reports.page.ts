@@ -16,7 +16,6 @@ import { AppError, toAppError } from '../../core/http/app-error';
 import {
   CourierPerformance,
   DailyDeliveryPoint,
-  ReportFilter,
   ReportPreset,
   ReportSummary,
   ZoneDeliveryStats,
