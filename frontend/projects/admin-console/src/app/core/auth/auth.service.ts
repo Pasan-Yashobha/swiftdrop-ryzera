@@ -33,6 +33,8 @@ export class AuthService {
   readonly role = computed(() => this.user()?.role ?? null);
   readonly isAuthenticated = computed(() => this.session() !== null);
   readonly isAdmin = computed(() => this.role() === 'ADMIN');
+  readonly isDispatcher = computed(() => this.role() === 'DISPATCHER');
+  readonly canViewReports = computed(() => this.role() === 'ADMIN' || this.role() === 'DISPATCHER');
 
   login(credentials: LoginRequest): Observable<AuthUser> {
     return this.api.login(credentials).pipe(map((session) => this.startSession(session)));

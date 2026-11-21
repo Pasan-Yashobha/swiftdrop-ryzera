@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, ElementRef, inject, signal, viewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { distinctUntilChanged, filter, map, skip } from 'rxjs';
@@ -15,7 +23,18 @@ import { ADMIN_NAV } from './admin-nav';
 })
 export class AdminShell {
   protected readonly auth = inject(AuthService);
-  protected readonly sections = ADMIN_NAV;
+  protected readonly sections = computed(() => {
+    const role = this.auth.role();
+    return ADMIN_NAV.map((section) => ({
+      ...section,
+      items: section.items.filter((item) => {
+        if (!item.roles || item.roles.length === 0) {
+          return role === 'ADMIN';
+        }
+        return role ? item.roles.includes(role as 'ADMIN' | 'DISPATCHER') : false;
+      }),
+    })).filter((section) => section.items.length > 0);
+  });
   /** Mobile only: whether the navigation drawer is open. */
   protected readonly navOpen = signal(false);
 

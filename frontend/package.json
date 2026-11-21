@@ -14,6 +14,7 @@
     "build:customer": "ng build customer-app",
     "watch": "ng build merchant-portal --watch --configuration development",
     "test": "ng test",
+    "test:admin": "ng test admin-console --watch=false --browsers=ChromeHeadless",
     "test:customer": "ng test customer-app --watch=false",
     "lint": "ng lint",
     "lint:customer": "ng lint customer-app",

@@ -23,7 +23,7 @@
 
 <div class="layout">
   <nav id="admin-nav" class="sidenav" [class.sidenav--open]="navOpen()" aria-label="Admin">
-    @for (section of sections; track section.heading) {
+    @for (section of sections(); track section.heading) {
       <h2 class="sidenav__heading">{{ section.heading }}</h2>
       <ul class="sidenav__list">
         @for (item of section.items; track item.path) {
