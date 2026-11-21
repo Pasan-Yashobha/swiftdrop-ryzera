@@ -127,7 +127,7 @@ class ParcelEventFlowIntegrationTest {
                 new BigDecimal("450.00"),
                 "LKR"
         );
-        when(pricingClient.acceptQuote(quoteId)).thenReturn(pricing);
+        when(pricingClient.acceptQuote(eq(quoteId), any(UUID.class))).thenReturn(pricing);
 
         String correlationId = "corr-flow-booking-" + UUID.randomUUID();
         MDC.put(CorrelationIdFilter.MDC_KEY, correlationId);
@@ -142,6 +142,7 @@ class ParcelEventFlowIntegrationTest {
 
         // 1. Execute booking
         CustomerParcelDetailResponse response = parcelService.createCustomerParcel(request, "cust-flow-user-1");
+        verify(pricingClient).acceptQuote(eq(quoteId), eq(response.id()));
 
         // 2. Verify JPA domain commit and database state pre-relay
         UUID parcelId = response.id();
@@ -360,7 +361,7 @@ class ParcelEventFlowIntegrationTest {
                 new BigDecimal("400.00"),
                 "LKR"
         );
-        when(pricingClient.acceptQuote(quoteId)).thenReturn(pricing);
+        when(pricingClient.acceptQuote(eq(quoteId), any(UUID.class))).thenReturn(pricing);
 
         var recipient = new RecipientDto("Nimali Perera", "+94711122334", "nimali@example.com");
         var pickup = new AddressDto("12 Flower Rd", "Colombo", "00700");
@@ -402,7 +403,7 @@ class ParcelEventFlowIntegrationTest {
         assertThat(outboxRepository.count()).isEqualTo(1L);
 
         // Assert pricing service was NOT called twice (quote was accepted only once)
-        verify(pricingClient, times(1)).acceptQuote(quoteId);
+        verify(pricingClient, times(1)).acceptQuote(eq(quoteId), eq(firstResponse.id()));
 
         // 3. Relay pending events - should publish exactly 1 event to broker
         outboxRelay.publishPendingEvents();

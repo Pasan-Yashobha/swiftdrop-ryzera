@@ -40,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -106,7 +107,7 @@ class ParcelServiceTest {
                 BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("450.00"), "LKR"
         );
 
-        when(pricingClient.acceptQuote(quoteId)).thenReturn(pricing);
+        when(pricingClient.acceptQuote(eq(quoteId), any(UUID.class))).thenReturn(pricing);
         when(trackingNumberGenerator.generate()).thenReturn(trackingNo);
         when(parcelRepository.existsByTrackingNumber(trackingNo)).thenReturn(false);
 
@@ -117,6 +118,7 @@ class ParcelServiceTest {
         assertThat(response.status()).isEqualTo(ParcelStatus.CREATED);
         assertThat(response.pricing().totalFee()).isEqualByComparingTo("450.00");
 
+        verify(pricingClient).acceptQuote(eq(quoteId), eq(response.id()));
         verify(parcelRepository).save(any(Parcel.class));
         verify(historyRepository).save(any(ParcelStatusHistory.class));
         verify(outboxService).recordEvent(eq("parcel.created"), any(), any());
@@ -145,7 +147,7 @@ class ParcelServiceTest {
 
         assertThat(result).isEqualTo(cachedResponse);
         verify(parcelRepository, never()).save(any());
-        verify(pricingClient, never()).acceptQuote(any());
+        verify(pricingClient, never()).acceptQuote(any(), any());
     }
 
     @Test
@@ -414,7 +416,7 @@ class ParcelServiceTest {
 
         when(idempotencyService.startOrGetReplay(expectedScopedKey, request, CustomerParcelDetailResponse.class))
                 .thenReturn(Optional.empty());
-        when(pricingClient.acceptQuote(quoteId)).thenReturn(pricing);
+        when(pricingClient.acceptQuote(eq(quoteId), any(UUID.class))).thenReturn(pricing);
         when(trackingNumberGenerator.generate()).thenReturn(trackingNo);
         when(parcelRepository.existsByTrackingNumber(trackingNo)).thenReturn(false);
 
@@ -423,6 +425,7 @@ class ParcelServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.trackingNumber()).isEqualTo(trackingNo);
 
+        verify(pricingClient).acceptQuote(eq(quoteId), eq(response.id()));
         verify(parcelRepository).save(any(Parcel.class));
         verify(historyRepository).save(any(ParcelStatusHistory.class));
         verify(outboxService).recordEvent(eq("parcel.created"), any(), any());
@@ -461,7 +464,7 @@ class ParcelServiceTest {
         CustomerParcelDetailResponse response = parcelService.createCustomerParcel(request, customerId, rawKey);
 
         assertThat(response).isEqualTo(cachedResponse);
-        verify(pricingClient, never()).acceptQuote(any());
+        verify(pricingClient, never()).acceptQuote(any(), any());
         verify(parcelRepository, never()).save(any());
         verify(historyRepository, never()).save(any());
         verify(outboxService, never()).recordEvent(any(), any(), any());
@@ -487,7 +490,7 @@ class ParcelServiceTest {
                 BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("450.00"), "LKR"
         );
 
-        when(pricingClient.acceptQuote(quoteId)).thenReturn(pricing);
+        when(pricingClient.acceptQuote(eq(quoteId), any(UUID.class))).thenReturn(pricing);
         when(trackingNumberGenerator.generate()).thenReturn("SD260008A", "SD260008B");
         when(parcelRepository.existsByTrackingNumber(any())).thenReturn(false);
 
@@ -500,6 +503,7 @@ class ParcelServiceTest {
         parcelService.createCustomerParcel(request, "cust-2", sharedRawKey);
         verify(idempotencyService).startOrGetReplay("customer:cust-2:identical-key-uuid", request, CustomerParcelDetailResponse.class);
         verify(idempotencyService).recordCompleted(eq("customer:cust-2:identical-key-uuid"), eq(201), any());
+        verify(pricingClient, times(2)).acceptQuote(eq(quoteId), any(UUID.class));
     }
 
     @Test
@@ -522,7 +526,7 @@ class ParcelServiceTest {
                 .hasMessageContaining("Idempotency-Key must not exceed 120 characters");
 
         verify(idempotencyService, never()).startOrGetReplay(any(), any(), any());
-        verify(pricingClient, never()).acceptQuote(any());
+        verify(pricingClient, never()).acceptQuote(any(), any());
     }
 
     @Test
@@ -548,7 +552,7 @@ class ParcelServiceTest {
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("A request is currently being processed");
 
-        verify(pricingClient, never()).acceptQuote(any());
+        verify(pricingClient, never()).acceptQuote(any(), any());
         verify(parcelRepository, never()).save(any());
     }
 
