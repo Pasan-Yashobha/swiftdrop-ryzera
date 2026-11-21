@@ -114,6 +114,70 @@ flowchart TB
 
 ---
 
+## 2.1 Customer & Parcel Use Case Overview
+
+```mermaid
+flowchart LR
+    CUST["Customer<br/>(Customer App)"]
+    VIS["Public Visitor<br/>(Tracking Page)"]
+    DISP["Dispatcher<br/>(Dispatch Service M02)"]
+    COUR["Courier Partner<br/>(Courier App M07)"]
+    MERCH["Merchant Service<br/>(Merchant Backend M03)"]
+
+    subgraph SYS["Customer Application & Parcel Core System (Member 04)"]
+        direction TB
+        UC1(["Register and Sign In"])
+        UC2(["Calculate Upfront Price Estimate"])
+        UC3(["Book Parcel Delivery with Idempotency Key"])
+        UC4(["View Customer Delivery History"])
+        UC5(["Search and Filter Personal Deliveries"])
+        UC6(["View Parcel Details and Status Audit Timeline"])
+        UC7(["Cancel Parcel Delivery (Pre-pickup)"])
+        UC8(["Download Official Delivery Receipt PDF"])
+        UC9(["Track Parcel Publicly by Tracking Number"])
+        UC10(["Pull Unassigned Parcels (GET /internal/parcels)"])
+        UC11(["Update Delivery Status and Proof of Delivery"])
+        UC12(["Book Merchant Parcel Order"])
+        UC13(["Publish Transactional Outbox Events"])
+    end
+
+    subgraph EXT["External SwiftDrop Services"]
+        direction TB
+        M1["Identity Service (M01)"]
+        M5["Pricing Service (M05)"]
+        M8["Tracking Service (M08)"]
+        M11["Document Service (M11)"]
+        MQ["RabbitMQ Event Broker"]
+    end
+
+    CUST --- UC1
+    CUST --- UC2
+    CUST --- UC3
+    CUST --- UC4
+    CUST --- UC5
+    CUST --- UC6
+    CUST --- UC7
+    CUST --- UC8
+    VIS --- UC9
+
+    DISP --- UC10
+    COUR --- UC11
+    MERCH --- UC12
+
+    UC1 -.->|"Authenticates via"| M1
+    UC2 -.->|"Requests quote from"| M5
+    UC3 -.->|"Accepts quote via"| M5
+    UC3 -.->|"Triggers"| UC13
+    UC7 -.->|"Triggers"| UC13
+    UC8 -.->|"Downloads from"| M11
+    UC9 -.->|"Queries"| M8
+    UC11 -.->|"Triggers"| UC13
+    UC12 -.->|"Triggers"| UC13
+    UC13 -.->|"Emits to"| MQ
+```
+
+---
+
 ## 3. Domain Model & Class Diagram
 
 The Parcel Service domain architecture isolates controllers, business logic, state transitions, transaction boundary management, and persistence entities.
@@ -452,9 +516,88 @@ sequenceDiagram
 
 ---
 
-## 6. PostgreSQL Schema Design
+## 6. PostgreSQL Schema Design & Master ER Diagram
 
-The `parcel_db` schema adheres to strict data integrity rules, check constraints, foreign keys, and optimistic concurrency locking:
+The `parcel_db` schema adheres to strict data integrity rules, check constraints, foreign keys, and optimistic concurrency locking.
+
+```mermaid
+erDiagram
+    parcels ||--o{ parcel_status_history : "records audit transitions"
+    parcels ||--o{ outbox_events : "emits domain events"
+
+    parcels {
+        uuid id PK
+        varchar tracking_number UK "Format: SD26..."
+        varchar customer_id "Identity user ID"
+        uuid merchant_id "Merchant UUID (for merchant orders)"
+        varchar recipient_name "Recipient full name"
+        varchar recipient_phone "Phone in E.164 format"
+        varchar recipient_email "Optional notification email"
+        varchar pickup_address_line "Street and building"
+        varchar pickup_city "Pickup city"
+        varchar pickup_postal_code "Optional postal code"
+        varchar dropoff_address_line "Street and building"
+        varchar dropoff_city "Destination city"
+        varchar dropoff_postal_code "Optional postal code"
+        numeric weight_kg "0.01 - 20.00 kg"
+        varchar size "SMALL, MEDIUM, LARGE"
+        varchar delivery_type "STANDARD, EXPRESS"
+        varchar description "Parcel contents description"
+        varchar notes "Handling instructions"
+        varchar status "10 lifecycle states"
+        uuid quote_id "Pricing quote accepted at booking"
+        numeric base_amount "Base pickup/dropoff fee"
+        numeric weight_amount "Weight tiered charge"
+        numeric size_amount "Package volume charge"
+        numeric express_amount "Priority delivery surcharge"
+        numeric discount_amount "Promo code deduction"
+        numeric total_fee "Net payable amount"
+        varchar currency "ISO 4217, default LKR"
+        varchar courier_id "Assigned courier partner"
+        varchar proof_recipient_name "Handover signature/name"
+        varchar proof_photo_key "Object store photo key"
+        varchar failure_reason "Failure or delay notes"
+        timestamptz delivered_at "Timestamp of final delivery"
+        timestamptz created_at "Creation timestamp"
+        timestamptz updated_at "Last update timestamp"
+        bigint version "Optimistic locking counter"
+    }
+
+    parcel_status_history {
+        uuid id PK
+        uuid parcel_id FK "parcels.id ON DELETE CASCADE"
+        integer sequence_number "Monotonic sequence 1..N"
+        varchar from_status "Previous status"
+        varchar to_status "New status"
+        varchar changed_by "Actor identifier"
+        varchar actor_role "CUSTOMER, COURIER, DISPATCHER, SYSTEM"
+        varchar notes "Reason or handover details"
+        timestamptz occurred_at "Audit timestamp"
+    }
+
+    idempotency_records {
+        varchar idempotency_key PK "Scoped key: customer or merchant prefix"
+        varchar request_hash "SHA-256 payload digest"
+        integer response_status "HTTP status code (201)"
+        text response_body "Cached JSON response body"
+        varchar status "IN_PROGRESS, COMPLETED"
+        timestamptz created_at "Record creation"
+        timestamptz expires_at "TTL expiration (7 days)"
+    }
+
+    outbox_events {
+        uuid id PK
+        uuid event_id UK "Unique event ID"
+        varchar event_type "parcel.created, parcel.status.*, parcel.cancelled"
+        varchar aggregate_type "PARCEL"
+        varchar aggregate_id "parcels.id as string"
+        text payload "Full event JSON envelope"
+        timestamptz created_at "Event creation"
+        timestamptz published_at "Broker publish timestamp"
+        integer attempts "Relay attempt count"
+        varchar last_error "Relay failure diagnostics"
+    }
+```
 
 * `parcels`: Primary operational entity. Stores tracking number (unique), customer/merchant IDs, pickup/dropoff addresses, physical specs (weight, size, priority), accepted fee breakdown, courier assignment, failure reasons, and timestamps.
 * `parcel_status_history`: Append-only audit trail. Sequence numbers are strictly incremented per parcel ID. Indexed on `parcel_id` and `sequence_number`.
@@ -468,13 +611,14 @@ The `parcel_db` schema adheres to strict data integrity rules, check constraints
 Member 04 maintains 100% passing automated test suites across all backend and frontend layers:
 
 1. **Parcel Service Backend:**
-   * **Test Count:** **128 tests run, 0 failures, 0 errors, 0 skipped**.
+   * **Test Count:** **129 tests run, 0 failures, 0 errors, 0 skipped**.
    * **State Transition Coverage:** `ParcelStateMachineTest` exhaustively tests all valid combinations and invalid/terminal rejections (40 tests).
    * **Idempotency & Concurrency:** Verified atomic completion, scoped key collision prevention, and payload mismatch rejection.
-   * **Integration Tests:** `ParcelEventFlowIntegrationTest` verifies transactional outbox persistence and relay formatting.
+   * **Integration Tests:** `ParcelEventFlowIntegrationTest` verifies transactional outbox persistence, pricing client quote acceptance, and relay formatting.
+   * **Code Coverage:** JaCoCo bundle verification passes all threshold checks (line and branch coverage).
 2. **Customer Frontend Application:**
-   * **Test Count:** **80 tests run, 0 failures, 0 errors** in Chrome Headless.
-   * **Components Verified:** `BookDeliveryPage`, `ParcelDetailsPage`, `DeliveryHistoryPage`, `TrackParcelPage`, `SignupPage`, `LoginPage`.
+   * **Test Count:** **88 tests run, 0 failures, 0 errors** in Chrome Headless.
+   * **Components Verified:** `BookDeliveryPage`, `ParcelDetailsPage`, `DeliveryHistoryPage`, `TrackParcelPage`, `SignupPage`, `LoginPage`, plus interceptors, guards, and API services.
    * **Production Build:** Passes with initial bundle size of **300.14 kB**, well within the 1 MB budget.
 
 ---
