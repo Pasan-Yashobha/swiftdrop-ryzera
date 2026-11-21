@@ -1,0 +1,172 @@
+<div class="page">
+  <header class="page__header">
+    <div>
+      <h1>Audit log</h1>
+      <p class="page__lead">
+        A tamper-evident record of admin and security actions. Records can be read but never changed or deleted.
+      </p>
+    </div>
+    <button type="button" class="btn btn-ghost btn-sm" [disabled]="loading()" (click)="load()">
+      {{ loading() ? 'Refreshing…' : 'Refresh' }}
+    </button>
+  </header>
+
+  <section class="card stack" aria-labelledby="audit-verify-title">
+    <div class="verify">
+      <div>
+        <h2 id="audit-verify-title" class="verify__title">Integrity check</h2>
+        <p class="muted small">
+          Re-computes every record's hash from the first record on and reports the first one that does not match.
+        </p>
+      </div>
+      <button type="button" class="btn btn-sm" [disabled]="verifying()" (click)="verifyChain()">
+        {{ verifying() ? 'Verifying…' : 'Verify chain' }}
+      </button>
+    </div>
+    <app-error-alert [error]="verifyError()" />
+    @if (verification(); as v) {
+      @if (v.valid) {
+        <div class="alert alert--success" role="status">
+          Chain intact: {{ v.checked }} records checked, none altered.
+        </div>
+      } @else {
+        <div class="alert alert--danger" role="alert">
+          Chain broken at record {{ v.firstBrokenSeq }}: {{ v.reason }}. {{ v.checked }} records were checked
+          before it was found.
+        </div>
+      }
+    }
+  </section>
+
+  <form
+    class="toolbar card"
+    [formGroup]="filters"
+    (ngSubmit)="applyFilters()"
+    aria-label="Filter audit records"
+    novalidate
+  >
+    <div class="filter">
+      <label for="al-action">Action</label>
+      <input
+        id="al-action"
+        type="text"
+        formControlName="action"
+        placeholder="MERCHANT_APPROVED"
+        autocomplete="off"
+        spellcheck="false"
+      />
+    </div>
+    <div class="filter">
+      <label for="al-actor">Actor</label>
+      <input
+        id="al-actor"
+        type="text"
+        formControlName="actor"
+        placeholder="User id"
+        autocomplete="off"
+        spellcheck="false"
+      />
+    </div>
+    <div class="filter">
+      <label for="al-entity-type">Entity type</label>
+      <select id="al-entity-type" formControlName="entityType">
+        <option value="">Any type</option>
+        @for (type of entityTypes; track type) {
+          <option [value]="type">{{ type }}</option>
+        }
+      </select>
+    </div>
+    <div class="filter">
+      <label for="al-entity-id">Entity id</label>
+      <input
+        id="al-entity-id"
+        type="text"
+        formControlName="entityId"
+        autocomplete="off"
+        spellcheck="false"
+      />
+    </div>
+    <div class="filter">
+      <label for="al-from">From</label>
+      <input id="al-from" type="date" formControlName="from" />
+    </div>
+    <div class="filter">
+      <label for="al-to">To</label>
+      <input id="al-to" type="date" formControlName="to" />
+    </div>
+    <div class="toolbar__actions cluster">
+      <button type="submit" class="btn btn-primary">Apply filters</button>
+      <button type="button" class="btn btn-ghost" (click)="resetFilters()">Reset</button>
+    </div>
+  </form>
+  @if (filters.hasError('dateRange')) {
+    <p class="alert alert--warning" role="alert">The “From” date must not be after the “To” date.</p>
+  }
+
+  <app-error-alert [error]="error()" [retryable]="true" (retry)="load()" />
+
+  @if (result(); as page) {
+    @if (page.content.length === 0) {
+      <app-empty-state
+        heading="No audit records found"
+        message="Nothing matches these filters. Records appear here as admins and the system perform audited actions."
+      />
+    } @else {
+      <div class="table-wrap" [attr.aria-busy]="loading()">
+        <table class="table table--stacked">
+          <caption class="visually-hidden">
+            Audit records, newest first. Use a row's Details button to see all stored facts and hashes.
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Time</th>
+              <th scope="col">Action</th>
+              <th scope="col">Actor</th>
+              <th scope="col">Entity</th>
+              <th scope="col">Correlation id</th>
+              <th scope="col"><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of page.content; track r.id) {
+              <!-- Clicking a row is a mouse shortcut only; keyboard and screen reader users use the Details button. -->
+              <tr class="row-link" [attr.data-id]="r.id" (click)="onRowClick($event, r)">
+                <td data-label="Time">
+                  <time [attr.datetime]="r.occurredAt">{{ r.occurredAt | date: 'medium' }}</time>
+                </td>
+                <td data-label="Action" class="mono">{{ r.action }}</td>
+                <td data-label="Actor" class="mono">
+                  {{ r.actorId ?? '—' }}
+                  @if (r.actorRole) {
+                    <span class="muted small">({{ r.actorRole }})</span>
+                  }
+                </td>
+                <td data-label="Entity" class="mono">{{ r.entityType ?? '—' }} {{ r.entityId ?? '' }}</td>
+                <td data-label="Correlation id" class="mono cell-id" [title]="r.correlationId ?? ''">
+                  {{ r.correlationId ?? '—' }}
+                </td>
+                <td data-label="Actions">
+                  <div class="table__actions">
+                    <button
+                      #detailsButton
+                      type="button"
+                      class="btn btn-ghost btn-sm"
+                      (click)="openDetail(r, detailsButton)"
+                    >
+                      Details <span class="visually-hidden">of audit record {{ r.seq }}</span>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination [info]="page" (pageChange)="goToPage($event)" />
+    }
+  } @else if (loading()) {
+    <app-spinner label="Loading audit records" />
+  }
+</div>
+
+<app-audit-detail-dialog />

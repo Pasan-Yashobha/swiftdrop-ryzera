@@ -15,6 +15,8 @@ import java.util.Map;
  * @param uris               base URI of each backend service, keyed by service name
  * @param rateLimits         token-bucket limits per caller type
  * @param devRoutesEnabled   expose Merchant's /api/v1/dev/** (dev tokens). Keep false outside local development
+ * @param devHmacSecret      LOCAL DEVELOPMENT ONLY: when set, HS256 tokens signed with this secret (the dev tokens
+ *                           issued by Merchant) are accepted next to Identity's RS256 tokens. Leave empty everywhere else
  */
 @ConfigurationProperties(prefix = "swiftdrop.gateway")
 public record GatewayProperties(
@@ -23,7 +25,8 @@ public record GatewayProperties(
         List<String> corsAllowedOrigins,
         Map<String, String> uris,
         RateLimits rateLimits,
-        boolean devRoutesEnabled) {
+        boolean devRoutesEnabled,
+        String devHmacSecret) {
 
     public record RateLimits(Limit user, Limit merchantApi, Limit auth, Limit publicApi) {
     }

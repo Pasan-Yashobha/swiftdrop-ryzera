@@ -3,6 +3,7 @@ package lk.swiftdrop.gateway;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
@@ -46,6 +47,7 @@ class GatewayIntegrationTest {
 
     private static final String ISSUER = "swiftdrop-identity";
     private static final String KEY_ID = "test-key";
+    private static final String DEV_SECRET = "test-only-hmac-secret-0123456789-0123456789";
     private static final RSAKey KEY;
     private static final RSAKey ATTACKER_KEY; // same key id, different key
     private static final HttpServer BACKEND;
@@ -79,13 +81,14 @@ class GatewayIntegrationTest {
         String backend = "http://127.0.0.1:" + BACKEND.getAddress().getPort();
         registry.add("swiftdrop.gateway.jwks-uri", () -> backend + "/.well-known/jwks.json");
         for (String service : List.of("identity", "parcel", "merchant", "dispatch", "courier", "tracking",
-                "notification", "webhook", "reporting", "audit", "document", "assistant")) {
+                "notification", "webhook", "reporting", "audit", "document")) {
             registry.add("swiftdrop.gateway.uris." + service, () -> backend);
         }
         registry.add("swiftdrop.gateway.uris.pricing", () -> "http://127.0.0.1:1"); // nothing listens here
         registry.add("spring.data.redis.host", redis::getHost);
         registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
         registry.add("spring.data.redis.password", () -> "testpw");
+        registry.add("swiftdrop.gateway.dev-hmac-secret", () -> DEV_SECRET);
         // small bucket so the rate-limit test is quick
         registry.add("swiftdrop.gateway.rate-limits.user.replenish-rate", () -> 1);
         registry.add("swiftdrop.gateway.rate-limits.user.burst-capacity", () -> 5);
@@ -216,52 +219,11 @@ class GatewayIntegrationTest {
     @Test
     void backendThatIsDownGivesStandard503() throws Exception {
         String token = token("user-down", List.of("CUSTOMER"), ISSUER, minutes(10), KEY);
-        client.get().uri("/api/v1/pricing/zones")
+        client.get().uri("/api/v1/quotes/1")
                 .header("Authorization", "Bearer " + token)
                 .exchange()
                 .expectStatus().isEqualTo(503)
                 .expectBody().jsonPath("$.code").isEqualTo("SERVICE_UNAVAILABLE");
-    }
-
-    // ---------------------------------------------------------------- Member 5 routes
-
-    @Test
-    void receiptsInvoicesAndAssistantReachTheirServices() throws Exception {
-        String token = token("user-m5", List.of("CUSTOMER"), ISSUER, minutes(10), KEY);
-        for (String path : List.of("/api/v1/receipts", "/api/v1/invoices/1")) {
-            client.get().uri(path).header("Authorization", "Bearer " + token)
-                    .exchange().expectStatus().isOk();
-        }
-        client.post().uri("/api/v1/assistant/chat").header("Authorization", "Bearer " + token)
-                .exchange().expectStatus().isOk();
-    }
-
-    @Test
-    void pricingPathsAreRoutedToThePricingService() throws Exception {
-        // Pricing points at an address where nothing listens, so reaching it gives the pricing 503.
-        String admin = token("admin-m5", List.of("ADMIN"), ISSUER, minutes(10), KEY);
-        for (String path : List.of("/api/v1/pricing/zones", "/api/v1/admin/zones",
-                "/api/v1/admin/rate-cards", "/api/v1/admin/promo-codes")) {
-            client.get().uri(path).header("Authorization", "Bearer " + admin)
-                    .exchange()
-                    .expectStatus().isEqualTo(503)
-                    .expectBody().jsonPath("$.message").value(message ->
-                            assertThat((String) message).contains("pricing"));
-        }
-    }
-
-    @Test
-    void customerCannotReachPricingAdministration() throws Exception {
-        String token = token("user-m5-admin", List.of("CUSTOMER"), ISSUER, minutes(10), KEY);
-        client.get().uri("/api/v1/admin/rate-cards").header("Authorization", "Bearer " + token)
-                .exchange().expectStatus().isForbidden();
-    }
-
-    @Test
-    void oldPricingPathsThatNoServiceServesGive404() throws Exception {
-        String token = token("user-m5-old", List.of("CUSTOMER"), ISSUER, minutes(10), KEY);
-        client.get().uri("/api/v1/quotes/1").header("Authorization", "Bearer " + token)
-                .exchange().expectStatus().isNotFound();
     }
 
     @Test
@@ -313,6 +275,33 @@ class GatewayIntegrationTest {
                 .expectBody().jsonPath("$[0].service").exists();
     }
 
+    // ---------------------------------------------------------------- development tokens (local only)
+
+    @Test
+    void developmentTokenIsAcceptedWhenTheDevSecretIsConfigured() throws Exception {
+        // what Merchant's /api/v1/dev/tokens issues: HS256, "role" claim only
+        client.get().uri("/api/v1/admin/audit-logs")
+                .header("Authorization", "Bearer " + devToken("dev-admin", "ADMIN", DEV_SECRET))
+                .exchange()
+                .expectStatus().isOk();
+    }
+
+    @Test
+    void developmentTokenWithTheWrongSecretIsRejected() throws Exception {
+        client.get().uri("/api/v1/admin/audit-logs")
+                .header("Authorization", "Bearer " + devToken("dev-admin", "ADMIN", "another-secret-0123456789-0123456789-xx"))
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    void developmentTokenStillNeedsTheRightRole() throws Exception {
+        client.get().uri("/api/v1/admin/audit-logs")
+                .header("Authorization", "Bearer " + devToken("dev-customer", "CUSTOMER", DEV_SECRET))
+                .exchange()
+                .expectStatus().isForbidden();
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private static Date minutes(int fromNow) {
@@ -331,6 +320,18 @@ class GatewayIntegrationTest {
                 .build();
         SignedJWT jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(key.getKeyID()).build(), claims);
         jwt.sign(new RSASSASigner(key));
+        return jwt.serialize();
+    }
+
+    private static String devToken(String subject, String role, String secret) throws JOSEException {
+        JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                .subject(subject)
+                .claim("role", role)
+                .issueTime(new Date())
+                .expirationTime(minutes(10))
+                .build();
+        SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims);
+        jwt.sign(new MACSigner(secret.getBytes(StandardCharsets.UTF_8)));
         return jwt.serialize();
     }
 

@@ -1,4 +1,4 @@
-# Audit Log Service (Member 1)
+# Audit Log Service
 
 Answers "who did what, and when?" for admin and security actions. It listens to the event backbone, keeps an
 **append-only, tamper-evident** record, and gives admins a read-only API for the Audit Log page.
@@ -39,7 +39,7 @@ For production, also copy the latest hash to somewhere the database admin cannot
 
 | Request | Result |
 |---|---|
-| `GET /api/v1/admin/audit-logs?actor=&action=&entityType=&entityId=&from=&to=&page=0&size=20` | page of records, newest first (`size` max 100). `from`/`to` are ISO instants, e.g. `2026-11-01T00:00:00Z` |
+| `GET /api/v1/admin/audit-logs?actor=&action=&entityType=&entityId=&from=&to=&page=0&size=20` | page `{ content, page, size, totalElements, totalPages }` of records, newest first (`page` starts at 0, `size` max 100). `from`/`to` are ISO instants, e.g. `2026-11-01T00:00:00Z` |
 | `GET /api/v1/admin/audit-logs/{id}` | one record with its details and hashes |
 | `GET /api/v1/admin/audit-logs/verify` | `{ valid, checked, firstBrokenSeq, reason, verifiedAt }` |
 
