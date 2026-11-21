@@ -1,0 +1,475 @@
+<div class="courier-layout">
+  <!-- Top Navigation Bar (Page 5 Design) -->
+  <header class="courier-header" role="banner">
+    <div class="header-inner">
+      <div class="brand-section">
+        <a routerLink="/welcome" class="brand-link" title="Back to SwiftDrop Central Hub">
+          <span class="brand-title">Swift<span>Drop</span></span>
+          <span class="courier-badge">COURIER</span>
+        </a>
+      </div>
+
+      <nav class="subnav-tabs" aria-label="Courier delivery views">
+        <button
+          type="button"
+          class="tab-btn"
+          [class.tab-btn--active]="activeTab() === 'today'"
+          (click)="setTab('today')"
+          [attr.aria-current]="activeTab() === 'today' ? 'page' : null"
+        >
+          Today's deliveries
+        </button>
+        <button
+          type="button"
+          class="tab-btn"
+          [class.tab-btn--active]="activeTab() === 'history'"
+          (click)="setTab('history')"
+          [attr.aria-current]="activeTab() === 'history' ? 'page' : null"
+        >
+          Today's results
+        </button>
+      </nav>
+
+      <div class="header-metrics">
+        <div class="progress-pill" aria-label="Delivery shift progress">
+          <span class="progress-metric">{{ completedStops() }} / {{ totalStops() }}</span>
+          <span class="progress-label">DONE</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section class="courier-controls" aria-label="Courier availability and location">
+    <div class="courier-control-card" [attr.aria-busy]="availabilityBusy()">
+      <h2 class="section-heading">COURIER AVAILABILITY</h2>
+      <p role="status" aria-live="polite">
+        @if (availabilityLoading()) {
+          Loading availability…
+        } @else if (availabilitySaving()) {
+          Saving and refreshing availability…
+        } @else if (available() === null) {
+          Availability is not confirmed.
+        } @else {
+          Current availability: <strong>{{ available() ? 'Available' : 'Unavailable' }}</strong>
+        }
+      </p>
+      <div class="action-btn-row">
+        <button
+          type="button"
+          class="btn btn-hivis-primary"
+          [disabled]="availabilityBusy() || available() === null"
+          (click)="setAvailability(!available())"
+        >
+          {{ available() ? 'Set unavailable' : 'Set available' }}
+        </button>
+        <button
+          type="button"
+          class="btn btn-secondary"
+          [disabled]="availabilityBusy()"
+          (click)="reloadAvailability()"
+        >
+          {{ availabilityError() ? 'Retry loading availability' : 'Refresh availability' }}
+        </button>
+      </div>
+      @if (availabilityNotice()) {
+        <p class="availability-success" role="status">{{ availabilityNotice() }}</p>
+      }
+      @if (availabilityError()) {
+        <p class="field-error-msg" role="alert">{{ availabilityError() }}</p>
+      }
+      <p class="integration-notice-caption">
+        This updates your Courier profile. Dispatch synchronization is not yet connected.
+      </p>
+    </div>
+    <div class="courier-control-card">
+      <h2 class="section-heading">LOCATION REPORTING</h2>
+      <p role="status" aria-live="polite">{{ locationNotice() }}</p>
+      <button type="button" class="btn btn-hivis-primary" [disabled]="locationBusy()"
+        (click)="reportLocation()">{{ locationBusy() ? 'Reporting location…' : 'Report my location' }}</button>
+      @if (locationError()) {
+        <p class="field-error-msg" role="alert">{{ locationError() }}</p>
+      }
+      <p class="integration-notice-caption">Sends one GPS position when you press the button. No continuous tracking.</p>
+    </div>
+  </section>
+
+  <!-- Global Action Notice Banner -->
+  @if (actionNotice()) {
+    <div class="notice-banner" role="status" aria-live="polite">
+      <div class="notice-inner">
+        <span class="notice-icon" aria-hidden="true">ℹ</span>
+        <span class="notice-text">{{ actionNotice() }}</span>
+        <button
+          type="button"
+          class="notice-close"
+          (click)="dismissNotice()"
+          aria-label="Dismiss notice"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+  }
+
+  <div class="courier-feedback">
+    <button type="button" class="btn btn-secondary" [disabled]="busy()" (click)="reload()">
+      Refresh deliveries
+    </button>
+    @if (busy() && !loading()) {
+      <p role="status">Submitting and refreshing delivery state…</p>
+    }
+    @if (actionError()) {
+      <p class="field-error-msg" role="alert">{{ actionError() }}</p>
+    }
+    @if (formError()) {
+      <p class="field-error-msg" role="alert">{{ formError() }}</p>
+    }
+  </div>
+
+  <!-- Error State -->
+  @if (error()) {
+    <section class="state-container state-container--error" role="alert">
+      <div class="state-card">
+        <span class="state-icon" aria-hidden="true">⚠</span>
+        <h2>Route Manifest Error</h2>
+        <p>{{ error() }}</p>
+        <button type="button" class="btn btn-secondary" (click)="reload()">Retry loading</button>
+      </div>
+    </section>
+  }
+
+  <!-- Loading State -->
+  @if (loading()) {
+    <section class="state-container" aria-busy="true" aria-label="Loading route stops">
+      <div class="state-card">
+        <div class="route-spinner" aria-hidden="true"></div>
+        <h2>Loading Route Manifest...</h2>
+        <p>Loading your authenticated Courier assignments...</p>
+      </div>
+    </section>
+  }
+
+  <!-- Main View: Today's Deliveries -->
+  @if (!loading() && !error() && activeTab() === 'today') {
+    @if (stops().length === 0) {
+      <!-- Empty State -->
+      <section class="state-container state-container--empty">
+        <div class="state-card">
+          <span class="state-icon" aria-hidden="true">📦</span>
+          <h2>No Deliveries Assigned</h2>
+          <p>
+            You have no pending assignments on your route for today. Stand by or contact your
+            dispatch team.
+          </p>
+          <button type="button" class="btn btn-primary" (click)="reload()">
+            Refresh deliveries
+          </button>
+        </div>
+      </section>
+    } @else {
+      <main class="courier-main-grid" role="main">
+        <!-- Left Panel: Numbered Route Stops & Transit Line -->
+        <section class="route-board-panel" aria-label="Assigned route stops">
+          <div class="panel-header">
+            <h2 class="panel-title">
+              ROUTE &bull; <span class="mono">{{ totalStops() }} STOPS</span>
+            </h2>
+            <span class="panel-subtitle">{{ pendingStops() }} remaining on manifest</span>
+          </div>
+
+          <!-- Transit Line List -->
+          <div class="transit-line-container" role="list">
+            @for (stop of stops(); track stop.assignmentId; let isLast = $last) {
+              <div
+                class="stop-row"
+                [class.stop-row--selected]="selectedStop()?.stopNumber === stop.stopNumber"
+                [class.stop-row--delivered]="stop.status === 'DELIVERED'"
+                [class.stop-row--failed]="stop.status === 'FAILED'"
+                role="listitem"
+              >
+                <!-- Numbered Node with connecting transit rail line -->
+                <div class="transit-node-col">
+                  <div class="stop-badge-circle mono">
+                    @if (stop.status === 'DELIVERED') {
+                      <span aria-label="Completed stop">✓</span>
+                    } @else if (stop.status === 'FAILED') {
+                      <span aria-label="Failed stop">✕</span>
+                    } @else {
+                      <span>{{ stop.stopNumber }}</span>
+                    }
+                  </div>
+                  @if (!isLast) {
+                    <div class="transit-rail-line" aria-hidden="true"></div>
+                  }
+                </div>
+
+                <!-- Stop Description and Action Trigger -->
+                <button
+                  type="button"
+                  class="stop-card-btn"
+                  (click)="selectStop(stop)"
+                  [disabled]="busy()"
+                  [attr.aria-current]="
+                    selectedStop()?.stopNumber === stop.stopNumber ? 'true' : null
+                  "
+                >
+                  <div class="stop-card-info">
+                    <span class="stop-address">{{ stop.trackingNo || stop.parcelId }}</span>
+                    <span class="stop-type-tag">Parcel assignment {{ stop.stopNumber }}</span>
+                  </div>
+                  <div class="stop-card-status">
+                    <span
+                      class="status-pill mono"
+                      [class.status-pill--done]="stop.status === 'DELIVERED'"
+                      [class.status-pill--failed]="stop.status === 'FAILED'"
+                      >{{ statusLabel(stop.status) }}</span
+                    >
+                  </div>
+                </button>
+              </div>
+            }
+          </div>
+        </section>
+
+        <!-- Right Panel: Current Selected Stop Details & Delivery Actions -->
+        @if (selectedStop(); as current) {
+          <section class="delivery-details-panel" aria-label="Selected stop details">
+            <!-- Waybill Header Stub -->
+            <div class="waybill-stub-header">
+              <div class="stub-meta-row">
+                <span class="stub-stop-indicator mono">STOP {{ current.stopNumber }}</span>
+                <span class="stub-action-tag">{{ statusLabel(current.status) }}</span>
+              </div>
+              <h1 class="stub-destination-address">
+                {{ current.trackingNo || 'Parcel assignment' }}
+              </h1>
+              <div class="stub-recipient-row">
+                <span class="tracking-code-pill mono">{{ current.parcelId }}</span>
+              </div>
+              <p class="integration-notice-caption">
+                Assigned {{ current.assignedAt | date: 'medium' }}. Recipient and address details
+                are not provided by the Courier API.
+              </p>
+              <p class="integration-notice-caption">
+                Numbering follows the returned list; it is not an optimized route.
+              </p>
+            </div>
+            <div class="proof-section">
+              <h2 class="section-heading">DELIVERY STATUS</h2>
+              <p role="status">Current status: {{ statusLabel(current.status) }}</p>
+              <div class="action-btn-row">
+                @for (status of progressActions(); track status) {
+                  <button
+                    type="button"
+                    class="btn btn-hivis-primary"
+                    [disabled]="blocked()"
+                    (click)="markStatusAction(status)"
+                  >
+                    Mark {{ statusLabel(status) }}
+                  </button>
+                }
+              </div>
+              @if (allowedStatuses().length === 0) {
+                <p>No delivery actions are available for this assignment.</p>
+              }
+              @if (current.failureReason) {
+                <p>Failure reason: {{ current.failureReason }}</p>
+              }
+            </div>
+
+            @if (allowedStatuses().includes('DELIVERED')) {
+              <!-- Proof of Delivery Section (Page 5 Design) -->
+              <div class="proof-section">
+                <h2 class="section-heading">PHOTO OF PARCEL AT DOOR</h2>
+
+                <!-- Upload Area / Image Preview -->
+                @if (!proofPhotoUrl()) {
+                  <label class="photo-dropzone" for="proof-file-input" tabindex="0">
+                    <div class="dropzone-content">
+                      <span class="camera-icon" aria-hidden="true">📷</span>
+                      <span class="dropzone-text">Take or select a proof photo</span>
+                      <span class="dropzone-hint">Supports JPG, PNG, WebP up to 5MB</span>
+                    </div>
+                    <input
+                      type="file"
+                      id="proof-file-input"
+                      class="sr-only"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      capture="environment"
+                      [disabled]="blocked()"
+                      (change)="onPhotoSelected($event)"
+                    />
+                  </label>
+                } @else {
+                  <div class="photo-preview-container">
+                    <img
+                      [src]="proofPhotoUrl()"
+                      alt="Captured proof of delivery at door"
+                      class="proof-img-preview"
+                    />
+                    <div class="preview-actions">
+                      <span class="preview-file-name mono">{{ proofPhoto()?.name }}</span>
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-ghost-danger"
+                        (click)="removePhoto()"
+                        [disabled]="blocked()"
+                        aria-label="Remove captured photo"
+                      >
+                        ✕ Remove Photo
+                      </button>
+                    </div>
+                  </div>
+                }
+
+                @if (photoError()) {
+                  <p class="field-error-msg" role="alert">{{ photoError() }}</p>
+                }
+
+                <!-- Received By Field -->
+                <div class="field-group">
+                  <label for="received-by-input" class="field-label">RECEIVED BY</label>
+                  <input
+                    type="text"
+                    id="received-by-input"
+                    class="field-input"
+                    placeholder="Recipient full name"
+                    maxlength="100"
+                    [disabled]="blocked()"
+                    [ngModel]="receivedBy()"
+                    (ngModelChange)="receivedBy.set($event)"
+                    required
+                  />
+                </div>
+
+                <!-- Optional Delivery Code Field -->
+                <div class="field-group">
+                  <label for="delivery-code-input" class="field-label">
+                    DELIVERY CODE <span class="label-opt">(OPTIONAL)</span>
+                  </label>
+                  <input
+                    type="text"
+                    id="delivery-code-input"
+                    class="field-input mono"
+                    placeholder="Optional OTP (not verified by this API)"
+                    [disabled]="blocked()"
+                    maxlength="10"
+                    [ngModel]="deliveryCode()"
+                    (ngModelChange)="deliveryCode.set($event)"
+                  />
+                </div>
+
+                <!-- Primary Action: Mark Delivered -->
+                <div class="action-btn-row">
+                  <button
+                    type="button"
+                    class="btn btn-hivis-primary"
+                    (click)="markDeliveredAction()"
+                    [disabled]="blocked()"
+                  >
+                    {{ busy() ? 'Submitting…' : 'Mark delivered' }}
+                  </button>
+                </div>
+              </div>
+            }
+
+            @if (allowedStatuses().includes('FAILED')) {
+              <!-- Failed Delivery Section (Collapsible Accordion) -->
+              <div class="failed-delivery-accordion">
+                <button
+                  type="button"
+                  class="accordion-trigger"
+                  (click)="toggleFailedSection()"
+                  [disabled]="blocked()"
+                  [attr.aria-expanded]="showFailedSection()"
+                >
+                  <span>Delivery problem? Report delivery failure</span>
+                  <span class="accordion-arrow" aria-hidden="true">{{
+                    showFailedSection() ? '▲' : '▼'
+                  }}</span>
+                </button>
+
+                @if (showFailedSection()) {
+                  <div class="accordion-content">
+                    <div class="field-group">
+                      <label for="failure-reason-select" class="field-label">FAILURE REASON</label>
+                      <select
+                        id="failure-reason-select"
+                        [disabled]="blocked()"
+                        required
+                        class="field-input"
+                        [ngModel]="failureReason()"
+                        (ngModelChange)="failureReason.set($event)"
+                      >
+                        <option value="">Select a failure reason</option>
+                        @for (reason of failureReasons; track reason.code) {
+                          <option [value]="reason.code">{{ reason.label }}</option>
+                        }
+                      </select>
+                    </div>
+
+                    <button
+                      type="button"
+                      class="btn btn-danger-action"
+                      (click)="markFailedAction()"
+                      [disabled]="blocked()"
+                    >
+                      Confirm Delivery Failure
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+          </section>
+        }
+      </main>
+    }
+  }
+
+  <!-- View: History Tab -->
+  @if (!loading() && !error() && activeTab() === 'history') {
+    <main class="courier-history-view" role="main">
+      <div class="history-container">
+        <div class="panel-header">
+          <h2 class="panel-title">TODAY'S RESULTS</h2>
+          <span class="panel-subtitle"
+            >Delivered and failed assignments returned by today's API</span
+          >
+        </div>
+
+        <div class="history-list" role="list">
+          @for (item of courierService.historyStops(); track item.assignmentId) {
+            <div class="history-item-card" role="listitem">
+              <div class="history-item-left">
+                <span
+                  class="history-status-badge mono"
+                  [class.status-badge--success]="item.status === 'DELIVERED'"
+                  [class.status-badge--danger]="item.status === 'FAILED'"
+                >
+                  {{ item.status }}
+                </span>
+                <div class="history-item-details">
+                  <span class="history-address">{{ item.trackingNo || item.parcelId }}</span>
+                  <span class="history-meta mono">
+                    {{ item.failureReason || item.parcelId }}
+                  </span>
+                </div>
+              </div>
+              <div class="history-item-right mono">
+                {{
+                  item.completedAt
+                    ? (item.completedAt | date: 'short')
+                    : 'Completion time unavailable'
+                }}
+              </div>
+            </div>
+          } @empty {
+            <div class="empty-history-notice">
+              <p>No delivered or failed assignments in today's results.</p>
+            </div>
+          }
+        </div>
+      </div>
+    </main>
+  }
+</div>
