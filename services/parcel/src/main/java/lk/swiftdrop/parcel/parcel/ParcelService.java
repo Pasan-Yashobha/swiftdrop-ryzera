@@ -67,16 +67,16 @@ public class ParcelService {
             String idempotencyKey) {
         String scopedKey = resolveCustomerScopedKey(customerId, idempotencyKey);
         if (scopedKey != null) {
-            Optional<CustomerParcelDetailResponse> cached =
-                    idempotencyService.startOrGetReplay(scopedKey, request, CustomerParcelDetailResponse.class);
+            Optional<CustomerParcelDetailResponse> cached = idempotencyService.startOrGetReplay(scopedKey, request,
+                    CustomerParcelDetailResponse.class);
             if (cached.isPresent()) {
                 return cached.get();
             }
         }
 
-        PricingSnapshot pricing = pricingClient.acceptQuote(request.quoteId());
-        String trackingNumber = generateUniqueTrackingNumber();
         UUID parcelId = UUID.randomUUID();
+        PricingSnapshot pricing = pricingClient.acceptQuote(request.quoteId(), parcelId);
+        String trackingNumber = generateUniqueTrackingNumber();
         Instant now = clock.instant();
 
         Parcel parcel = Parcel.create(
@@ -99,14 +99,12 @@ public class ParcelService {
                 request.deliveryType(),
                 request.notes(),
                 pricing,
-                now
-        );
+                now);
         parcelRepository.save(parcel);
 
         ParcelStatusHistory history = new ParcelStatusHistory(
                 UUID.randomUUID(), parcelId, 1, null, ParcelStatus.CREATED.name(),
-                customerId, "CUSTOMER", "Parcel created by customer", now
-        );
+                customerId, "CUSTOMER", "Parcel created by customer", now);
         historyRepository.save(history);
 
         Map<String, Object> eventData = new LinkedHashMap<>();
@@ -130,24 +128,26 @@ public class ParcelService {
         }
         String trimmedKey = idempotencyKey.trim();
         if (trimmedKey.length() > 120) {
-            throw new BadRequestException(ErrorCode.VALIDATION_FAILED, "Idempotency-Key must not exceed 120 characters");
+            throw new BadRequestException(ErrorCode.VALIDATION_FAILED,
+                    "Idempotency-Key must not exceed 120 characters");
         }
         return "customer:" + customerId + ":" + trimmedKey;
     }
 
     @Transactional
-    public InternalParcelBookingResponse createMerchantParcel(CreateMerchantParcelRequest request, String idempotencyKey) {
+    public InternalParcelBookingResponse createMerchantParcel(CreateMerchantParcelRequest request,
+            String idempotencyKey) {
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-            Optional<InternalParcelBookingResponse> cached =
-                    idempotencyService.startOrGetReplay(idempotencyKey, request, InternalParcelBookingResponse.class);
+            Optional<InternalParcelBookingResponse> cached = idempotencyService.startOrGetReplay(idempotencyKey,
+                    request, InternalParcelBookingResponse.class);
             if (cached.isPresent()) {
                 return cached.get();
             }
         }
 
-        PricingSnapshot pricing = pricingClient.acceptQuote(request.quoteId());
-        String trackingNumber = generateUniqueTrackingNumber();
         UUID parcelId = UUID.randomUUID();
+        PricingSnapshot pricing = pricingClient.acceptQuote(request.quoteId(), parcelId);
+        String trackingNumber = generateUniqueTrackingNumber();
         Instant now = clock.instant();
 
         Parcel parcel = Parcel.create(
@@ -170,14 +170,12 @@ public class ParcelService {
                 DeliveryType.STANDARD,
                 request.notes(),
                 pricing,
-                now
-        );
+                now);
         parcelRepository.save(parcel);
 
         ParcelStatusHistory history = new ParcelStatusHistory(
                 UUID.randomUUID(), parcelId, 1, null, ParcelStatus.CREATED.name(),
-                request.merchantId().toString(), "MERCHANT", "Parcel created by merchant order", now
-        );
+                request.merchantId().toString(), "MERCHANT", "Parcel created by merchant order", now);
         historyRepository.save(history);
 
         Map<String, Object> eventData = new LinkedHashMap<>();
@@ -190,8 +188,7 @@ public class ParcelService {
                 parcelId.toString(),
                 trackingNumber,
                 ParcelStatus.CREATED.name(),
-                new MoneyDto(pricing.totalAmount(), pricing.currency())
-        );
+                new MoneyDto(pricing.totalAmount(), pricing.currency()));
 
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             idempotencyService.recordCompleted(idempotencyKey, 201, response);
@@ -208,8 +205,8 @@ public class ParcelService {
     @Transactional
     public void updateCourierStatus(UUID parcelId, CourierStatusUpdateRequest request, String idempotencyKey) {
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-            IdempotencyService.ReplayStatus replayStatus =
-                    idempotencyService.startOrCheckReplay(idempotencyKey, new StatusUpdatePayload(parcelId.toString(), request));
+            IdempotencyService.ReplayStatus replayStatus = idempotencyService.startOrCheckReplay(idempotencyKey,
+                    new StatusUpdatePayload(parcelId.toString(), request));
             if (replayStatus == IdempotencyService.ReplayStatus.REPLAY) {
                 return;
             }
@@ -231,8 +228,10 @@ public class ParcelService {
                                 + " already assigned to courier '" + parcel.getCourierId() + "'");
             }
         } else {
-            // Delivery status updates (PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, FAILED, RESCHEDULED, RETURNED):
-            // Parcel must already be assigned, and assigned courier must match request.courierId
+            // Delivery status updates (PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED,
+            // FAILED, RESCHEDULED, RETURNED):
+            // Parcel must already be assigned, and assigned courier must match
+            // request.courierId
             if (parcel.getCourierId() == null || parcel.getCourierId().isBlank()) {
                 throw new ConflictException(ErrorCode.COURIER_MISMATCH,
                         "Cannot update delivery status for unassigned parcel " + parcelId
@@ -247,7 +246,8 @@ public class ParcelService {
         // 2. Validate state transition
         stateMachine.validateTransition(fromStatus, toStatus);
 
-        // 3. Repeated same-state check (idempotent no-op for repeated requests without or with key)
+        // 3. Repeated same-state check (idempotent no-op for repeated requests without
+        // or with key)
         if (fromStatus == toStatus) {
             if (idempotencyKey != null && !idempotencyKey.isBlank()) {
                 idempotencyService.recordCompleted(idempotencyKey, 204, null);
@@ -265,8 +265,7 @@ public class ParcelService {
         int nextSeq = historyRepository.findMaxSequenceNumber(parcelId).orElse(0) + 1;
         ParcelStatusHistory history = new ParcelStatusHistory(
                 UUID.randomUUID(), parcelId, nextSeq, fromStatus.name(), toStatus.name(),
-                request.courierId(), "COURIER", request.note(), now
-        );
+                request.courierId(), "COURIER", request.note(), now);
         historyRepository.save(history);
 
         // 6. Record outbox event
@@ -278,10 +277,11 @@ public class ParcelService {
         }
     }
 
-    record StatusUpdatePayload(String parcelId, CourierStatusUpdateRequest request) {}
+    record StatusUpdatePayload(String parcelId, CourierStatusUpdateRequest request) {
+    }
 
     private void recordStatusEvent(Parcel parcel, ParcelStatus fromStatus, ParcelStatus toStatus,
-                                   String courierId, String failureReason, Instant now) {
+            String courierId, String failureReason, Instant now) {
         String eventType;
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("parcelId", parcel.getId().toString());
@@ -352,7 +352,8 @@ public class ParcelService {
     }
 
     @Transactional
-    public CustomerParcelDetailResponse cancelCustomerParcel(UUID parcelId, String customerId, boolean isAdmin, String reason) {
+    public CustomerParcelDetailResponse cancelCustomerParcel(UUID parcelId, String customerId, boolean isAdmin,
+            String reason) {
         Parcel parcel = parcelRepository.findById(parcelId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.PARCEL_NOT_FOUND, "Parcel not found: " + parcelId));
 
@@ -375,8 +376,7 @@ public class ParcelService {
         int nextSeq = historyRepository.findMaxSequenceNumber(parcelId).orElse(0) + 1;
         ParcelStatusHistory history = new ParcelStatusHistory(
                 UUID.randomUUID(), parcelId, nextSeq, fromStatus.name(), ParcelStatus.CANCELLED.name(),
-                customerId, isAdmin ? "ADMIN" : "CUSTOMER", cancelReason, now
-        );
+                customerId, isAdmin ? "ADMIN" : "CUSTOMER", cancelReason, now);
         historyRepository.save(history);
 
         recordStatusEvent(parcel, fromStatus, ParcelStatus.CANCELLED, null, cancelReason, now);
@@ -427,27 +427,27 @@ public class ParcelService {
                 parcel.getSizeAmount(),
                 parcel.getExpressAmount(),
                 parcel.getDiscountAmount(),
-                parcel.getTotalFee()
-        );
+                parcel.getTotalFee());
 
         return new InternalParcelDetailResponse(
                 parcel.getId(),
                 parcel.getTrackingNumber(),
                 parcel.getCustomerId(),
                 pricing,
-                parcel.getCurrency()
-        );
+                parcel.getCurrency());
     }
 
     @Transactional(readOnly = true)
     public PublicTrackingResponse getPublicTracking(String trackingNo) {
         Parcel parcel = parcelRepository.findByTrackingNumber(trackingNo)
-                .orElseThrow(() -> new NotFoundException(ErrorCode.PARCEL_NOT_FOUND, "Tracking number not found: " + trackingNo));
+                .orElseThrow(() -> new NotFoundException(ErrorCode.PARCEL_NOT_FOUND,
+                        "Tracking number not found: " + trackingNo));
 
-        List<PublicTrackingResponse.TrackingMilestone> milestones =
-                historyRepository.findByParcelIdOrderBySequenceNumberAsc(parcel.getId()).stream()
-                        .map(h -> new PublicTrackingResponse.TrackingMilestone(h.getToStatus(), h.getOccurredAt(), h.getNotes()))
-                        .toList();
+        List<PublicTrackingResponse.TrackingMilestone> milestones = historyRepository
+                .findByParcelIdOrderBySequenceNumberAsc(parcel.getId()).stream()
+                .map(h -> new PublicTrackingResponse.TrackingMilestone(h.getToStatus(), h.getOccurredAt(),
+                        h.getNotes()))
+                .toList();
 
         return new PublicTrackingResponse(
                 parcel.getTrackingNumber(),
@@ -456,8 +456,7 @@ public class ParcelService {
                 parcel.getDropoffCity(),
                 parcel.getCreatedAt(),
                 parcel.getDeliveredAt(),
-                milestones
-        );
+                milestones);
     }
 
     private String generateUniqueTrackingNumber() {
@@ -483,8 +482,7 @@ public class ParcelService {
                 p.getTotalFee(),
                 p.getCurrency(),
                 p.getCreatedAt(),
-                p.getDeliveredAt()
-        );
+                p.getDeliveredAt());
     }
 
     private CustomerParcelDetailResponse toDetailResponse(Parcel p, List<ParcelStatusHistoryDto> history) {
@@ -499,8 +497,7 @@ public class ParcelService {
                 p.getExpressAmount(),
                 p.getDiscountAmount(),
                 p.getTotalFee(),
-                p.getCurrency()
-        );
+                p.getCurrency());
 
         return new CustomerParcelDetailResponse(
                 p.getId(),
@@ -520,8 +517,7 @@ public class ParcelService {
                 p.getDeliveredAt(),
                 p.getCreatedAt(),
                 p.getUpdatedAt(),
-                history
-        );
+                history);
     }
 
     private ParcelStatusHistoryDto toHistoryDto(ParcelStatusHistory h) {
@@ -532,7 +528,6 @@ public class ParcelService {
                 h.getChangedBy(),
                 h.getActorRole(),
                 h.getNotes(),
-                h.getOccurredAt()
-        );
+                h.getOccurredAt());
     }
 }

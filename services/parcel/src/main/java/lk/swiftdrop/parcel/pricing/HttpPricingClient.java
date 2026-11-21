@@ -51,9 +51,10 @@ public class HttpPricingClient implements PricingClient {
     }
 
     @Override
-    public PricingSnapshot acceptQuote(UUID quoteId) {
-        if (quoteId == null) {
-            throw new UnprocessableException(ErrorCode.INVALID_QUOTE, "A valid quoteId is required to confirm booking pricing");
+    public PricingSnapshot acceptQuote(UUID quoteId, UUID parcelId) {
+        if (quoteId == null || parcelId == null) {
+            throw new UnprocessableException(ErrorCode.INVALID_QUOTE,
+                    "A valid quoteId is required to confirm booking pricing");
         }
 
         try {
@@ -62,14 +63,16 @@ public class HttpPricingClient implements PricingClient {
                     .header(InternalTokenFilter.HEADER, internalToken)
                     .header(CorrelationIdFilter.HEADER, CorrelationIdFilter.currentOrNew())
                     .contentType(MediaType.APPLICATION_JSON)
+                    .body(java.util.Map.of("parcelId", parcelId.toString()))
                     .retrieve()
                     .body(JsonNode.class);
 
             if (answer == null) {
-                throw new ServiceUnavailableException(ErrorCode.PRICING_SERVICE_UNAVAILABLE, "Pricing service returned empty response");
+                throw new ServiceUnavailableException(ErrorCode.PRICING_SERVICE_UNAVAILABLE,
+                        "Pricing service returned empty response");
             }
 
-            JsonNode amounts = answer.path("amounts");
+            JsonNode amounts = answer.path("pricing");
             BigDecimal base = decimal(amounts, "baseAmount");
             BigDecimal weight = decimal(amounts, "weightAmount");
             BigDecimal size = decimal(amounts, "sizeAmount");
@@ -85,13 +88,20 @@ public class HttpPricingClient implements PricingClient {
             if (status == 404) {
                 throw new NotFoundException(ErrorCode.NOT_FOUND, "Pricing quote not found: " + quoteId);
             }
-            if (status == 422 || status == 400 || status == 409) {
-                throw new UnprocessableException(ErrorCode.INVALID_QUOTE, "Pricing quote is expired, invalid, or already accepted");
+            if (status == 410) {
+                throw new UnprocessableException(ErrorCode.QUOTE_EXPIRED,
+                        "Pricing quote has expired; request a new estimate");
             }
-            throw new ServiceUnavailableException(ErrorCode.PRICING_SERVICE_UNAVAILABLE, "Pricing service is currently unavailable");
+            if (status == 422 || status == 400 || status == 409) {
+                throw new UnprocessableException(ErrorCode.INVALID_QUOTE,
+                        "Pricing quote is expired, invalid, or already accepted");
+            }
+            throw new ServiceUnavailableException(ErrorCode.PRICING_SERVICE_UNAVAILABLE,
+                    "Pricing service is currently unavailable");
         } catch (RestClientException e) {
             log.warn("Pricing service call failed: {}", e.getMessage());
-            throw new ServiceUnavailableException(ErrorCode.PRICING_SERVICE_UNAVAILABLE, "Pricing service could not be reached");
+            throw new ServiceUnavailableException(ErrorCode.PRICING_SERVICE_UNAVAILABLE,
+                    "Pricing service could not be reached");
         }
     }
 
