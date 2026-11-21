@@ -25,7 +25,7 @@ public record AssistantProperties(@DefaultValue Gemini gemini, @DefaultValue Dow
     public record Downstream(@DefaultValue("http://localhost:8085") String pricingUrl, String trackingUrl,
                              @DefaultValue("/api/v1/public/tracking/{trackingNumber}") String trackingPath,
                              String parcelUrl,
-                             @DefaultValue("/api/v1/parcels/history?limit={limit}") String historyPath) { }
+                             @DefaultValue("/api/v1/parcels?page=0&size={limit}") String historyPath) { }
 
     /** {@code mcpUrl} is optional: blank means "this service, on the port it is really listening on". */
     public record Chat(String mcpUrl,

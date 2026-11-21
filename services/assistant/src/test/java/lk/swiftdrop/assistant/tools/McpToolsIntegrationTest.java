@@ -165,26 +165,54 @@ class McpToolsIntegrationTest {
 
     @Test
     void getHistoryForwardsTheUsersTokenAndClampsTheLimit() {
-        DOWNSTREAM.on("GET", "/api/v1/parcels/history", 200, "{\"parcels\":[{\"trackingNumber\":\"SD-9999-0001\"}]}");
+        DOWNSTREAM.on("GET", "/api/v1/parcels", 200, """
+                {"content":[{"id":"11111111-1111-1111-1111-111111111111","trackingNumber":"SD260796J07NR",
+                  "status":"DELIVERED","recipientName":"Private Person","pickupCity":"Pannipitiya",
+                  "dropoffCity":"Kandy","weightKg":2.0,"size":"MEDIUM","totalFee":550.00,"currency":"LKR",
+                  "createdAt":"2026-11-21T07:58:34Z","deliveredAt":"2026-11-21T08:03:07Z"}],
+                 "page":0,"size":5,"totalElements":1,"totalPages":1}
+                """);
         String bearer = TestTokens.bearer("customer-7", "CUSTOMER");
         try (var client = new McpTestClient(port, bearer)) {
-            assertThat(client.call("get_history", args()).get("data").get("parcels").get(0).get("trackingNumber").asText())
-                    .isEqualTo("SD-9999-0001");
+            JsonNode answer = client.call("get_history", args());
+            JsonNode parcel = answer.get("parcels").get(0);
+            assertThat(parcel.get("trackingNumber").asText()).isEqualTo("SD260796J07NR");
+            assertThat(parcel.get("status").asText()).isEqualTo("DELIVERED");
+            assertThat(parcel.get("from").asText()).isEqualTo("Pannipitiya");
+            assertThat(parcel.get("to").asText()).isEqualTo("Kandy");
+            assertThat(parcel.get("fee").decimalValue()).isEqualByComparingTo("550.00");
+            assertThat(parcel.get("deliveredAt").asText()).isEqualTo("2026-11-21T08:03:07Z");
+            assertThat(answer.get("totalParcels").asLong()).isEqualTo(1);
+            assertThat(answer.has("demo")).isFalse();
+            assertThat(answer.toString()).doesNotContain("Private Person", "11111111-1111");
             client.call("get_history", args("limit", 99));
             client.call("get_history", args("limit", 0));
         }
         var calls = DOWNSTREAM.calls();
-        assertThat(calls).extracting(FakeDownstream.Call::query).containsExactly("limit=5", "limit=20", "limit=1");
+        assertThat(calls).extracting(FakeDownstream.Call::query)
+                .containsExactly("page=0&size=5", "page=0&size=20", "page=0&size=1");
         assertThat(calls).extracting(FakeDownstream.Call::authorization).containsOnly(bearer);
     }
 
     @Test
     void getHistoryExplainsRefusalsAndOutages() {
         try (var client = new McpTestClient(port, TestTokens.bearer("customer-7", "CUSTOMER"))) {
-            DOWNSTREAM.on("GET", "/api/v1/parcels/history", 403, "{}");
+            DOWNSTREAM.on("GET", "/api/v1/parcels", 401, "{}");
             assertThat(client.call("get_history", args()).get("error").asText()).contains("not allowed");
-            DOWNSTREAM.on("GET", "/api/v1/parcels/history", 503, "{}");
+            DOWNSTREAM.on("GET", "/api/v1/parcels", 403, "{}");
+            assertThat(client.call("get_history", args()).get("error").asText())
+                    .contains("customer accounts", "Orders page");
+            DOWNSTREAM.on("GET", "/api/v1/parcels", 503, "{}");
             assertThat(client.call("get_history", args()).get("error").asText()).contains("not available right now");
+        }
+    }
+
+    @Test
+    void getHistoryPassesOnAnAnswerOfAnotherShapeSafely() {
+        DOWNSTREAM.on("GET", "/api/v1/parcels", 200, "{\"parcels\":[{\"trackingNumber\":\"SD-9999-0001\"}]}");
+        try (var client = new McpTestClient(port, TestTokens.bearer("customer-7", "CUSTOMER"))) {
+            assertThat(client.call("get_history", args()).get("data").get("parcels").get(0).get("trackingNumber")
+                    .asText()).isEqualTo("SD-9999-0001");
         }
     }
 
