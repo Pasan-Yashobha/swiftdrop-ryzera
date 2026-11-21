@@ -35,4 +35,12 @@ export const ADMIN_NAV: readonly AdminNavSection[] = [
       { label: 'Invoices', path: '/admin/invoices' },
     ],
   },
+  {
+    // Member 1: Audit Log Service and the gateway's system health.
+    heading: 'Platform',
+    items: [
+      { label: 'Audit log', path: '/admin/audit' },
+      { label: 'System status', path: '/admin/system' },
+    ],
+  },
 ];

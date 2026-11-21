@@ -1,4 +1,4 @@
-# Gateway service (Member 1)
+# Gateway service
 
 The single entry point of SwiftDrop. Spring Cloud Gateway (reactive), Java 21, port **8080**.
 All Angular apps and merchant systems call `http://localhost:8080/api/v1/...`; the gateway checks
@@ -30,6 +30,13 @@ so an expired token sent to `/auth/refresh` does not cause a 401.
 Merchant's development-only token endpoint (`/api/v1/dev/**`) is routed and left open **only** when `GATEWAY_DEV_ROUTES=true`
 (default `false`; never enable it on AWS).
 
+## Development tokens (local only)
+
+Merchant's `/api/v1/dev/tokens` issues HS256 tokens so the admin console and merchant portal work before Identity is used.
+When `DEV_JWT_HMAC_SECRET` is set, the gateway accepts those tokens **in addition to** Identity's RS256 tokens, and
+`GATEWAY_DEV_ROUTES=true` routes `/api/v1/dev/**`. docker-compose sets both for local development.
+**Never set either on AWS or in a demo that must look secure**: with them off (the default) only Identity's tokens work.
+
 ## Routes
 
 | Path prefix | Service | Rate limit |
@@ -39,8 +46,7 @@ Merchant's development-only token endpoint (`/api/v1/dev/**`) is routed and left
 | `/api/v1/merchants/**`, `/api/v1/admin/merchants/**` | merchant | 10 req/s per user |
 | `/api/v1/merchant-api/**`, `/api/v1/oauth/token` | merchant | 30 req/s per credential |
 | `/api/v1/parcels/**` | parcel | per user |
-| `/api/v1/pricing/**`, `/api/v1/admin/zones/**`, `/api/v1/admin/rate-cards/**`, `/api/v1/admin/promo-codes/**` | pricing | per user |
-| `/api/v1/assistant/**` | assistant | per user |
+| `/api/v1/quotes/**`, `/api/v1/zones/**`, `/api/v1/admin/pricing/**`, `/api/v1/admin/zones/**` | pricing | per user |
 | `/api/v1/dispatch/**` | dispatch | per user |
 | `/api/v1/courier/**` | courier | per user |
 | `/api/v1/public/tracking/**` | tracking | 5 req/s per IP |
@@ -49,7 +55,7 @@ Merchant's development-only token endpoint (`/api/v1/dev/**`) is routed and left
 | `/api/v1/admin/notifications/**` | notification | per user |
 | `/api/v1/admin/webhooks/**` | webhook | per user |
 | `/api/v1/admin/reports/**` | reporting | per user |
-| `/api/v1/receipts/**`, `/api/v1/invoices/**` | document | per user |
+| `/api/v1/receipts/**` | document | per user |
 | `GET /api/v1/admin/system/health` | handled by the gateway itself (feeds the System Status page, ADMIN only) | - |
 
 Add a service: add one `.route(...)` in `RoutesConfig` and its URI in `application.yml`. Limits are in `application.yml`
@@ -86,6 +92,7 @@ Optionally set `GOOGLE_REDIRECT_URI` to `http://localhost:8080/api/v1/auth/googl
 |---|---|---|
 | `IDENTITY_URI`, `MERCHANT_URI`, `PARCEL_URI`, ... | `http://localhost:808x` | where each service runs |
 | `IDENTITY_JWKS_URI` | `${IDENTITY_URI}/.well-known/jwks.json` | public keys used to verify tokens |
+| `DEV_JWT_HMAC_SECRET` | empty (off) | local development only: also accept HS256 dev tokens signed with this secret |
 | `GATEWAY_DEV_ROUTES` | `false` | expose Merchant's dev-token endpoint (local development only) |
 | `JWT_ISSUER` | `swiftdrop-identity` | expected `iss` claim |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:4200,http://localhost:4201` | browser origins allowed |

@@ -73,6 +73,19 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/documents/invoices.page').then((m) => m.InvoicesPage),
       },
+      // Member 1: Audit Log Service
+      {
+        path: 'audit',
+        title: 'Audit log',
+        loadComponent: () => import('./features/audit/audit-log.page').then((m) => m.AuditLogPage),
+      },
+      // Member 1: API gateway health aggregator
+      {
+        path: 'system',
+        title: 'System status',
+        loadComponent: () =>
+          import('./features/system/system-status.page').then((m) => m.SystemStatusPage),
+      },
     ],
   },
   {
