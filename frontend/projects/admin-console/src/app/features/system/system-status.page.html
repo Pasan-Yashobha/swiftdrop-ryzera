@@ -1,0 +1,64 @@
+<div class="page">
+  <header class="page__header">
+    <div>
+      <h1>System status</h1>
+      <p class="page__lead">
+        Live health of every SwiftDrop service, checked through the API gateway. This page refreshes itself
+        every 15 seconds.
+      </p>
+    </div>
+    <button type="button" class="btn btn-ghost btn-sm" [disabled]="loading()" (click)="load()">
+      {{ loading() ? 'Checking…' : 'Check now' }}
+    </button>
+  </header>
+
+  <app-error-alert [error]="error()" [retryable]="true" (retry)="load()" />
+
+  @if (services(); as list) {
+    @if (list.length === 0) {
+      <app-empty-state
+        heading="No services reported"
+        message="The gateway did not return any service. Check that the gateway is configured with the service addresses."
+      />
+    } @else {
+      <p class="summary" role="status" [class.summary--bad]="!allUp()">
+        <strong>{{ upCount() }} of {{ total() }}</strong> services are up.
+        @if (checkedAt(); as at) {
+          <span class="muted small">Last checked {{ at | date: 'mediumTime' }}</span>
+        }
+      </p>
+
+      <ul class="tiles" aria-label="Service health" [attr.aria-busy]="loading()">
+        @for (item of list; track item.service) {
+          <li class="tile card" [class.tile--down]="item.status !== 'UP'">
+            <span class="tile__name mono">{{ item.service }}</span>
+            <app-status-badge [status]="item.status" />
+            <span class="muted small">{{ item.responseMs }} ms</span>
+          </li>
+        }
+      </ul>
+      <p class="muted small">
+        A service shows as Down when it is stopped or does not answer within 2 seconds. Services that have not
+        been built yet also show as Down.
+      </p>
+    }
+
+    <section class="card stack" aria-labelledby="system-tools-title">
+      <h2 id="system-tools-title" class="tools__title">Metrics and dashboards</h2>
+      <p class="muted small">
+        Prometheus collects each service's metrics every 15 seconds and Grafana draws the dashboards. Alerts fire for a
+        stopped service, a high error rate, slow responses and any message in a dead-letter queue.
+      </p>
+      <div class="cluster">
+        <a class="btn btn-ghost btn-sm" [href]="grafanaUrl" target="_blank" rel="noopener noreferrer">
+          Open Grafana <span class="visually-hidden">(opens in a new tab)</span>
+        </a>
+        <a class="btn btn-ghost btn-sm" [href]="prometheusUrl" target="_blank" rel="noopener noreferrer">
+          Open Prometheus <span class="visually-hidden">(opens in a new tab)</span>
+        </a>
+      </div>
+    </section>
+  } @else if (loading()) {
+    <app-spinner label="Checking services" />
+  }
+</div>

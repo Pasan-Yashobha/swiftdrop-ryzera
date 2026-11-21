@@ -165,7 +165,7 @@ class AuditIntegrationTest {
         mvc.perform(get("/api/v1/admin/audit-logs").param("action", "merchant_approved").param("size", "5")
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[0].action").value("MERCHANT_APPROVED"))
+                .andExpect(jsonPath("$.content[0].action").value("MERCHANT_APPROVED"))
                 .andExpect(jsonPath("$.size").value(5));
 
         String recordId = repository.findByEventId(id).orElseThrow().getId().toString();

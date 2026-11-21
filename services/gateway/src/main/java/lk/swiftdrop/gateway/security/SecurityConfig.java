@@ -5,18 +5,23 @@ import lk.swiftdrop.gateway.error.ApiErrorWriter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
+import org.springframework.core.convert.converter.Converter;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
+import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
-import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
-import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverterAdapter;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.web.server.authentication.ServerBearerTokenAuthenticationConverter;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.ServerAuthenticationEntryPoint;
@@ -24,9 +29,17 @@ import org.springframework.security.web.server.authorization.ServerAccessDeniedH
 import org.springframework.security.web.server.authentication.ServerAuthenticationConverter;
 import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatcher;
 import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatchers;
+import org.springframework.util.StringUtils;
 import org.springframework.web.cors.reactive.CorsConfigurationSource;
 import reactor.core.publisher.Mono;
 
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Stream;
 
 @Configuration
@@ -47,16 +60,28 @@ public class SecurityConfig {
             "/fallback/**"
     };
 
-    /** Verifies Identity's RS256 access tokens with the public keys Identity publishes (JWKS). */
+    /**
+     * Verifies Identity's RS256 access tokens with the public keys Identity publishes (JWKS).
+     * Only when DEV_JWT_HMAC_SECRET is set (local development) it also accepts the HS256 development tokens that
+     * Merchant's /api/v1/dev/tokens endpoint issues, so the admin console's dev sign-in works through the gateway.
+     */
     @Bean
     public ReactiveJwtDecoder jwtDecoder(GatewayProperties props) {
-        NimbusReactiveJwtDecoder decoder = NimbusReactiveJwtDecoder
+        NimbusReactiveJwtDecoder identity = NimbusReactiveJwtDecoder
                 .withJwkSetUri(props.jwksUri())
                 .jwsAlgorithm(SignatureAlgorithm.RS256)
                 .build();
         // default checks (expiry, not-before) plus the issuer
-        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(props.issuer()));
-        return decoder;
+        identity.setJwtValidator(JwtValidators.createDefaultWithIssuer(props.issuer()));
+        if (!StringUtils.hasText(props.devHmacSecret())) {
+            return identity;
+        }
+        NimbusReactiveJwtDecoder development = NimbusReactiveJwtDecoder
+                .withSecretKey(new SecretKeySpec(props.devHmacSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"))
+                .macAlgorithm(MacAlgorithm.HS256)
+                .build();
+        development.setJwtValidator(JwtValidators.createDefault());
+        return token -> identity.decode(token).onErrorResume(JwtException.class, e -> development.decode(token));
     }
 
     @Bean
@@ -113,13 +138,26 @@ public class SecurityConfig {
                 .build();
     }
 
-    /** Identity puts the user's roles in the "roles" claim (for example ["ADMIN"]). */
-    private ReactiveJwtAuthenticationConverterAdapter jwtAuthenticationConverter() {
-        JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();
-        authorities.setAuthoritiesClaimName("roles");
-        authorities.setAuthorityPrefix("ROLE_");
-        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(authorities);
-        return new ReactiveJwtAuthenticationConverterAdapter(converter);
+    private static final Set<String> KNOWN_ROLES = Set.of("ADMIN", "DISPATCHER", "CUSTOMER", "MERCHANT", "COURIER");
+
+    /** Identity puts the role in "role" (text) and "roles" (list); development tokens only carry "role". */
+    private Converter<Jwt, Mono<AbstractAuthenticationToken>> jwtAuthenticationConverter() {
+        return jwt -> {
+            Set<String> values = new LinkedHashSet<>();
+            Object single = jwt.getClaim("role");
+            if (single instanceof String text) {
+                values.add(text);
+            }
+            Object many = jwt.getClaim("roles");
+            if (many instanceof Collection<?> list) {
+                list.stream().filter(String.class::isInstance).map(String.class::cast).forEach(values::add);
+            }
+            List<GrantedAuthority> authorities = values.stream()
+                    .map(value -> value.trim().toUpperCase(Locale.ROOT))
+                    .filter(KNOWN_ROLES::contains)
+                    .<GrantedAuthority>map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                    .toList();
+            return Mono.<AbstractAuthenticationToken>just(new JwtAuthenticationToken(jwt, authorities, jwt.getSubject()));
+        };
     }
 }

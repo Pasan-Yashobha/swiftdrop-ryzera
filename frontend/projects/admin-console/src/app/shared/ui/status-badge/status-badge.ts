@@ -22,6 +22,11 @@ const PRESENTATIONS: Readonly<Record<string, Presentation>> = {
   // Templates
   ACTIVE: { label: 'Active', tone: 'success' },
   INACTIVE: { label: 'Inactive', tone: 'neutral' },
+  // Service health (system status page)
+  UP: { label: 'Up', tone: 'success' },
+  DOWN: { label: 'Down', tone: 'danger' },
+  OUT_OF_SERVICE: { label: 'Out of service', tone: 'warning' },
+  UNKNOWN: { label: 'Unknown', tone: 'neutral' },
 };
 
 const ICONS: Readonly<Record<BadgeTone, string>> = {

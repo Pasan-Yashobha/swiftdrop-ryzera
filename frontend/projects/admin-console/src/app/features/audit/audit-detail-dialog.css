@@ -1,0 +1,14 @@
+.detail__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.detail__section {
+  gap: var(--space-2);
+}
+
+.hash {
+  overflow-wrap: anywhere;
+}

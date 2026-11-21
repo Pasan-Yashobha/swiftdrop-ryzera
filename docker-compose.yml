@@ -436,6 +436,8 @@ services:
       DOCUMENT_URI: http://document:8080
       ASSISTANT_URI: http://assistant:8080
       CORS_ALLOWED_ORIGINS: ${GATEWAY_CORS_ALLOWED_ORIGINS:-http://localhost:4201,http://localhost:4200}
+      DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev-only-hmac-secret-change-me-0123456789}
+      GATEWAY_DEV_ROUTES: ${GATEWAY_DEV_ROUTES:-true}
     ports:
       - "8080:8080"
     networks: [ swiftdrop ]

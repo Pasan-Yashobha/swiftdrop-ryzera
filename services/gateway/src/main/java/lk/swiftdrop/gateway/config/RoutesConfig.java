@@ -56,10 +56,13 @@ public class RoutesConfig {
                         .path("/api/v1/parcels/**")
                         .filters(guarded("parcel", userLimiter, userKey))
                         .uri(props.uri("parcel")))
-                // Pricing (Member 5): fee estimate and zone directory; Admin zones, rate cards, promo codes
+                // Pricing (Member 5): fee estimate, quotes and zone directory
                 .route("pricing", r -> r
-                        .path("/api/v1/pricing/**", "/api/v1/admin/zones/**",
-                                "/api/v1/admin/rate-cards/**", "/api/v1/admin/promo-codes/**")
+                        .path("/api/v1/pricing/**",
+                                "/api/v1/quotes/**",
+                                "/api/v1/admin/zones/**",
+                                "/api/v1/admin/rate-cards/**",
+                                "/api/v1/admin/promo-codes/**")
                         .filters(guarded("pricing", userLimiter, userKey))
                         .uri(props.uri("pricing")))
                 // AI assistant with MCP tools (Member 5). Its MCP endpoint (/mcp) stays internal.

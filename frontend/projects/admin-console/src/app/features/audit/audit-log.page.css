@@ -1,0 +1,26 @@
+.verify {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.verify__title {
+  margin: 0;
+  font-size: var(--text-lg, 1.125rem);
+}
+
+.row-link {
+  cursor: pointer;
+}
+
+.row-link:hover {
+  background: var(--color-surface-alt);
+}
+
+.cell-id {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
