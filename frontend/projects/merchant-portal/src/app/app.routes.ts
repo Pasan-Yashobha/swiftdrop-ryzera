@@ -92,6 +92,20 @@ export const routes: Routes = [
     loadComponent: () => import('./features/tracking/track.page').then((m) => m.TrackPage),
   },
 
+  // Courier PWA (Member 7): Mobile-first Route Board for couriers on duty
+  {
+    path: 'courier',
+    title: 'Courier Route Board',
+    canActivate: [roleGuard('COURIER', 'ADMIN')],
+    loadComponent: () =>
+      import('./features/courier/courier-pwa.page').then((m) => m.CourierPwaPage),
+  },
+  {
+    path: 'courier-pwa',
+    redirectTo: 'courier',
+    pathMatch: 'full',
+  },
+
   // Everything below needs a signed-in merchant user. authGuard runs before any child guard.
   {
     path: '',

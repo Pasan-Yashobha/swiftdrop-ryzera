@@ -1,0 +1,10 @@
+target/
+.env
+.env.*
+*.log
+.git/
+data/
+*.pem
+*.key
+*.p12
+*.jks
