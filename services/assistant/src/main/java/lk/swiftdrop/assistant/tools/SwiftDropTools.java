@@ -120,12 +120,52 @@ public class SwiftDropTools {
         URI uri = UriComponentsBuilder.fromUriString(base(urls.parcelUrl()) + urls.historyPath())
                 .buildAndExpand(Map.of("limit", count)).encode().toUri();
         try {
-            return limited(downstream.get(uri, authorization(context)));
+            return historyAnswer(downstream.get(uri, authorization(context)));
         } catch (DownstreamClient.DownstreamException exception) {
             log.info("get_history failed with status {}", exception.status());
-            return exception.status() == 401 || exception.status() == 403
+            if (exception.status() == 403) {
+                // The Parcel service lists parcels for customer accounts only.
+                return error("Parcel history is available for customer accounts. Merchants can see their parcels "
+                        + "on the Orders page of the merchant portal.");
+            }
+            return exception.status() == 401
                     ? error("You are not allowed to see parcel history with this account.")
                     : error("The parcel service is not available right now. Please try again shortly.");
+        }
+    }
+
+    /**
+     * Turns the Parcel service's page ({@code content}, newest first) into a short list with only what the user
+     * asked about: no ids, addresses or recipient details reach the model.
+     */
+    private Map<String, Object> historyAnswer(JsonNode page) {
+        if (page == null || !page.path("content").isArray()) {
+            return limited(page);
+        }
+        List<Map<String, Object>> parcels = new ArrayList<>();
+        for (JsonNode parcel : page.path("content")) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("trackingNumber", parcel.path("trackingNumber").asText());
+            item.put("status", parcel.path("status").asText());
+            putText(item, "from", parcel.path("pickupCity"));
+            putText(item, "to", parcel.path("dropoffCity"));
+            if (parcel.path("totalFee").isNumber()) {
+                item.put("fee", parcel.path("totalFee").decimalValue());
+                item.put("currency", parcel.path("currency").asText("LKR"));
+            }
+            putText(item, "bookedAt", parcel.path("createdAt"));
+            putText(item, "deliveredAt", parcel.path("deliveredAt"));
+            parcels.add(item);
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("parcels", parcels);
+        result.put("totalParcels", page.path("totalElements").asLong(parcels.size()));
+        return result;
+    }
+
+    private static void putText(Map<String, Object> target, String key, JsonNode value) {
+        if (!value.isMissingNode() && !value.isNull() && !value.asText().isBlank()) {
+            target.put(key, value.asText());
         }
     }
 

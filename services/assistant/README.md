@@ -30,15 +30,17 @@ Chat widget  --POST /api/v1/assistant/chat (user's JWT)-->  ChatService
 |---|---|---|
 | `estimate_fee` | Fee in LKR between two zones for a weight, size, delivery type and optional promo | Pricing `POST /api/v1/pricing/estimate` (real) |
 | `track_parcel` | Status and history of a parcel by tracking number | Tracking service (Member 8), `GET /api/v1/public/tracking/{trackingNo}`, no token needed |
-| `get_history` | The signed-in user's recent parcels | Parcel service (sample data until connected) |
+| `get_history` | The signed-in customer's recent parcels, newest first | Parcel service (Member 4), `GET /api/v1/parcels?page=0&size={limit}` with the user's token (customer accounts only) |
 
 Tools never throw. A bad input or a failing service comes back as `{"error": "..."}` with a sentence the model
 relays; for an unknown zone, `estimate_fee` lists the real zone codes so the model can correct itself.
 
 **Sample data.** While the Tracking or Parcel URL is blank, those two tools answer with
 sample data marked `"demo": true`, and the assistant is told to say so. Set the URL (and, if needed,
-`assistant.downstream.tracking-path` / `history-path`) to switch to the real service. The answer is passed to the
-model as it is, limited to 4000 characters, so no response shape had to be agreed to connect it.
+`assistant.downstream.tracking-path` / `history-path`) to switch to the real service. Tracking answers are passed
+to the model as they are, limited to 4000 characters. Parcel history is reduced to tracking number, status, cities,
+fee and dates, so ids, addresses and recipient details never reach the model; a merchant (403 from Parcel) is told
+to use the Orders page.
 
 ## API
 
@@ -69,7 +71,7 @@ user), 503 (model not configured or its usage limit reached; tools unavailable),
 | `GEMINI_MODEL` | none | A current Gemini model name from AI Studio. Not hard-coded because names change. `gemini-flash-lite-latest` worked well in testing (about 2 s, correct tool calls); the larger Flash models were overloaded at the time, and `gemini-2.5-flash` is already retired |
 | `PRICING_SERVICE_URL` | `http://localhost:8085` | Pricing service |
 | `TRACKING_SERVICE_URL` (compose: `ASSISTANT_TRACKING_URL`) | blank locally, `http://tracking:8080` in compose | Tracking service; blank means sample data. Locally: `http://localhost:8087` |
-| `PARCEL_SERVICE_URL` (compose: `ASSISTANT_PARCEL_URL`) | blank | Parcel service; blank means sample data (Parcel is not built yet) |
+| `PARCEL_SERVICE_URL` (compose: `ASSISTANT_PARCEL_URL`) | blank | Parcel service, e.g. `http://localhost:8082`; blank means sample data |
 | `IDENTITY_JWKS_URI` | none | Identity public keys. Required unless using the `dev` profile |
 | `DEV_JWT_HMAC_SECRET` | dev default | Dev profile only; the same secret as Pricing's dev tokens |
 | `SERVER_PORT` | 8093 | HTTP port |
@@ -123,5 +125,4 @@ also enforces 70% line coverage.
 - Conversations live in memory only (30-minute expiry, last 10 turns, 5 per user). Saving them to a database needs
   an `assistant_db`, which `infra/postgres/init/01-init-databases.sh` does not create yet.
 - Metrics (`ai_tool_calls_total` and others from the design) and a Prometheus endpoint.
-- The chat widget in the Angular app.
-- The real Parcel connection for `get_history`: it waits for the Parcel service (Member 4).
+- A merchant's parcel history: the Parcel service lists parcels for customer accounts only.
