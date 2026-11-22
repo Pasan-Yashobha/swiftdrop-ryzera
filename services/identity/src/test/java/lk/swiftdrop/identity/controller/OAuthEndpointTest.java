@@ -149,7 +149,7 @@ class OAuthEndpointTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void callbackProvisionsNewUserAndRedirectsToDashboard() throws Exception {
+    void callbackProvisionsNewUserAndRedirectsToWelcome() throws Exception {
         String state = "test-nonce-new-user";
         googleOAuthClient.setHandler(code -> new GoogleUserInfo("google-sub-456", "fresh@example.com", "Fresh User", "https://avatar.example/p.png", true));
 
@@ -158,7 +158,7 @@ class OAuthEndpointTest extends AbstractIntegrationTest {
                         .param("state", state)
                         .cookie(new Cookie(OAuthController.OAUTH_STATE_COOKIE, state)))
                 .andExpect(status().isFound())
-                .andExpect(header().string("Location", "http://localhost:4200/dashboard"))
+                .andExpect(header().string("Location", "http://localhost:4200/welcome"))
                 .andExpect(cookie().exists(AuthController.REFRESH_COOKIE_NAME))
                 .andExpect(cookie().maxAge(OAuthController.OAUTH_STATE_COOKIE, 0));
 
@@ -189,7 +189,7 @@ class OAuthEndpointTest extends AbstractIntegrationTest {
                         .param("state", state)
                         .cookie(new Cookie(OAuthController.OAUTH_STATE_COOKIE, state)))
                 .andExpect(status().isFound())
-                .andExpect(header().string("Location", "http://localhost:4200/dashboard"))
+                .andExpect(header().string("Location", "http://localhost:4200/welcome"))
                 .andExpect(cookie().exists(AuthController.REFRESH_COOKIE_NAME));
 
         User updatedUser = userRepository.findById(victim.getId()).orElseThrow();
@@ -214,11 +214,105 @@ class OAuthEndpointTest extends AbstractIntegrationTest {
                         .param("state", state)
                         .cookie(new Cookie(OAuthController.OAUTH_STATE_COOKIE, state)))
                 .andExpect(status().isFound())
-                .andExpect(header().string("Location", "http://localhost:4200/dashboard"))
+                .andExpect(header().string("Location", "http://localhost:4200/welcome"))
                 .andExpect(cookie().exists(AuthController.REFRESH_COOKIE_NAME));
 
         User refreshed = userRepository.findById(existing.getId()).orElseThrow();
         assertThat(refreshed.getAvatarUrl()).isEqualTo("https://new-avatar.png");
+    }
+
+    @Test
+    void initiateGoogleLoginWithRoleSetsRoleCookie() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/google").param("role", "MERCHANT"))
+                .andExpect(status().isFound())
+                .andExpect(cookie().exists(OAuthController.OAUTH_ROLE_COOKIE))
+                .andExpect(cookie().value(OAuthController.OAUTH_ROLE_COOKIE, "MERCHANT"))
+                .andExpect(cookie().httpOnly(OAuthController.OAUTH_ROLE_COOKIE, true));
+    }
+
+    @Test
+    void initiateGoogleLoginWithAdminRoleIgnoresRoleCookie() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/google").param("role", "ADMIN"))
+                .andExpect(status().isFound())
+                .andExpect(cookie().doesNotExist(OAuthController.OAUTH_ROLE_COOKIE));
+    }
+
+    @Test
+    void callbackProvisionsMerchantUserAndRedirectsToOnboarding() throws Exception {
+        String state = "test-nonce-merchant";
+        googleOAuthClient.setHandler(code -> new GoogleUserInfo("google-sub-merchant", "merchant.fresh@example.com", "Merchant User", null, true));
+
+        mockMvc.perform(get("/api/v1/auth/google/callback")
+                        .param("code", "merchant-code")
+                        .param("state", state)
+                        .cookie(new Cookie(OAuthController.OAUTH_STATE_COOKIE, state))
+                        .cookie(new Cookie(OAuthController.OAUTH_ROLE_COOKIE, "MERCHANT")))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "http://localhost:4200/onboarding"))
+                .andExpect(cookie().exists(AuthController.REFRESH_COOKIE_NAME))
+                .andExpect(cookie().maxAge(OAuthController.OAUTH_ROLE_COOKIE, 0));
+
+        User created = userRepository.findByEmailAndDeletedAtIsNull("merchant.fresh@example.com").orElseThrow();
+        assertThat(created.getRole()).isEqualTo(Role.MERCHANT);
+    }
+
+    @Test
+    void callbackProvisionsCourierUserAndRedirectsToWelcome() throws Exception {
+        String state = "test-nonce-courier";
+        googleOAuthClient.setHandler(code -> new GoogleUserInfo("google-sub-courier", "courier.fresh@example.com", "Courier User", null, true));
+
+        mockMvc.perform(get("/api/v1/auth/google/callback")
+                        .param("code", "courier-code")
+                        .param("state", state)
+                        .cookie(new Cookie(OAuthController.OAUTH_STATE_COOKIE, state))
+                        .cookie(new Cookie(OAuthController.OAUTH_ROLE_COOKIE, "COURIER")))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "http://localhost:4200/welcome"))
+                .andExpect(cookie().exists(AuthController.REFRESH_COOKIE_NAME));
+
+        User created = userRepository.findByEmailAndDeletedAtIsNull("courier.fresh@example.com").orElseThrow();
+        assertThat(created.getRole()).isEqualTo(Role.COURIER);
+    }
+
+    @Test
+    void callbackExistingAdminUserPreservesAdminRoleEvenIfRoleCookiePresent() throws Exception {
+        Instant now = Instant.now();
+        User admin = User.register("Admin User", "admin.existing@example.com", null, passwordService.hash("Secret123!"), Role.ADMIN, now);
+        admin = userRepository.saveAndFlush(admin);
+
+        String state = "test-nonce-admin";
+        googleOAuthClient.setHandler(code -> new GoogleUserInfo("google-sub-admin", "admin.existing@example.com", "Admin User", null, true));
+
+        mockMvc.perform(get("/api/v1/auth/google/callback")
+                        .param("code", "admin-code")
+                        .param("state", state)
+                        .cookie(new Cookie(OAuthController.OAUTH_STATE_COOKIE, state))
+                        .cookie(new Cookie(OAuthController.OAUTH_ROLE_COOKIE, "CUSTOMER")))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "http://localhost:4200/dashboard"));
+
+        User reloaded = userRepository.findById(admin.getId()).orElseThrow();
+        assertThat(reloaded.getRole()).isEqualTo(Role.ADMIN); // Role preserved!
+    }
+
+    @Test
+    void callbackExistingMerchantRedirectsToDashboard() throws Exception {
+        Instant now = Instant.now();
+        User merchant = User.register("Merchant User", "merchant.existing@example.com", null, passwordService.hash("Secret123!"), Role.MERCHANT, now);
+        merchant = userRepository.saveAndFlush(merchant);
+
+        String state = "test-nonce-merchant-existing";
+        googleOAuthClient.setHandler(code -> new GoogleUserInfo("google-sub-merchant-existing", "merchant.existing@example.com", "Merchant User", null, true));
+
+        mockMvc.perform(get("/api/v1/auth/google/callback")
+                        .param("code", "merchant-code")
+                        .param("state", state)
+                        .cookie(new Cookie(OAuthController.OAUTH_STATE_COOKIE, state)))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "http://localhost:4200/dashboard"));
+
+        User reloaded = userRepository.findById(merchant.getId()).orElseThrow();
+        assertThat(reloaded.getRole()).isEqualTo(Role.MERCHANT);
     }
 
     @Test

@@ -1,0 +1,163 @@
+/* Route Board transit line. Colours fall back to the design language values when the page sets no tokens. */
+:host {
+  display: block;
+  --tl-ink: var(--rb-ink, #0e1513);
+  --tl-board: var(--rb-board, #121a17);
+  --tl-hivis: var(--rb-hivis, #ffc72c);
+  --tl-lagoon: var(--rb-lagoon, #0a7d74);
+  --tl-chilli: var(--rb-chilli, #c8372d);
+  --tl-mist: var(--rb-mist, #dce2dd);
+  --tl-mono: var(--rb-mono, 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+}
+
+.line {
+  --tl-text: #ffffff;
+  --tl-muted: #a7b3ad;
+  --tl-pending: #5d6b65;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.line--light {
+  --tl-text: var(--tl-ink);
+  --tl-muted: #4f5d57;
+  --tl-pending: #8a9791;
+}
+
+.stop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  text-align: center;
+}
+
+/* The track leading into each stop (none before the first). */
+.stop:not(:first-child)::before {
+  content: '';
+  position: absolute;
+  top: 1rem;
+  right: 50%;
+  width: 100%;
+  border-top: 3px solid var(--tl-lagoon);
+  z-index: 0;
+}
+
+.stop[data-state='CURRENT']::before,
+.stop[data-state='ATTENTION']::before {
+  border-top-color: var(--tl-hivis);
+}
+
+.stop[data-state='EXCEPTION']::before {
+  border-top-color: var(--tl-chilli);
+}
+
+.stop[data-state='PENDING']::before {
+  border-top: 3px dotted var(--tl-pending);
+}
+
+.dot {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: var(--tl-lagoon);
+  color: #ffffff;
+  font-family: var(--tl-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.stop[data-state='CURRENT'] .dot,
+.stop[data-state='ATTENTION'] .dot {
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-top: -0.25rem;
+  background: var(--tl-hivis);
+  color: var(--tl-ink);
+  box-shadow: 0 0 0 3px var(--tl-board), 0 0 0 5px var(--tl-hivis);
+}
+
+.line--light .stop[data-state='PENDING'] .dot {
+  background: #ffffff;
+}
+
+.line--light .stop[data-state='CURRENT'] .dot,
+.line--light .stop[data-state='ATTENTION'] .dot {
+  box-shadow: 0 0 0 3px #ffffff, 0 0 0 5px var(--tl-ink);
+}
+
+.stop[data-state='EXCEPTION'] .dot {
+  background: var(--tl-chilli);
+  font-size: 0.9rem;
+}
+
+.stop[data-state='PENDING'] .dot {
+  background: var(--tl-board);
+  color: var(--tl-pending);
+  border: 2px dashed var(--tl-pending);
+}
+
+.label {
+  color: var(--tl-text);
+  font-size: 0.85rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.stop[data-state='CURRENT'] .label,
+.stop[data-state='ATTENTION'] .label,
+.stop[data-state='EXCEPTION'] .label {
+  font-weight: 700;
+}
+
+.stop[data-state='PENDING'] .label {
+  color: var(--tl-muted);
+}
+
+.time {
+  min-height: 1em;
+  color: var(--tl-muted);
+  font-family: var(--tl-mono);
+  font-size: 0.75rem;
+}
+
+.stop[data-state='CURRENT'] .time,
+.stop[data-state='ATTENTION'] .time {
+  color: var(--tl-hivis);
+}
+
+.line--light .stop[data-state='CURRENT'] .time {
+  color: var(--tl-ink);
+  font-weight: 600;
+}
+
+@media (max-width: 30rem) {
+  .label {
+    font-size: 0.7rem;
+  }
+
+  .dot {
+    width: 1.6rem;
+    height: 1.6rem;
+    font-size: 0.65rem;
+  }
+
+  .stop:not(:first-child)::before {
+    top: 0.8rem;
+  }
+
+  .stop[data-state='CURRENT'] .dot,
+  .stop[data-state='ATTENTION'] .dot {
+    width: 2rem;
+    height: 2rem;
+  }
+}

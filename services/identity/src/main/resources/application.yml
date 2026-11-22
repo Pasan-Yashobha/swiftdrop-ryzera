@@ -25,6 +25,12 @@ spring:
       add-mappings: false
   lifecycle:
     timeout-per-shutdown-phase: 30s
+  mail:
+    host: ${SPRING_MAIL_HOST:localhost}
+    port: ${SPRING_MAIL_PORT:1025}
+    properties:
+      mail.smtp.auth: false
+      mail.smtp.starttls.enable: false
 
 server:
   port: 8080
@@ -70,4 +76,7 @@ swiftdrop:
     client-id: ${GOOGLE_CLIENT_ID:}
     client-secret: ${GOOGLE_CLIENT_SECRET:}
     redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:8080/api/v1/auth/google/callback}
+    frontend-url: ${FRONTEND_URL:http://localhost:4200}
+  recovery:
+    token-ttl-minutes: 15
     frontend-url: ${FRONTEND_URL:http://localhost:4200}

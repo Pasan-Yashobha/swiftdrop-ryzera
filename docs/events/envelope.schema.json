@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://swiftdrop.lk/schemas/event-envelope.v1.json",
+  "title": "SwiftDrop event envelope (version 1)",
+  "description": "Every message on the swiftdrop.events exchange uses this envelope. The routing key is always eventType. data holds identifiers only, never email addresses, phone numbers or street addresses.",
+  "type": "object",
+  "required": ["eventId", "eventType", "version", "occurredAt", "producer", "correlationId", "aggregateId", "data"],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID v4. Consumers use it to ignore duplicates (idempotent consumer)."
+    },
+    "eventType": {
+      "type": "string",
+      "pattern": "^[a-z]+(\\.[a-z_]+)+$",
+      "description": "<entity>.<what happened> in past tense, e.g. merchant.approved or parcel.status.out_for_delivery. Also the routing key."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Schema version of data. Fields may be added within a version; renaming or removing a field needs a new version."
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC instant of the change. Consumers use it to ignore out-of-order updates."
+    },
+    "producer": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Service that owns the event, e.g. parcel-service."
+    },
+    "correlationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Copied from X-Correlation-Id (or from the event that caused this one) so one action can be followed through all logs."
+    },
+    "aggregateId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Id of the entity the event is about (parcel, merchant, receipt, delivery)."
+    },
+    "data": {
+      "type": "object",
+      "description": "Event specific payload; see catalogue.md."
+    }
+  },
+  "additionalProperties": false
+}

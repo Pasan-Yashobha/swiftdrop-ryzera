@@ -23,6 +23,7 @@ describe('App shell', () => {
         provideRouter([
           { path: 'first', component: BlankPage },
           { path: 'second', component: BlankPage },
+          { path: 'track/:trackingNo', component: BlankPage },
         ]),
         provideHttpClient(),
         provideHttpClientTesting(),
@@ -98,6 +99,15 @@ describe('App shell', () => {
     });
   });
 
+  it('gives the public tracking page the whole screen, without the portal header and footer', async () => {
+    await TestBed.inject(Router).navigateByUrl('/track/SD-2641-7788');
+    fixture.detectChanges();
+
+    expect(element(fixture).querySelector('app-header')).toBeNull();
+    expect(element(fixture).querySelector('footer')).toBeNull();
+    expect(query(fixture, 'main#main').classList).toContain('main--fullscreen');
+  });
+
   it('offers sign in and sign up to visitors', () => {
     expect(links()).toEqual(['Sign in', 'Create account']);
     expect(element(fixture).querySelector('.header__chip')).toBeNull();
@@ -106,7 +116,16 @@ describe('App shell', () => {
   it('shows the full navigation and the role / status chip to an approved merchant', () => {
     signInWith('APPROVED');
 
-    expect(links()).toEqual(['Dashboard', 'Orders', 'API keys', 'Webhooks', 'API docs', 'Profile']);
+    expect(links()).toEqual([
+      'Dashboard',
+      'Orders',
+      'Fee estimate',
+      'Invoices',
+      'API keys',
+      'Webhooks',
+      'API docs',
+      'Profile',
+    ]);
     expect(query(fixture, '.header__chip').textContent).toContain('Merchant');
     expect(query(fixture, '.header__chip').textContent).toContain('Approved');
   });
@@ -122,6 +141,27 @@ describe('App shell', () => {
     signInWith(null);
 
     expect(links()).toEqual(['Register your business']);
+  });
+
+  function signInAs(role: 'CUSTOMER' | 'ADMIN'): void {
+    spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+    TestBed.inject(AuthService).login({ email: 'a@b.lk', password: 'x' }).subscribe();
+    http.expectOne('/api/v1/auth/login').flush(aSession({ user: { ...aSession().user, role } }));
+    fixture.detectChanges();
+  }
+
+  it('gives a customer the fee estimate, receipts and the assistant', () => {
+    signInAs('CUSTOMER');
+
+    expect(links()).toEqual(['Home', 'Fee estimate', 'Receipts']);
+    expect(element(fixture).querySelector('app-chat-widget')).toBeTruthy();
+  });
+
+  it('gives an admin dispatch only (pricing and documents are in the admin console)', () => {
+    signInAs('ADMIN');
+
+    expect(links()).toEqual(['Home', 'Dispatch']);
+    expect(element(fixture).querySelector('app-chat-widget')).toBeNull();
   });
 
   it('collapses the navigation behind a menu button that reports its state', () => {

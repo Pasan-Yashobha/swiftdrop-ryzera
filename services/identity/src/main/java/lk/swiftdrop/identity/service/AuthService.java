@@ -134,6 +134,10 @@ public class AuthService {
     }
 
     public AuthSessionResponse handleGoogleLogin(GoogleUserInfo googleUser) {
+        return handleGoogleLogin(googleUser, null);
+    }
+
+    public AuthSessionResponse handleGoogleLogin(GoogleUserInfo googleUser, Role requestedRole) {
         if (googleUser == null || googleUser.email() == null || googleUser.email().isBlank()) {
             throw new BadRequestException(ErrorCode.VALIDATION_FAILED, "Google account does not provide an email address");
         }
@@ -170,9 +174,12 @@ public class AuthService {
                 String name = (googleUser.name() != null && !googleUser.name().isBlank())
                         ? googleUser.name()
                         : email.split("@")[0];
-                user = User.registerGoogle(name, email, googleUser.googleId(), googleUser.picture(), Role.CUSTOMER, now);
+                Role assignedRole = (requestedRole != null && isSelfRegisterable(requestedRole))
+                        ? requestedRole
+                        : Role.CUSTOMER;
+                user = User.registerGoogle(name, email, googleUser.googleId(), googleUser.picture(), assignedRole, now);
                 user = userRepository.saveAndFlush(user);
-                log.info("Registered new user {} via Google OAuth", user.getId());
+                log.info("Registered new user {} via Google OAuth with role {}", user.getId(), user.getRole());
             }
         }
 
@@ -180,6 +187,10 @@ public class AuthService {
         userRepository.save(user);
 
         return createSession(user, now);
+    }
+
+    private boolean isSelfRegisterable(Role role) {
+        return role == Role.CUSTOMER || role == Role.MERCHANT || role == Role.COURIER;
     }
 
     public AuthSessionResponse refresh(String rawRefreshToken) {

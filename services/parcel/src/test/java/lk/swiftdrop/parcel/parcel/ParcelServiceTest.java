@@ -1,0 +1,694 @@
+package lk.swiftdrop.parcel.parcel;
+
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import lk.swiftdrop.parcel.common.BadRequestException;
+import lk.swiftdrop.parcel.common.ConflictException;
+import lk.swiftdrop.parcel.common.ErrorCode;
+import lk.swiftdrop.parcel.common.ForbiddenException;
+import lk.swiftdrop.parcel.common.NotFoundException;
+import lk.swiftdrop.parcel.common.UnprocessableException;
+import lk.swiftdrop.parcel.event.OutboxService;
+import lk.swiftdrop.parcel.idempotency.IdempotencyService;
+import lk.swiftdrop.parcel.parcel.dto.AddressDto;
+import lk.swiftdrop.parcel.parcel.dto.CourierStatusUpdateRequest;
+import lk.swiftdrop.parcel.parcel.dto.CreateCustomerParcelRequest;
+import lk.swiftdrop.parcel.parcel.dto.CreateMerchantParcelRequest;
+import lk.swiftdrop.parcel.parcel.dto.CustomerParcelDetailResponse;
+import lk.swiftdrop.parcel.parcel.dto.InternalParcelBookingResponse;
+import lk.swiftdrop.parcel.parcel.dto.InternalParcelDetailResponse;
+import lk.swiftdrop.parcel.parcel.dto.MoneyDto;
+import lk.swiftdrop.parcel.parcel.dto.RecipientDto;
+import lk.swiftdrop.parcel.pricing.PricingClient;
+import lk.swiftdrop.parcel.pricing.PricingSnapshot;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class ParcelServiceTest {
+
+    @Mock
+    private ParcelRepository parcelRepository;
+
+    @Mock
+    private ParcelStatusHistoryRepository historyRepository;
+
+    @Mock
+    private TrackingNumberGenerator trackingNumberGenerator;
+
+    @Mock
+    private PricingClient pricingClient;
+
+    @Mock
+    private OutboxService outboxService;
+
+    @Mock
+    private IdempotencyService idempotencyService;
+
+    private ParcelStateMachine stateMachine;
+    private Clock clock;
+    private ParcelService parcelService;
+
+    private static final Instant NOW = Instant.parse("2026-11-15T07:20:00Z");
+
+    @BeforeEach
+    void setUp() {
+        stateMachine = new ParcelStateMachine();
+        clock = Clock.fixed(NOW, ZoneOffset.UTC);
+        parcelService = new ParcelService(
+                parcelRepository,
+                historyRepository,
+                stateMachine,
+                trackingNumberGenerator,
+                pricingClient,
+                outboxService,
+                idempotencyService,
+                clock
+        );
+    }
+
+    @Test
+    @DisplayName("Customer parcel creation successfully accepts quote and creates parcel with outbox event")
+    void testCreateCustomerParcelSuccess() {
+        UUID quoteId = UUID.randomUUID();
+        String customerId = "cust-user-1";
+        String trackingNo = "SD260001XYZ";
+
+        var recipient = new RecipientDto("Kasun Perera", "+94771234567", "kasun@example.com");
+        var pickup = new AddressDto("10 Temple Rd", "Colombo", "00300");
+        var dropoff = new AddressDto("25 Main St", "Kandy", "20000");
+        var request = new CreateCustomerParcelRequest(
+                recipient, pickup, dropoff, new BigDecimal("2.50"), ParcelSize.SMALL,
+                "Books", DeliveryType.STANDARD, "Fragile", quoteId
+        );
+
+        PricingSnapshot pricing = PricingSnapshot.of(
+                quoteId, new BigDecimal("300.00"), new BigDecimal("100.00"), new BigDecimal("50.00"),
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("450.00"), "LKR"
+        );
+
+        when(pricingClient.acceptQuote(eq(quoteId), any(UUID.class))).thenReturn(pricing);
+        when(trackingNumberGenerator.generate()).thenReturn(trackingNo);
+        when(parcelRepository.existsByTrackingNumber(trackingNo)).thenReturn(false);
+
+        CustomerParcelDetailResponse response = parcelService.createCustomerParcel(request, customerId);
+
+        assertThat(response).isNotNull();
+        assertThat(response.trackingNumber()).isEqualTo(trackingNo);
+        assertThat(response.status()).isEqualTo(ParcelStatus.CREATED);
+        assertThat(response.pricing().totalFee()).isEqualByComparingTo("450.00");
+
+        verify(pricingClient).acceptQuote(eq(quoteId), eq(response.id()));
+        verify(parcelRepository).save(any(Parcel.class));
+        verify(historyRepository).save(any(ParcelStatusHistory.class));
+        verify(outboxService).recordEvent(eq("parcel.created"), any(), any());
+    }
+
+    @Test
+    @DisplayName("Merchant parcel creation replays cached response when idempotency key exists")
+    void testCreateMerchantParcelIdempotentReplay() {
+        String key = "merchant-order-uuid";
+        UUID merchantId = UUID.randomUUID();
+
+        var recipient = new RecipientDto("Amara Silva", "+94779876543", null);
+        var pickup = new AddressDto("1 Galle Face", "Colombo", "00100");
+        var dropoff = new AddressDto("40 High St", "Galle", "80000");
+        var spec = new CreateMerchantParcelRequest.ParcelSpec(new BigDecimal("1.50"), ParcelSize.SMALL, "Shirt", null);
+        var request = new CreateMerchantParcelRequest(merchantId, "EXT-99", recipient, pickup, dropoff, spec, null, null);
+
+        var cachedResponse = new InternalParcelBookingResponse(
+                UUID.randomUUID().toString(), "SD260002CACHED", "CREATED", new MoneyDto(new BigDecimal("350.00"), "LKR")
+        );
+
+        when(idempotencyService.startOrGetReplay(key, request, InternalParcelBookingResponse.class))
+                .thenReturn(Optional.of(cachedResponse));
+
+        InternalParcelBookingResponse result = parcelService.createMerchantParcel(request, key);
+
+        assertThat(result).isEqualTo(cachedResponse);
+        verify(parcelRepository, never()).save(any());
+        verify(pricingClient, never()).acceptQuote(any(), any());
+    }
+
+    @Test
+    @DisplayName("Courier status update to DELIVERED records history and delivers complete pricing in outbox event")
+    @SuppressWarnings("unchecked")
+    void testCourierStatusUpdateToDelivered() {
+        UUID parcelId = UUID.randomUUID();
+        String courierId = "CR-101";
+
+        PricingSnapshot pricing = PricingSnapshot.of(
+                UUID.randomUUID(), new BigDecimal("250.00"), new BigDecimal("50.00"), BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("300.00"), "LKR"
+        );
+
+        Parcel parcel = Parcel.create(
+                parcelId, "SD260003DELIV", "cust-1", null, "Recipient", "+94770000000", null,
+                "Pickup", "Colombo", "00100", "Dropoff", "Colombo", "00200",
+                new BigDecimal("1.00"), ParcelSize.SMALL, "Gift", DeliveryType.STANDARD, null, pricing, NOW
+        );
+        // Put in OUT_FOR_DELIVERY status with courier assigned
+        parcel.updateStatus(ParcelStatus.OUT_FOR_DELIVERY, courierId, null, null, null, NOW);
+
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(parcel));
+        when(historyRepository.findMaxSequenceNumber(parcelId)).thenReturn(Optional.of(2));
+
+        var updateRequest = new CourierStatusUpdateRequest(
+                courierId, ParcelStatus.DELIVERED, "Received by Customer",
+                "proofs/photo123.jpg", "123456", null, "Handed over safely"
+        );
+
+        parcelService.updateCourierStatus(parcelId, updateRequest);
+
+        assertThat(parcel.getStatus()).isEqualTo(ParcelStatus.DELIVERED);
+        assertThat(parcel.getDeliveredAt()).isEqualTo(NOW);
+        assertThat(parcel.getProofRecipientName()).isEqualTo("Received by Customer");
+        assertThat(parcel.getProofPhotoKey()).isEqualTo("proofs/photo123.jpg");
+
+        ArgumentCaptor<Map<String, Object>> dataCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(outboxService).recordEvent(eq("parcel.status.delivered"), eq(parcelId.toString()), dataCaptor.capture());
+
+        Map<String, Object> eventData = dataCaptor.getValue();
+        assertThat(eventData.get("toStatus")).isEqualTo("DELIVERED");
+        assertThat(eventData.get("courierId")).isEqualTo(courierId);
+        assertThat(eventData.get("customerId")).isEqualTo("cust-1");
+        assertThat(eventData.get("pricing")).isNotNull();
+        assertThat(eventData.get("currency")).isEqualTo("LKR");
+
+        // Verify sensitive fields are NOT leaked in outbox event
+        assertThat(eventData).doesNotContainKey("photoObjectKey");
+        assertThat(eventData).doesNotContainKey("otp");
+        assertThat(eventData).doesNotContainKey("recipientPhone");
+    }
+
+    @Test
+    @DisplayName("Courier status update fails when courier does not match assigned courier")
+    void testCourierMismatchThrowsConflict() {
+        UUID parcelId = UUID.randomUUID();
+        Parcel parcel = Parcel.create(
+                parcelId, "SD260004MISMATCH", "cust-1", null, "Recipient", "+94770000000", null,
+                "Pickup", "Colombo", "00100", "Dropoff", "Colombo", "00200",
+                new BigDecimal("1.00"), ParcelSize.SMALL, "Gift", DeliveryType.STANDARD, null, null, NOW
+        );
+        parcel.updateStatus(ParcelStatus.ASSIGNED, "CR-ASSIGNED-1", null, null, null, NOW);
+
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(parcel));
+
+        var updateRequest = new CourierStatusUpdateRequest(
+                "CR-WRONG-COURIER", ParcelStatus.PICKED_UP, null, null, null, null, null
+        );
+
+        assertThatThrownBy(() -> parcelService.updateCourierStatus(parcelId, updateRequest))
+                .isInstanceOf(ConflictException.class)
+                .extracting("code")
+                .isEqualTo(ErrorCode.COURIER_MISMATCH);
+    }
+
+    @Test
+    @DisplayName("Legitimate assignment workflow assigns courier to unassigned parcel")
+    void testLegitimateAssignmentWorkflow() {
+        UUID parcelId = UUID.randomUUID();
+        Parcel parcel = Parcel.create(
+                parcelId, "SD260004ASSIGN", "cust-1", null, "Recipient", "+94770000000", null,
+                "Pickup", "Colombo", "00100", "Dropoff", "Colombo", "00200",
+                new BigDecimal("1.00"), ParcelSize.SMALL, "Gift", DeliveryType.STANDARD, null, null, NOW
+        );
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(parcel));
+        when(historyRepository.findMaxSequenceNumber(parcelId)).thenReturn(Optional.of(1));
+
+        var updateRequest = new CourierStatusUpdateRequest(
+                "CR-NEW-COURIER", ParcelStatus.ASSIGNED, null, null, null, null, "Assigned to courier"
+        );
+
+        parcelService.updateCourierStatus(parcelId, updateRequest, "key-assign-1");
+
+        assertThat(parcel.getStatus()).isEqualTo(ParcelStatus.ASSIGNED);
+        assertThat(parcel.getCourierId()).isEqualTo("CR-NEW-COURIER");
+        verify(outboxService).recordEvent(eq("parcel.assigned"), eq(parcelId.toString()), any());
+        verify(historyRepository).save(any());
+        verify(idempotencyService).recordCompleted("key-assign-1", 204, null);
+    }
+
+    @Test
+    @DisplayName("Arbitrary courier updating unassigned parcel with delivery status is rejected")
+    void testUnassignedParcelDeliveryStatusUpdateThrowsConflict() {
+        UUID parcelId = UUID.randomUUID();
+        Parcel parcel = Parcel.create(
+                parcelId, "SD260004UNASSIGNED", "cust-1", null, "Recipient", "+94770000000", null,
+                "Pickup", "Colombo", "00100", "Dropoff", "Colombo", "00200",
+                new BigDecimal("1.00"), ParcelSize.SMALL, "Gift", DeliveryType.STANDARD, null, null, NOW
+        );
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(parcel));
+
+        var updateRequest = new CourierStatusUpdateRequest(
+                "CR-ARBITRARY", ParcelStatus.PICKED_UP, null, null, null, null, null
+        );
+
+        assertThatThrownBy(() -> parcelService.updateCourierStatus(parcelId, updateRequest))
+                .isInstanceOf(ConflictException.class)
+                .extracting("code")
+                .isEqualTo(ErrorCode.COURIER_MISMATCH);
+
+        verify(parcelRepository, never()).save(any());
+        verify(outboxService, never()).recordEvent(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Reassigning already assigned parcel to different courier is rejected")
+    void testReassigningDifferentCourierThrowsConflict() {
+        UUID parcelId = UUID.randomUUID();
+        Parcel parcel = Parcel.create(
+                parcelId, "SD260004REASSIGN", "cust-1", null, "Recipient", "+94770000000", null,
+                "Pickup", "Colombo", "00100", "Dropoff", "Colombo", "00200",
+                new BigDecimal("1.00"), ParcelSize.SMALL, "Gift", DeliveryType.STANDARD, null, null, NOW
+        );
+        parcel.updateStatus(ParcelStatus.ASSIGNED, "CR-ORIGINAL", null, null, null, NOW);
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(parcel));
+
+        var updateRequest = new CourierStatusUpdateRequest(
+                "CR-DIFFERENT", ParcelStatus.ASSIGNED, null, null, null, null, null
+        );
+
+        assertThatThrownBy(() -> parcelService.updateCourierStatus(parcelId, updateRequest))
+                .isInstanceOf(ConflictException.class)
+                .extracting("code")
+                .isEqualTo(ErrorCode.COURIER_MISMATCH);
+    }
+
+    @Test
+    @DisplayName("Repeated same-state request without idempotency key does not create duplicate history or outbox event")
+    void testRepeatedSameStateWithoutKeyDeduplicates() {
+        UUID parcelId = UUID.randomUUID();
+        String courierId = "CR-101";
+        Parcel parcel = Parcel.create(
+                parcelId, "SD260004SAME", "cust-1", null, "Recipient", "+94770000000", null,
+                "Pickup", "Colombo", "00100", "Dropoff", "Colombo", "00200",
+                new BigDecimal("1.00"), ParcelSize.SMALL, "Gift", DeliveryType.STANDARD, null, null, NOW
+        );
+        parcel.updateStatus(ParcelStatus.IN_TRANSIT, courierId, null, null, null, NOW);
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(parcel));
+
+        var updateRequest = new CourierStatusUpdateRequest(
+                courierId, ParcelStatus.IN_TRANSIT, null, null, null, null, "Still in transit"
+        );
+
+        parcelService.updateCourierStatus(parcelId, updateRequest, null);
+
+        verify(historyRepository, never()).save(any());
+        verify(outboxService, never()).recordEvent(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Duplicate retry with same idempotency key returning REPLAY skips processing")
+    void testDuplicateRetryWithIdempotencyKeySkipsProcessing() {
+        UUID parcelId = UUID.randomUUID();
+        String courierId = "CR-101";
+        String key = "idem-retry-key-1";
+
+        var updateRequest = new CourierStatusUpdateRequest(
+                courierId, ParcelStatus.IN_TRANSIT, null, null, null, null, null
+        );
+
+        when(idempotencyService.startOrCheckReplay(eq(key), any()))
+                .thenReturn(IdempotencyService.ReplayStatus.REPLAY);
+
+        parcelService.updateCourierStatus(parcelId, updateRequest, key);
+
+        verify(parcelRepository, never()).findById(any());
+        verify(historyRepository, never()).save(any());
+        verify(outboxService, never()).recordEvent(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Customer authorization check blocks non-admin from accessing other customer's parcel")
+    void testCustomerAuthorizationCheck() {
+        UUID parcelId = UUID.randomUUID();
+        Parcel parcel = Parcel.create(
+                parcelId, "SD260005AUTH", "owner-user", null, "Recipient", "+94770000000", null,
+                "Pickup", "Colombo", "00100", "Dropoff", "Colombo", "00200",
+                new BigDecimal("1.00"), ParcelSize.SMALL, "Gift", DeliveryType.STANDARD, null, null, NOW
+        );
+
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(parcel));
+
+        // Other customer accessing -> Forbidden
+        assertThatThrownBy(() -> parcelService.getCustomerParcel(parcelId, "different-user", false))
+                .isInstanceOf(ForbiddenException.class);
+
+        // Owner customer accessing -> Success
+        CustomerParcelDetailResponse ownerResult = parcelService.getCustomerParcel(parcelId, "owner-user", false);
+        assertThat(ownerResult).isNotNull();
+
+        // Admin accessing other's parcel -> Success
+        CustomerParcelDetailResponse adminResult = parcelService.getCustomerParcel(parcelId, "admin-user", true);
+        assertThat(adminResult).isNotNull();
+    }
+
+    @Test
+    @DisplayName("Internal parcel details returns required format for Document Service fallback")
+    void testGetInternalParcelDetails() {
+        UUID parcelId = UUID.randomUUID();
+        PricingSnapshot pricing = PricingSnapshot.of(
+                UUID.randomUUID(), new BigDecimal("200.00"), new BigDecimal("50.00"), new BigDecimal("30.00"),
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("280.00"), "LKR"
+        );
+
+        Parcel parcel = Parcel.create(
+                parcelId, "SD260006DOC", "cust-doc-user", null, "Recipient", "+94770000000", null,
+                "Pickup", "Colombo", "00100", "Dropoff", "Colombo", "00200",
+                new BigDecimal("1.00"), ParcelSize.SMALL, "Gift", DeliveryType.STANDARD, null, pricing, NOW
+        );
+
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(parcel));
+
+        InternalParcelDetailResponse response = parcelService.getInternalParcelDetails(parcelId);
+
+        assertThat(response).isNotNull();
+        assertThat(response.parcelId()).isEqualTo(parcelId);
+        assertThat(response.trackingNo()).isEqualTo("SD260006DOC");
+        assertThat(response.customerId()).isEqualTo("cust-doc-user");
+        assertThat(response.currency()).isEqualTo("LKR");
+        assertThat(response.pricing().baseAmount()).isEqualByComparingTo("200.00");
+        assertThat(response.pricing().totalAmount()).isEqualByComparingTo("280.00");
+    }
+
+    @Test
+    @DisplayName("Customer parcel creation with new idempotency key stores scoped key and completes execution")
+    void testCreateCustomerParcelWithIdempotencyKey_FirstExecution() {
+        UUID quoteId = UUID.randomUUID();
+        String customerId = "cust-100";
+        String rawKey = "client-req-001";
+        String expectedScopedKey = "customer:cust-100:client-req-001";
+        String trackingNo = "SD260007NEW";
+
+        var recipient = new RecipientDto("Kasun Perera", "+94771234567", "kasun@example.com");
+        var pickup = new AddressDto("10 Temple Rd", "Colombo", "00300");
+        var dropoff = new AddressDto("25 Main St", "Kandy", "20000");
+        var request = new CreateCustomerParcelRequest(
+                recipient, pickup, dropoff, new BigDecimal("2.50"), ParcelSize.SMALL,
+                "Books", DeliveryType.STANDARD, "Fragile", quoteId
+        );
+
+        PricingSnapshot pricing = PricingSnapshot.of(
+                quoteId, new BigDecimal("300.00"), new BigDecimal("100.00"), new BigDecimal("50.00"),
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("450.00"), "LKR"
+        );
+
+        when(idempotencyService.startOrGetReplay(expectedScopedKey, request, CustomerParcelDetailResponse.class))
+                .thenReturn(Optional.empty());
+        when(pricingClient.acceptQuote(eq(quoteId), any(UUID.class))).thenReturn(pricing);
+        when(trackingNumberGenerator.generate()).thenReturn(trackingNo);
+        when(parcelRepository.existsByTrackingNumber(trackingNo)).thenReturn(false);
+
+        CustomerParcelDetailResponse response = parcelService.createCustomerParcel(request, customerId, rawKey);
+
+        assertThat(response).isNotNull();
+        assertThat(response.trackingNumber()).isEqualTo(trackingNo);
+
+        verify(pricingClient).acceptQuote(eq(quoteId), eq(response.id()));
+        verify(parcelRepository).save(any(Parcel.class));
+        verify(historyRepository).save(any(ParcelStatusHistory.class));
+        verify(outboxService).recordEvent(eq("parcel.created"), any(), any());
+        verify(idempotencyService).recordCompleted(eq(expectedScopedKey), eq(201), any(CustomerParcelDetailResponse.class));
+    }
+
+    @Test
+    @DisplayName("Customer parcel creation with existing idempotency key replays cached response without duplicate side-effects")
+    void testCreateCustomerParcelWithIdempotencyKey_ReplayCached() {
+        UUID quoteId = UUID.randomUUID();
+        String customerId = "cust-100";
+        String rawKey = "client-req-001";
+        String expectedScopedKey = "customer:cust-100:client-req-001";
+
+        var recipient = new RecipientDto("Kasun Perera", "+94771234567", "kasun@example.com");
+        var pickup = new AddressDto("10 Temple Rd", "Colombo", "00300");
+        var dropoff = new AddressDto("25 Main St", "Kandy", "20000");
+        var request = new CreateCustomerParcelRequest(
+                recipient, pickup, dropoff, new BigDecimal("2.50"), ParcelSize.SMALL,
+                "Books", DeliveryType.STANDARD, "Fragile", quoteId
+        );
+
+        var pricing = new CustomerParcelDetailResponse.PricingBreakdownDto(
+                quoteId, new BigDecimal("300.00"), new BigDecimal("100.00"), new BigDecimal("50.00"),
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("450.00"), "LKR"
+        );
+        var cachedResponse = new CustomerParcelDetailResponse(
+                UUID.randomUUID(), "SD260007CACHED", ParcelStatus.CREATED, recipient, pickup, dropoff,
+                new BigDecimal("2.50"), ParcelSize.SMALL, DeliveryType.STANDARD, "Books", "Fragile",
+                pricing, null, null, null, NOW, NOW, java.util.Collections.emptyList()
+        );
+
+        when(idempotencyService.startOrGetReplay(expectedScopedKey, request, CustomerParcelDetailResponse.class))
+                .thenReturn(Optional.of(cachedResponse));
+
+        CustomerParcelDetailResponse response = parcelService.createCustomerParcel(request, customerId, rawKey);
+
+        assertThat(response).isEqualTo(cachedResponse);
+        verify(pricingClient, never()).acceptQuote(any(), any());
+        verify(parcelRepository, never()).save(any());
+        verify(historyRepository, never()).save(any());
+        verify(outboxService, never()).recordEvent(any(), any(), any());
+        verify(idempotencyService, never()).recordCompleted(any(), any(Integer.class), any());
+    }
+
+    @Test
+    @DisplayName("Customer idempotency keys are scoped by customer ID preventing cross-customer disclosure")
+    void testCreateCustomerParcel_TenantIsolation() {
+        UUID quoteId = UUID.randomUUID();
+        String sharedRawKey = "identical-key-uuid";
+
+        var recipient = new RecipientDto("Kasun Perera", "+94771234567", "kasun@example.com");
+        var pickup = new AddressDto("10 Temple Rd", "Colombo", "00300");
+        var dropoff = new AddressDto("25 Main St", "Kandy", "20000");
+        var request = new CreateCustomerParcelRequest(
+                recipient, pickup, dropoff, new BigDecimal("2.50"), ParcelSize.SMALL,
+                "Books", DeliveryType.STANDARD, "Fragile", quoteId
+        );
+
+        PricingSnapshot pricing = PricingSnapshot.of(
+                quoteId, new BigDecimal("300.00"), new BigDecimal("100.00"), new BigDecimal("50.00"),
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("450.00"), "LKR"
+        );
+
+        when(pricingClient.acceptQuote(eq(quoteId), any(UUID.class))).thenReturn(pricing);
+        when(trackingNumberGenerator.generate()).thenReturn("SD260008A", "SD260008B");
+        when(parcelRepository.existsByTrackingNumber(any())).thenReturn(false);
+
+        // When Customer 1 calls with rawKey
+        parcelService.createCustomerParcel(request, "cust-1", sharedRawKey);
+        verify(idempotencyService).startOrGetReplay("customer:cust-1:identical-key-uuid", request, CustomerParcelDetailResponse.class);
+        verify(idempotencyService).recordCompleted(eq("customer:cust-1:identical-key-uuid"), eq(201), any());
+
+        // When Customer 2 calls with identical rawKey
+        parcelService.createCustomerParcel(request, "cust-2", sharedRawKey);
+        verify(idempotencyService).startOrGetReplay("customer:cust-2:identical-key-uuid", request, CustomerParcelDetailResponse.class);
+        verify(idempotencyService).recordCompleted(eq("customer:cust-2:identical-key-uuid"), eq(201), any());
+        verify(pricingClient, times(2)).acceptQuote(eq(quoteId), any(UUID.class));
+    }
+
+    @Test
+    @DisplayName("Customer parcel creation rejects idempotency key longer than 120 characters")
+    void testCreateCustomerParcel_IdempotencyKeyTooLong_ThrowsBadRequest() {
+        UUID quoteId = UUID.randomUUID();
+        String customerId = "cust-100";
+        String longKey = "a".repeat(121);
+
+        var recipient = new RecipientDto("Kasun Perera", "+94771234567", "kasun@example.com");
+        var pickup = new AddressDto("10 Temple Rd", "Colombo", "00300");
+        var dropoff = new AddressDto("25 Main St", "Kandy", "20000");
+        var request = new CreateCustomerParcelRequest(
+                recipient, pickup, dropoff, new BigDecimal("2.50"), ParcelSize.SMALL,
+                "Books", DeliveryType.STANDARD, "Fragile", quoteId
+        );
+
+        assertThatThrownBy(() -> parcelService.createCustomerParcel(request, customerId, longKey))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Idempotency-Key must not exceed 120 characters");
+
+        verify(idempotencyService, never()).startOrGetReplay(any(), any(), any());
+        verify(pricingClient, never()).acceptQuote(any(), any());
+    }
+
+    @Test
+    @DisplayName("Customer parcel creation propagates in-use conflict and payload reuse errors from IdempotencyService")
+    void testCreateCustomerParcel_PropagatesIdempotencyExceptions() {
+        UUID quoteId = UUID.randomUUID();
+        String customerId = "cust-100";
+        String rawKey = "in-progress-key";
+        String scopedKey = "customer:cust-100:in-progress-key";
+
+        var recipient = new RecipientDto("Kasun Perera", "+94771234567", "kasun@example.com");
+        var pickup = new AddressDto("10 Temple Rd", "Colombo", "00300");
+        var dropoff = new AddressDto("25 Main St", "Kandy", "20000");
+        var request = new CreateCustomerParcelRequest(
+                recipient, pickup, dropoff, new BigDecimal("2.50"), ParcelSize.SMALL,
+                "Books", DeliveryType.STANDARD, "Fragile", quoteId
+        );
+
+        when(idempotencyService.startOrGetReplay(scopedKey, request, CustomerParcelDetailResponse.class))
+                .thenThrow(new ConflictException(ErrorCode.IDEMPOTENCY_KEY_IN_USE, "A request is currently being processed"));
+
+        assertThatThrownBy(() -> parcelService.createCustomerParcel(request, customerId, rawKey))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("A request is currently being processed");
+
+        verify(pricingClient, never()).acceptQuote(any(), any());
+        verify(parcelRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("getUnassignedParcels maps parcels and queries by status defaulting to CREATED")
+    void testGetUnassignedParcels() {
+        UUID parcelId = UUID.randomUUID();
+        PricingSnapshot pricing = PricingSnapshot.of(
+                UUID.randomUUID(), new BigDecimal("250.00"), new BigDecimal("50.00"), BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("300.00"), "LKR"
+        );
+        Parcel p = Parcel.create(
+                parcelId, "SD260009999", "cust-1", null, "Recipient", "+94770000000", null,
+                "Pickup Line", "Colombo", "00100", "Dropoff Line", "Kandy", "20000",
+                new BigDecimal("1.50"), ParcelSize.SMALL, "Books", DeliveryType.STANDARD, null, pricing, NOW
+        );
+
+        when(parcelRepository.findByStatusOrderByCreatedAtAsc(ParcelStatus.CREATED)).thenReturn(List.of(p));
+
+        var result = parcelService.getUnassignedParcels(null);
+
+        assertThat(result).hasSize(1);
+        var dto = result.get(0);
+        assertThat(dto.parcelId()).isEqualTo(parcelId);
+        assertThat(dto.trackingNumber()).isEqualTo("SD260009999");
+        assertThat(dto.pickupZone()).isNull();
+        assertThat(dto.pickupArea()).isEqualTo("Colombo");
+        assertThat(dto.size()).isEqualTo("SMALL");
+        assertThat(dto.weight()).isEqualTo(1.50);
+        assertThat(dto.createdAt()).isEqualTo(NOW);
+
+        verify(parcelRepository).findByStatusOrderByCreatedAtAsc(ParcelStatus.CREATED);
+    }
+
+    @Test
+    @DisplayName("cancelCustomerParcel cancels pre-pickup parcel, appends history, and publishes outbox event")
+    void testCancelCustomerParcel_Success() {
+        UUID parcelId = UUID.randomUUID();
+        PricingSnapshot pricing = PricingSnapshot.of(
+                UUID.randomUUID(), new BigDecimal("250.00"), new BigDecimal("50.00"), BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("300.00"), "LKR"
+        );
+        Parcel p = Parcel.create(
+                parcelId, "SD260001CANCEL", "cust-1", null, "Recipient", "+94770000000", null,
+                "Pickup", "Colombo", "00100", "Dropoff", "Kandy", "20000",
+                new BigDecimal("1.50"), ParcelSize.SMALL, "Books", DeliveryType.STANDARD, null, pricing, NOW
+        );
+
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(p));
+        when(historyRepository.findMaxSequenceNumber(parcelId)).thenReturn(Optional.of(1));
+        when(historyRepository.findByParcelIdOrderBySequenceNumberAsc(parcelId)).thenReturn(List.of(
+                new ParcelStatusHistory(UUID.randomUUID(), parcelId, 1, null, "CREATED", "cust-1", "CUSTOMER", "Initial booking", NOW),
+                new ParcelStatusHistory(UUID.randomUUID(), parcelId, 2, "CREATED", "CANCELLED", "cust-1", "CUSTOMER", "Changed plans", NOW)
+        ));
+
+        CustomerParcelDetailResponse res = parcelService.cancelCustomerParcel(parcelId, "cust-1", false, "Changed plans");
+
+        assertThat(res).isNotNull();
+        assertThat(p.getStatus()).isEqualTo(ParcelStatus.CANCELLED);
+        assertThat(p.getFailureReason()).isEqualTo("Changed plans");
+
+        verify(parcelRepository).save(p);
+        verify(historyRepository).save(any(ParcelStatusHistory.class));
+        verify(outboxService).recordEvent(eq("parcel.cancelled"), eq(parcelId.toString()), any());
+    }
+
+    @Test
+    @DisplayName("cancelCustomerParcel throws ForbiddenException if user is not the parcel owner")
+    void testCancelCustomerParcel_ForbiddenForNonOwner() {
+        UUID parcelId = UUID.randomUUID();
+        PricingSnapshot pricing = PricingSnapshot.of(
+                UUID.randomUUID(), new BigDecimal("250.00"), new BigDecimal("50.00"), BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("300.00"), "LKR"
+        );
+        Parcel p = Parcel.create(
+                parcelId, "SD260001CANCEL", "cust-owner", null, "Recipient", "+94770000000", null,
+                "Pickup", "Colombo", "00100", "Dropoff", "Kandy", "20000",
+                new BigDecimal("1.50"), ParcelSize.SMALL, "Books", DeliveryType.STANDARD, null, pricing, NOW
+        );
+
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(p));
+
+        assertThatThrownBy(() -> parcelService.cancelCustomerParcel(parcelId, "attacker-cust", false, "Cancel"))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessageContaining("You do not have permission to cancel this parcel");
+
+        verify(parcelRepository, never()).save(any());
+        verify(historyRepository, never()).save(any());
+        verify(outboxService, never()).recordEvent(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("cancelCustomerParcel throws ConflictException if parcel is already CANCELLED")
+    void testCancelCustomerParcel_RepeatedCancellationThrowsConflict() {
+        UUID parcelId = UUID.randomUUID();
+        PricingSnapshot pricing = PricingSnapshot.of(
+                UUID.randomUUID(), new BigDecimal("250.00"), new BigDecimal("50.00"), BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("300.00"), "LKR"
+        );
+        Parcel p = Parcel.create(
+                parcelId, "SD260001CANCEL", "cust-1", null, "Recipient", "+94770000000", null,
+                "Pickup", "Colombo", "00100", "Dropoff", "Kandy", "20000",
+                new BigDecimal("1.50"), ParcelSize.SMALL, "Books", DeliveryType.STANDARD, null, pricing, NOW
+        );
+        p.updateStatus(ParcelStatus.CANCELLED, null, null, null, "First cancel", NOW);
+
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(p));
+
+        assertThatThrownBy(() -> parcelService.cancelCustomerParcel(parcelId, "cust-1", false, "Second cancel"))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("Parcel is already cancelled");
+
+        verify(parcelRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("cancelCustomerParcel throws ConflictException if parcel is already PICKED_UP")
+    void testCancelCustomerParcel_PickedUpThrowsConflict() {
+        UUID parcelId = UUID.randomUUID();
+        PricingSnapshot pricing = PricingSnapshot.of(
+                UUID.randomUUID(), new BigDecimal("250.00"), new BigDecimal("50.00"), BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("300.00"), "LKR"
+        );
+        Parcel p = Parcel.create(
+                parcelId, "SD260001CANCEL", "cust-1", null, "Recipient", "+94770000000", null,
+                "Pickup", "Colombo", "00100", "Dropoff", "Kandy", "20000",
+                new BigDecimal("1.50"), ParcelSize.SMALL, "Books", DeliveryType.STANDARD, null, pricing, NOW
+        );
+        p.updateStatus(ParcelStatus.PICKED_UP, "courier-1", null, null, null, NOW);
+
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(p));
+
+        assertThatThrownBy(() -> parcelService.cancelCustomerParcel(parcelId, "cust-1", false, "Cancel"))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("Invalid parcel state transition");
+
+        verify(parcelRepository, never()).save(any());
+    }
+}

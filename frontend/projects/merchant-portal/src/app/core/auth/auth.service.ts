@@ -44,6 +44,25 @@ export class AuthService {
   }
 
   /**
+   * Called once at app startup. If there is no in-memory session but the Identity service
+   * previously set a refreshToken HttpOnly cookie (e.g. after a Google OAuth redirect), this
+   * exchanges that cookie for a fresh access token and hydrates the session signal.
+   * Always resolves — a failed refresh simply leaves the session null.
+   */
+  hydrateFromCookie(): Observable<boolean> {
+    if (this.session()) {
+      return of(true);
+    }
+    return this.api.refreshFromCookie().pipe(
+      map((session) => {
+        this.startSession(session);
+        return true;
+      }),
+      catchError(() => of(false)),
+    );
+  }
+
+  /**
    * Exchanges the refresh token for a new access token. Concurrent callers share one request.
    * Emits null when the session cannot be renewed (no refresh token, or Identity rejected it);
    * transient failures (network, 5xx) are rethrown so a blip does not sign the user out.

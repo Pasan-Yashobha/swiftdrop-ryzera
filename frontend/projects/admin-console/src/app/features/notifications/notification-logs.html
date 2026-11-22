@@ -1,0 +1,134 @@
+<section class="stack" aria-labelledby="notification-logs-title">
+  <h2 id="notification-logs-title" class="visually-hidden">Notification log</h2>
+
+  <form
+    class="toolbar card"
+    [formGroup]="filters"
+    (ngSubmit)="applyFilters()"
+    aria-label="Filter notifications"
+    novalidate
+  >
+    <div class="filter">
+      <label for="nl-status">Status</label>
+      <select id="nl-status" formControlName="status">
+        <option value="">Any status</option>
+        @for (status of statuses; track status) {
+          <option [value]="status">{{ status }}</option>
+        }
+      </select>
+    </div>
+    <div class="filter">
+      <label for="nl-channel">Channel</label>
+      <select id="nl-channel" formControlName="channel">
+        <option value="">Any channel</option>
+        @for (channel of channels; track channel) {
+          <option [value]="channel">{{ channel }}</option>
+        }
+      </select>
+    </div>
+    <div class="filter">
+      <label for="nl-event">Event type</label>
+      <input
+        id="nl-event"
+        type="text"
+        formControlName="eventType"
+        placeholder="parcel.status.delivered"
+        autocomplete="off"
+        spellcheck="false"
+      />
+    </div>
+    <div class="filter">
+      <label for="nl-from">From (UTC)</label>
+      <input
+        id="nl-from"
+        type="date"
+        formControlName="from"
+        [attr.aria-invalid]="filters.hasError('dateRange')"
+        aria-describedby="nl-range-error"
+      />
+    </div>
+    <div class="filter">
+      <label for="nl-to">To (UTC)</label>
+      <input
+        id="nl-to"
+        type="date"
+        formControlName="to"
+        [attr.aria-invalid]="filters.hasError('dateRange')"
+        aria-describedby="nl-range-error"
+      />
+    </div>
+    <div class="toolbar__actions cluster">
+      <button type="submit" class="btn btn-primary">Apply filters</button>
+      <button type="button" class="btn btn-ghost" (click)="resetFilters()">Reset</button>
+    </div>
+    <p id="nl-range-error" class="filter__error" aria-live="polite">
+      @if (filters.hasError('dateRange')) {
+        The "From" date must be on or before the "To" date.
+      }
+    </p>
+  </form>
+
+  <app-error-alert [error]="error()" [retryable]="true" (retry)="load()" />
+
+  @if (result(); as page) {
+    @if (page.content.length === 0) {
+      <app-empty-state
+        heading="No notifications found"
+        message="Nothing matches these filters yet. Notifications appear here as parcel events are processed."
+      />
+    } @else {
+      <div class="table-wrap" [attr.aria-busy]="loading()">
+        <table class="table table--stacked">
+          <caption class="visually-hidden">
+            Notification log, newest first
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Time</th>
+              <th scope="col">Event type</th>
+              <th scope="col">Recipient</th>
+              <th scope="col">Channel</th>
+              <th scope="col">Template</th>
+              <th scope="col">Status</th>
+              <th scope="col">Attempts</th>
+              <th scope="col">Last error</th>
+              <th scope="col"><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (log of page.content; track log.id) {
+              <tr [attr.data-id]="log.id">
+                <td data-label="Time">
+                  <time [attr.datetime]="log.createdAt">{{ log.createdAt | date: 'medium' }}</time>
+                </td>
+                <td data-label="Event type" class="mono">{{ log.eventType }}</td>
+                <td data-label="Recipient" class="mono">{{ log.recipient }}</td>
+                <td data-label="Channel">{{ log.channel }}</td>
+                <td data-label="Template" class="mono">{{ log.templateKey }}</td>
+                <td data-label="Status"><app-status-badge [status]="log.status" /></td>
+                <td data-label="Attempts">{{ log.attempts }}</td>
+                <td data-label="Last error" class="cell-error">{{ log.lastError ?? '—' }}</td>
+                <td data-label="Actions">
+                  @if (log.status === 'FAILED') {
+                    <button
+                      type="button"
+                      class="btn btn-sm"
+                      [disabled]="resending().has(log.id)"
+                      (click)="resend(log)"
+                    >
+                      {{ resending().has(log.id) ? 'Resending…' : 'Resend' }}
+                      <span class="visually-hidden">notification to {{ log.recipient }}</span>
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination [info]="page" (pageChange)="goToPage($event)" />
+    }
+  } @else if (loading()) {
+    <app-spinner label="Loading notifications" />
+  }
+</section>

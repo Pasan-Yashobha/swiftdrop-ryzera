@@ -37,6 +37,8 @@ jobs:
       - name: Build and test (with JaCoCo coverage)
         if: steps.exists.outputs.found == 'true'
         working-directory: services/${{ matrix.service }}
+        env:
+          DOCKER_API_VERSION: "1.40"
         run: mvn -B verify
 
       - name: Upload coverage report

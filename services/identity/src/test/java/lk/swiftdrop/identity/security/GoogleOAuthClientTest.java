@@ -27,7 +27,8 @@ class GoogleOAuthClientTest {
                 java.util.List.of("http://localhost:4200"), 5, 15, 4
         );
         AppProperties.GoogleOAuth google = new AppProperties.GoogleOAuth("dummy-id", "dummy-secret", "http://callback", "http://fe");
-        AppProperties props = new AppProperties(sec, google);
+        AppProperties.Recovery recovery = new AppProperties.Recovery(15, "http://localhost:4200");
+        AppProperties props = new AppProperties(sec, google, recovery);
 
         DefaultGoogleOAuthClient client = new DefaultGoogleOAuthClient(props);
 

@@ -1,0 +1,427 @@
+<div class="dispatch-layout">
+  <!-- Top Header / Navigation Bar (Page 7: SwiftDrop DISPATCH) -->
+  <header class="dispatch-navbar">
+    <div class="navbar-left">
+      <div class="brand-group">
+        <span class="brand-title">Swift<span class="brand-highlight">Drop</span></span>
+        <span class="brand-tag">DISPATCH</span>
+      </div>
+
+      <nav class="nav-links" aria-label="Dispatch Navigation">
+        <button type="button" class="nav-item" [class.nav-item--active]="activeTab() === 'board'"
+          (click)="activeTab.set('board')">
+          Board
+        </button>
+        <button type="button" class="nav-item" [class.nav-item--active]="activeTab() === 'couriers'"
+          (click)="activeTab.set('couriers')">
+          Couriers
+        </button>
+        <button type="button" class="nav-item" [class.nav-item--active]="activeTab() === 'reports'"
+          (click)="activeTab.set('reports')">
+          Reports
+        </button>
+      </nav>
+    </div>
+
+    <div class="navbar-right">
+      <div class="stream-indicator">
+        <span class="live-dot"></span>
+        <span class="live-text">Live Sync</span>
+      </div>
+      <button type="button" class="btn-refresh" (click)="refreshAll()" title="Refresh data">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="23 4 23 10 17 10" />
+          <polyline points="1 20 1 14 7 14" />
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+        </svg>
+      </button>
+      <button type="button" class="btn-auto-assign-header" (click)="openAutoAssignDialog()">
+        Auto-assign all
+      </button>
+      <a routerLink="/welcome" class="btn-back-hub">
+        Hub
+      </a>
+    </div>
+  </header>
+
+  <!-- Global Feedback Banners -->
+  @if (errorMessage()) {
+  <div class="alert alert-error">
+    <div class="alert-content">
+      <span class="alert-icon">✕</span>
+      <span>{{ errorMessage() }}</span>
+    </div>
+    <button type="button" class="alert-close" (click)="clearAlerts()">&times;</button>
+  </div>
+  }
+
+  @if (successMessage()) {
+  <div class="alert alert-success">
+    <div class="alert-content">
+      <span class="alert-icon">✓</span>
+      <span>{{ successMessage() }}</span>
+    </div>
+    <button type="button" class="alert-close" (click)="clearAlerts()">&times;</button>
+  </div>
+  }
+
+  <main class="main-content">
+    <!-- Top Summary KPI Metrics Cards (Page 7) -->
+    <section class="kpi-metrics-row">
+      <div class="kpi-card">
+        <span class="kpi-label">UNASSIGNED</span>
+        <span class="kpi-value">{{ unassignedParcels().length }}</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">ON THE ROAD</span>
+        <span class="kpi-value">{{ getOnTheRoadCount() }}</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">FAILED TODAY</span>
+        <span class="kpi-value kpi-value--danger">{{ getFailedCount() }}</span>
+      </div>
+    </section>
+
+    <!-- TAB 1: BOARD (Main Dispatch Console) -->
+    @if (activeTab() === 'board') {
+    <div class="two-pane-container">
+      <!-- LEFT COLUMN: Waiting for a courier -->
+      <section class="column-panel waiting-column">
+        <div class="column-header">
+          <h2 class="column-title">WAITING FOR A COURIER</h2>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="filter-strip">
+          <input type="text" [(ngModel)]="zoneFilter" (keyup.enter)="refreshParcels()"
+            placeholder="Zone (e.g. Colombo)" class="route-input" />
+          <select [(ngModel)]="sizeFilter" (change)="refreshParcels()" class="route-select">
+            <option value="">All Sizes</option>
+            <option value="SMALL">Small</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="LARGE">Large</option>
+          </select>
+          <button type="button" class="btn-filter" (click)="refreshParcels()">Apply</button>
+        </div>
+
+        @if (selectedParcel()) {
+        <div class="selection-banner">
+          <span>Selected: <strong>{{ selectedParcel()?.trackingNumber }}</strong>. Click a Courier lane on the right to assign.</span>
+          <button type="button" class="btn-link" (click)="selectedParcel.set(null)">Deselect</button>
+        </div>
+        }
+
+        <!-- Waiting Parcels List -->
+        <div class="parcel-feed">
+          @for (parcel of unassignedParcels(); track parcel.parcelId) {
+          <div class="route-card" [class.route-card--selected]="selectedParcel()?.parcelId === parcel.parcelId"
+            tabindex="0" role="button" (keydown.enter)="toggleParcelSelect(parcel)"
+            (click)="toggleParcelSelect(parcel)">
+            <div class="route-card__top">
+              <span class="tracking-code">{{ parcel.trackingNumber }}</span>
+              <span class="time-waiting">{{ getTimeWaiting(parcel.createdAt) }}</span>
+            </div>
+
+            <div class="route-card__middle">
+              <span class="route-destination">
+                {{ parcel.pickupArea || 'Colombo 03' }} &rarr; Destination
+              </span>
+              <span class="parcel-specs">
+                &bull; {{ parcel.size }} {{ parcel.weight }} kg
+              </span>
+            </div>
+
+            <div class="route-card__bottom">
+              @if (getSuggestedCourier(parcel)) {
+              <button type="button" class="btn-suggest"
+                (click)="selectWithSuggestion(parcel, getSuggestedCourier(parcel)); $event.stopPropagation()">
+                Suggest: {{ getCourierName(getSuggestedCourier(parcel)!.courierId) }}
+              </button>
+              } @else {
+              <button type="button" class="btn-pick"
+                (click)="toggleParcelSelect(parcel); $event.stopPropagation()">
+                Pick courier
+              </button>
+              }
+            </div>
+          </div>
+          } @empty {
+          <div class="empty-state-card">
+            <p>No parcels currently waiting for assignment.</p>
+          </div>
+          }
+        </div>
+      </section>
+
+      <!-- RIGHT COLUMN: Couriers Drag / Lane Workload -->
+      <section class="column-panel couriers-column">
+        <div class="column-header">
+          <h2 class="column-title">COURIERS &bull; DRAG A PARCEL ONTO A LANE</h2>
+        </div>
+
+        <div class="courier-lane-feed">
+          @for (courier of courierWorkloads(); track courier.courierId) {
+          <div class="courier-lane-card"
+            [class.courier-lane-card--offline]="!courier.available"
+            [class.courier-lane-card--full]="courier.activeDeliveries >= courier.maxActive"
+            tabindex="0" role="button" (keydown.enter)="onCourierCardClick(courier)"
+            (click)="onCourierCardClick(courier)">
+
+            <!-- Courier Identity -->
+            <div class="lane-identity">
+              <strong class="courier-name">{{ getCourierName(courier.courierId) }}</strong>
+              <span class="courier-zone">{{ getCourierZone(courier.zoneId) }}</span>
+            </div>
+
+            <!-- Signature Part: Lane Squares Load Meter (Page 1 & 7) -->
+            <div class="lane-squares-container">
+              <div class="squares-bar">
+                @for (slot of getSlots(courier.activeDeliveries, courier.maxActive); track slot.index) {
+                <span class="lane-square"
+                  [class.lane-square--filled]="slot.filled"
+                  [class.lane-square--full-mode]="courier.activeDeliveries >= courier.maxActive"></span>
+                }
+              </div>
+              <span class="squares-ratio"
+                [class.squares-ratio--full]="courier.activeDeliveries >= courier.maxActive">
+                {{ courier.activeDeliveries >= courier.maxActive ? (courier.activeDeliveries + '/' + courier.maxActive + ' full') : (courier.activeDeliveries + '/' + courier.maxActive) }}
+              </span>
+            </div>
+
+            <!-- Action Target / Status -->
+            <div class="lane-action">
+              @if (selectedParcel()) {
+              <button type="button" class="btn-drop-here"
+                [disabled]="!courier.available || courier.activeDeliveries >= courier.maxActive">
+                DROP HERE
+              </button>
+              } @else {
+              <span class="chip-status" [class.chip-status--online]="courier.available"
+                [class.chip-status--offline]="!courier.available">
+                {{ courier.available ? 'ONLINE' : 'OFFLINE' }}
+              </span>
+              }
+            </div>
+          </div>
+          } @empty {
+          <div class="empty-state-card">
+            <p>No active couriers available.</p>
+          </div>
+          }
+        </div>
+      </section>
+    </div>
+    }
+
+    <!-- TAB 2: COURIERS DETAIL -->
+    @if (activeTab() === 'couriers') {
+    <section class="tab-panel">
+      <div class="panel-card">
+        <h2 class="panel-card__title">Fleet Roster &amp; Zone Distribution</h2>
+        <div class="fleet-grid">
+          @for (courier of courierWorkloads(); track courier.courierId) {
+          <div class="fleet-item">
+            <div class="fleet-item__header">
+              <strong>{{ getCourierName(courier.courierId) }}</strong>
+              <span class="chip-status" [class.chip-status--online]="courier.available">
+                {{ courier.available ? 'AVAILABLE' : 'OFFLINE' }}
+              </span>
+            </div>
+            <p class="muted-text">Zone: {{ getCourierZone(courier.zoneId) }}</p>
+            <div class="lane-squares-container" style="margin-top: 10px;">
+              <div class="squares-bar">
+                @for (slot of getSlots(courier.activeDeliveries, courier.maxActive); track slot.index) {
+                <span class="lane-square" [class.lane-square--filled]="slot.filled"></span>
+                }
+              </div>
+              <span class="squares-ratio">{{ courier.activeDeliveries }} / {{ courier.maxActive }}</span>
+            </div>
+          </div>
+          }
+        </div>
+      </div>
+    </section>
+    }
+
+    <!-- TAB 3: REPORTS / HISTORY -->
+    @if (activeTab() === 'reports') {
+    <section class="tab-panel">
+      <div class="panel-card">
+        <div class="panel-card__header-row">
+          <h2 class="panel-card__title">Recent Assignments Log</h2>
+          <button type="button" class="btn-refresh" (click)="refreshHistory()">Reload Log</button>
+        </div>
+
+        <div class="table-responsive">
+          <table class="route-table">
+            <thead>
+              <tr>
+                <th>TRACKING NO.</th>
+                <th>COURIER</th>
+                <th>STRATEGY</th>
+                <th>STATUS</th>
+                <th>ASSIGNED AT</th>
+                <th>ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of assignmentHistory(); track row.assignmentId) {
+              <tr>
+                <td><code>{{ row.parcelId.substring(0, 8) }}</code></td>
+                <td>{{ getCourierName(row.courierId) }}</td>
+                <td><span class="mono-badge">{{ row.strategy }}</span></td>
+                <td>
+                  <span class="badge" [class.badge-active]="row.status === 'ACTIVE'"
+                    [class.badge-reassigned]="row.status === 'REASSIGNED'">
+                    {{ row.status }}
+                  </span>
+                </td>
+                <td>{{ row.assignedAt | date:'mediumTime' }}</td>
+                <td>
+                  @if (row.status === 'ACTIVE') {
+                  <button type="button" class="btn-sm btn-pick" (click)="openReassignModal(row)">
+                    Reassign
+                  </button>
+                  } @else {
+                  <span class="muted-text">{{ row.reason || '-' }}</span>
+                  }
+                </td>
+              </tr>
+              } @empty {
+              <tr>
+                <td colspan="6" class="text-center">No assignments recorded today.</td>
+              </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+    }
+  </main>
+
+  <!-- MODAL: MANUAL ASSIGN CONFIRMATION -->
+  @if (isAssignConfirmOpen()) {
+  <div class="modal-backdrop" role="button" tabindex="0" (keydown.escape)="closeModal()" (click)="closeModal()">
+    <div class="route-modal" role="dialog" aria-modal="true" tabindex="0" (keydown.escape)="closeModal()" (click)="$event.stopPropagation()">
+      <div class="route-modal__header">
+        <h3>Confirm Assignment</h3>
+        <button type="button" class="modal-x" (click)="closeModal()">&times;</button>
+      </div>
+      <div class="route-modal__body">
+        <p>Assign parcel <strong class="mono-text">{{ selectedParcel()?.trackingNumber }}</strong> to courier <strong class="mono-text">{{ getCourierName(selectedCourier()?.courierId || '') }}</strong>?</p>
+        <div class="waybill-stub">
+          <div class="stub-row">
+            <span>Route:</span>
+            <strong>{{ selectedParcel()?.pickupArea }} &rarr; Delivery</strong>
+          </div>
+          <div class="stub-row">
+            <span>Courier Zone:</span>
+            <strong>{{ getCourierZone(selectedCourier()?.zoneId) }}</strong>
+          </div>
+          <div class="stub-row">
+            <span>Load after assignment:</span>
+            <strong>{{ (selectedCourier()?.activeDeliveries || 0) + 1 }} / {{ selectedCourier()?.maxActive }}</strong>
+          </div>
+        </div>
+      </div>
+      <div class="route-modal__footer">
+        <button type="button" class="btn-cancel" (click)="closeModal()">Cancel</button>
+        <button type="button" class="btn-confirm-yellow" (click)="confirmManualAssign()" [disabled]="isLoading()">
+          {{ isLoading() ? 'Assigning...' : 'Confirm Assignment' }}
+        </button>
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- MODAL: AUTO-ASSIGN (PAGE 7: Auto-assign all) -->
+  @if (isAutoAssignOpen()) {
+  <div class="modal-backdrop" role="button" tabindex="0" (keydown.escape)="closeModal()" (click)="closeModal()">
+    <div class="route-modal" role="dialog" aria-modal="true" tabindex="0" (keydown.escape)="closeModal()" (click)="$event.stopPropagation()">
+      <div class="route-modal__header">
+        <h3>Auto-Assign All Waiting Parcels</h3>
+        <button type="button" class="modal-x" (click)="closeModal()">&times;</button>
+      </div>
+      <div class="route-modal__body">
+        <p>Select algorithmic strategy to distribute <strong>{{ unassignedParcels().length }}</strong> parcels:</p>
+
+        <div class="strategy-options">
+          <label class="strategy-option" [class.strategy-option--active]="selectedAutoStrategy() === 'LEAST_LOADED'">
+            <input type="radio" name="strategy" value="LEAST_LOADED" [(ngModel)]="selectedAutoStrategy" />
+            <div>
+              <strong>Least Loaded Strategy</strong>
+              <p>Balances deliveries across available drivers with smallest current load.</p>
+            </div>
+          </label>
+
+          <label class="strategy-option" [class.strategy-option--active]="selectedAutoStrategy() === 'ZONE_BASED'">
+            <input type="radio" name="strategy" value="ZONE_BASED" [(ngModel)]="selectedAutoStrategy" />
+            <div>
+              <strong>Zone Based Strategy</strong>
+              <p>Prioritizes drivers whose registered territory matches the parcel pickup zone.</p>
+            </div>
+          </label>
+        </div>
+
+        @if (autoAssignResult()) {
+        <div class="result-box">
+          <div class="result-item result-item--ok">
+            <strong>{{ autoAssignResult()?.assigned?.length }}</strong> Assigned Successfully
+          </div>
+          <div class="result-item result-item--skipped">
+            <strong>{{ autoAssignResult()?.skipped?.length }}</strong> Skipped (Capacity/Zone limits)
+          </div>
+        </div>
+        }
+      </div>
+      <div class="route-modal__footer">
+        <button type="button" class="btn-cancel" (click)="closeModal()">Close</button>
+        <button type="button" class="btn-confirm-yellow" (click)="confirmAutoAssign()" [disabled]="isLoading()">
+          {{ isLoading() ? 'Executing Batch...' : 'Run Auto-Assign' }}
+        </button>
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- MODAL: REASSIGN DIALOG -->
+  @if (isReassignOpen()) {
+  <div class="modal-backdrop" role="button" tabindex="0" (keydown.escape)="closeModal()" (click)="closeModal()">
+    <div class="route-modal" role="dialog" aria-modal="true" tabindex="0" (keydown.escape)="closeModal()" (click)="$event.stopPropagation()">
+      <div class="route-modal__header">
+        <h3>Reassign Courier</h3>
+        <button type="button" class="modal-x" (click)="closeModal()">&times;</button>
+      </div>
+      <div class="route-modal__body">
+        <p>Transfer parcel to a different courier. A reason is strictly mandatory for audit logging.</p>
+
+        <div class="form-group">
+          <label for="newCourier">Select New Courier:</label>
+          <select id="newCourier" [(ngModel)]="reassignNewCourierId" class="route-select full-width">
+            <option value="">-- Choose Target Courier --</option>
+            @for (c of courierWorkloads(); track c.courierId) {
+            @if (c.courierId !== reassignTargetAssignment()?.courierId && c.available && c.activeDeliveries < c.maxActive) {
+            <option [value]="c.courierId">{{ getCourierName(c.courierId) }} ({{ c.activeDeliveries }}/{{ c.maxActive }})</option>
+            }
+            }
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-top: 12px;">
+          <label for="reassignReason">Reassignment Reason:</label>
+          <input id="reassignReason" type="text" [(ngModel)]="reassignReason"
+            placeholder="e.g. Courier vehicle breakdown on Galle Road" class="route-input full-width" />
+        </div>
+      </div>
+      <div class="route-modal__footer">
+        <button type="button" class="btn-cancel" (click)="closeModal()">Cancel</button>
+        <button type="button" class="btn-confirm-yellow" (click)="confirmReassign()"
+          [disabled]="isLoading() || !reassignNewCourierId() || !reassignReason()">
+          {{ isLoading() ? 'Reassigning...' : 'Reassign Courier' }}
+        </button>
+      </div>
+    </div>
+  </div>
+  }
+</div>

@@ -1,0 +1,141 @@
+<dialog
+  #dialog
+  class="dialog dialog--wide"
+  aria-labelledby="delivery-dialog-title"
+  (close)="onClosed()"
+>
+  @if (summary(); as d) {
+    <div class="detail__head">
+      <h2 id="delivery-dialog-title">Webhook delivery</h2>
+      <button type="button" class="btn btn-ghost btn-sm" (click)="close()">
+        Close <span class="visually-hidden">delivery details</span>
+      </button>
+    </div>
+
+    <dl class="details">
+      <dt>Status</dt>
+      <dd><app-status-badge [status]="d.status" /></dd>
+      <dt>Event</dt>
+      <dd class="mono">{{ d.eventType }}</dd>
+      <dt>Event id</dt>
+      <dd class="mono">{{ d.eventId }}</dd>
+      <dt>Merchant</dt>
+      <dd class="mono">{{ d.merchantId }}</dd>
+      <dt>URL</dt>
+      <dd class="mono">{{ d.url }}</dd>
+      <dt>Attempts</dt>
+      <dd>{{ d.attempts }}</dd>
+      <dt>Last HTTP status</dt>
+      <dd>{{ d.lastHttpStatus ?? '—' }}</dd>
+      <dt>Created</dt>
+      <dd>{{ d.createdAt | date: 'medium' }}</dd>
+      <dt>Last attempt</dt>
+      <dd>{{ d.lastAttemptAt ? (d.lastAttemptAt | date: 'medium') : '—' }}</dd>
+      <dt>Next attempt</dt>
+      <dd>{{ d.nextAttemptAt ? (d.nextAttemptAt | date: 'medium') : '—' }}</dd>
+      <dt>Replays</dt>
+      <dd>
+        {{ d.replayCount }}
+        @if (detail()?.lastReplayedBy; as by) {
+          <span class="muted small">(last by {{ by }})</span>
+        }
+      </dd>
+      @if (d.error) {
+        <dt>Error</dt>
+        <dd class="cell-error">{{ d.error }}</dd>
+      }
+    </dl>
+
+    @if (d.status === 'FAILED') {
+      <div class="cluster">
+        <button
+          type="button"
+          class="btn btn-primary btn-sm"
+          [disabled]="replaying().has(d.id)"
+          (click)="replay.emit(d)"
+        >
+          {{ replaying().has(d.id) ? 'Replaying…' : 'Replay delivery' }}
+        </button>
+      </div>
+    }
+
+    <app-error-alert [error]="error()" [retryable]="true" (retry)="load()" />
+
+    @if (detail(); as full) {
+      <section class="stack detail__section" aria-labelledby="delivery-headers-title">
+        <h3 id="delivery-headers-title">Request headers</h3>
+        @if (headers().length > 0) {
+          <div class="table-wrap">
+            <table class="table">
+              <caption class="visually-hidden">
+                Request headers sent with the delivery
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Header</th>
+                  <th scope="col">Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (header of headers(); track header[0]) {
+                  <tr>
+                    <th scope="row" class="mono">{{ header[0] }}</th>
+                    <td class="mono">{{ header[1] }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="muted">No headers recorded.</p>
+        }
+      </section>
+
+      <section class="stack detail__section" aria-labelledby="delivery-payload-title">
+        <h3 id="delivery-payload-title">Payload</h3>
+        <pre class="code" tabindex="0" aria-labelledby="delivery-payload-title">{{ payload() }}</pre>
+      </section>
+
+      <section class="stack detail__section" aria-labelledby="delivery-response-title">
+        <h3 id="delivery-response-title">Response snippet</h3>
+        @if (full.responseSnippet) {
+          <pre class="code" tabindex="0" aria-labelledby="delivery-response-title">{{
+            full.responseSnippet
+          }}</pre>
+        } @else {
+          <p class="muted">No response body was recorded.</p>
+        }
+      </section>
+
+      <section class="stack detail__section" aria-labelledby="delivery-attempts-title">
+        <h3 id="delivery-attempts-title">Attempts</h3>
+        @if (full.attemptLog.length > 0) {
+          <ol class="timeline">
+            @for (attempt of full.attemptLog; track attempt.attemptNo) {
+              <li class="timeline__item">
+                <div class="cluster">
+                  <strong>Attempt {{ attempt.attemptNo }}</strong>
+                  <app-status-badge [status]="attempt.outcome" />
+                  <time class="muted small" [attr.datetime]="attempt.attemptedAt">{{
+                    attempt.attemptedAt | date: 'medium'
+                  }}</time>
+                </div>
+                <p class="small">
+                  HTTP {{ attempt.httpStatus ?? '—' }} &middot;
+                  {{ attempt.durationMs !== null ? attempt.durationMs + ' ms' : '—' }}
+                </p>
+                @if (attempt.error) {
+                  <p class="small cell-error">{{ attempt.error }}</p>
+                }
+              </li>
+            }
+          </ol>
+        } @else {
+          <p class="muted">No attempts yet.</p>
+        }
+      </section>
+    } @else if (loading()) {
+      <app-spinner label="Loading delivery details" />
+    }
+  }
+</dialog>

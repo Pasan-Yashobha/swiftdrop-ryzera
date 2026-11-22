@@ -1,0 +1,103 @@
+# Tracking Service configuration.
+# No secrets live here: Redis and RabbitMQ credentials come from SPRING_DATA_REDIS_* and SPRING_RABBITMQ_*.
+# Local development defaults are in application-dev.yml (profile "dev").
+
+spring:
+  application:
+    name: tracking-service
+  data:
+    redis:
+      timeout: 2s
+  rabbitmq:
+    listener:
+      simple:
+        # A failed message is retried in-process (3 attempts with backoff), then rejected without requeue so the
+        # broker moves it to tracking.q.dlq. Nothing loops forever and nothing is silently dropped.
+        acknowledge-mode: auto
+        default-requeue-rejected: false
+        prefetch: 20
+        concurrency: 2
+        max-concurrency: 4
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 500ms
+          multiplier: 2.0
+          max-interval: 5s
+  jackson:
+    time-zone: UTC
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      # Events from other services may grow new fields; ignore what we do not know.
+      fail-on-unknown-properties: false
+  mvc:
+    async:
+      # Each SSE stream sets its own timeout (swiftdrop.tracking.sse.timeout).
+      request-timeout: -1
+  web:
+    resources:
+      add-mappings: false
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  task:
+    scheduling:
+      # SSE heartbeats plus the dev simulator.
+      pool:
+        size: 2
+
+server:
+  port: 8080
+  shutdown: graceful
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+    include-exception: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+logging:
+  pattern:
+    level: "%5p [%X{correlationId:-}]"
+
+swiftdrop:
+  tracking:
+    cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+    queue: tracking.q
+    dead-letter-queue: tracking.q.dlq
+    # parcel.# also matches parcel.status.<s>; parcel.* would not.
+    binding-keys: "parcel.#,courier.location.#"
+    snapshot-ttl: 30d
+    processed-event-ttl: 7d
+    timeline-limit: 50
+    trail-limit: 30
+    # The courier's live position is only shared while the parcel is on its way.
+    share-location-statuses: IN_TRANSIT,OUT_FOR_DELIVERY
+    location-stale-after: 15m
+    sse:
+      timeout: 30m
+      heartbeat-interval-ms: 20000
+      reconnect-delay-ms: 3000
+      max-connections: 5000
+      max-connections-per-parcel: 50
+    eta:
+      zone: Asia/Colombo
+      average-speed-kmh: 25
+      road-factor: 1.3
+      handling-minutes: 5
+      express-factor: 0.5
+      delivery-day-start-hour: 8
+      delivery-day-end-hour: 20

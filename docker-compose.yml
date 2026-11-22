@@ -32,11 +32,29 @@ services:
       - "15672:15672" # management UI
     volumes:
       - rabbitmqdata:/var/lib/rabbitmq
+      # Management + Prometheus + shovel (the "Move messages" button used to replay a DLQ by hand).
+      - ./infra/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
     healthcheck:
       test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
       interval: 15s
       timeout: 10s
       retries: 5
+    networks: [ swiftdrop ]
+
+  # One-shot: imports infra/rabbitmq/definitions.json (exchanges, queues, DLQs, bindings) through the management API.
+  # Services also declare their own topology, so this only makes the whole picture visible from the start.
+  rabbitmq-init:
+    image: curlimages/curl:8.10.1
+    restart: "no"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_USER: ${RABBITMQ_USER:-swiftdrop}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev_rabbit_pw}
+    volumes:
+      - ./infra/rabbitmq/definitions.json:/definitions.json:ro
+    entrypoint: [ "sh", "-c", "curl -fsS -u \"$$RABBITMQ_USER:$$RABBITMQ_PASSWORD\" -H 'Content-Type: application/json' -X POST --data-binary @/definitions.json http://rabbitmq:15672/api/definitions && echo 'RabbitMQ definitions imported'" ]
     networks: [ swiftdrop ]
 
   redis:
@@ -70,11 +88,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     environment:
       SPRING_PROFILES_ACTIVE: ${IDENTITY_SPRING_PROFILES:-dev}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/identity_db
       SPRING_DATASOURCE_USERNAME: identity_svc
       SPRING_DATASOURCE_PASSWORD: ${SERVICE_DB_PASSWORD:-dev_service_pw}
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-mailpit}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-1025}
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-token}
       CORS_ALLOWED_ORIGINS: ${IDENTITY_CORS_ALLOWED_ORIGINS:-http://localhost:4201,http://localhost:4200}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
@@ -121,6 +143,229 @@ services:
       - "8083:8080"
     networks: [ swiftdrop ]
 
+  dispatch:
+    build:
+      context: ./services/dispatch
+    restart: unless-stopped
+    stop_grace_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${DISPATCH_SPRING_PROFILES:-dev}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dispatch_db
+      SPRING_DATASOURCE_USERNAME: dispatch_svc
+      SPRING_DATASOURCE_PASSWORD: ${SERVICE_DB_PASSWORD:-dev_service_pw}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-swiftdrop}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev_rabbit_pw}
+      IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://host.docker.internal:8081/.well-known/jwks.json}
+      DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev-only-hmac-secret-change-me-0123456789}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-token}
+      CORS_ALLOWED_ORIGINS: ${DISPATCH_CORS_ALLOWED_ORIGINS:-http://localhost:4201,http://localhost:4200}
+      PARCEL_SERVICE_URL: ${PARCEL_SERVICE_URL:-http://parcel:8080}
+      PRICING_SERVICE_URL: ${PRICING_SERVICE_URL:-http://pricing:8080}
+      DISPATCH_MAX_ACTIVE_PER_COURIER: ${DISPATCH_MAX_ACTIVE_PER_COURIER:-8}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8084:8080"
+    networks: [ swiftdrop ]
+
+  tracking:
+    build:
+      context: ./services/tracking
+    restart: unless-stopped
+    # Longer than the 30 s graceful shutdown of the service, or Docker kills it after 10 s.
+    stop_grace_period: 40s
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${TRACKING_SPRING_PROFILES:-dev}
+      SERVER_PORT: 8080
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-dev_redis_pw}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-swiftdrop}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev_rabbit_pw}
+      CORS_ALLOWED_ORIGINS: ${TRACKING_CORS_ALLOWED_ORIGINS:-http://localhost:4201,http://localhost:4200}
+    ports:
+      # 8087 is the port the gateway (M1) gives the tracking service; 8088 belongs to notification (M9).
+      - "8087:8080"
+    networks: [ swiftdrop ]
+
+  notification:
+    build:
+      context: ./services/notification
+    restart: unless-stopped
+    stop_grace_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    environment:
+      SPRING_PROFILES_ACTIVE: ${NOTIFICATION_SPRING_PROFILES:-dev}
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/notification_db
+      SPRING_DATASOURCE_USERNAME: notification_svc
+      SPRING_DATASOURCE_PASSWORD: ${SERVICE_DB_PASSWORD:-dev_service_pw}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-swiftdrop}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev_rabbit_pw}
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-mailpit}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-1025}
+      IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://host.docker.internal:8081/.well-known/jwks.json}
+      DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev-only-hmac-secret-change-me-0123456789}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-token}
+      IDENTITY_SERVICE_URL: ${IDENTITY_SERVICE_URL:-http://identity:8080}
+      MERCHANT_SERVICE_URL: ${MERCHANT_SERVICE_URL:-http://merchant:8080}
+      DOCUMENT_SERVICE_URL: ${DOCUMENT_SERVICE_URL:-http://document:8080}
+      # The mock SMS provider lives inside this service; a real provider is plugged in by changing these two.
+      SMS_API_URL: ${SMS_API_URL:-http://localhost:8080/mock-sms/messages}
+      SMS_API_KEY: ${SMS_API_KEY:-dev-sms-api-key}
+      SMS_MOCK_PROVIDER_ENABLED: ${SMS_MOCK_PROVIDER_ENABLED:-true}
+      PUBLIC_TRACKING_URL: ${PUBLIC_TRACKING_URL:-http://localhost:4200/track}
+      CORS_ALLOWED_ORIGINS: ${NOTIFICATION_CORS_ALLOWED_ORIGINS:-http://localhost:4202,http://localhost:4200}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8088:8080"
+    networks: [ swiftdrop ]
+
+  webhook:
+    build:
+      context: ./services/webhook
+    restart: unless-stopped
+    stop_grace_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${WEBHOOK_SPRING_PROFILES:-dev}
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/webhook_db
+      SPRING_DATASOURCE_USERNAME: webhook_svc
+      SPRING_DATASOURCE_PASSWORD: ${SERVICE_DB_PASSWORD:-dev_service_pw}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-swiftdrop}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev_rabbit_pw}
+      IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://host.docker.internal:8081/.well-known/jwks.json}
+      DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev-only-hmac-secret-change-me-0123456789}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-token}
+      MERCHANT_SERVICE_URL: ${MERCHANT_SERVICE_URL:-http://merchant:8080}
+      CORS_ALLOWED_ORIGINS: ${WEBHOOK_CORS_ALLOWED_ORIGINS:-http://localhost:4202,http://localhost:4200}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8089:8080"
+    networks: [ swiftdrop ]
+
+  pricing:
+    build:
+      context: ./services/pricing
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${PRICING_SPRING_PROFILES:-dev}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/pricing_db
+      SPRING_DATASOURCE_USERNAME: pricing_svc
+      SPRING_DATASOURCE_PASSWORD: ${SERVICE_DB_PASSWORD:-dev_service_pw}
+      IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://host.docker.internal:8081/.well-known/jwks.json}
+      # Shared service secret: the Parcel service accepts quotes with it (POST /internal/quotes/{id}/accept).
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-token}
+      DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev-only-hmac-secret-change-me-0123456789}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      # PRICING_PORT lets you run the container next to a copy started from the IDE (port 8085).
+      - "${PRICING_PORT:-8085}:8080"
+    networks: [ swiftdrop ]
+
+  document:
+    build:
+      context: ./services/document
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${DOCUMENT_SPRING_PROFILES:-dev}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/document_db
+      SPRING_DATASOURCE_USERNAME: document_svc
+      SPRING_DATASOURCE_PASSWORD: ${SERVICE_DB_PASSWORD:-dev_service_pw}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-swiftdrop}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev_rabbit_pw}
+      # Shared secret for service-to-service calls (the Notification service fetches receipt PDFs with it).
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-token}
+      # Blank = never ask Parcel; the delivered event must then carry customer, tracking number and price breakdown.
+      DOCUMENT_PARCEL_URL: ${DOCUMENT_PARCEL_URL:-}
+      IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://host.docker.internal:8081/.well-known/jwks.json}
+      DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev-only-hmac-secret-change-me-0123456789}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${DOCUMENT_PORT:-8092}:8080"
+    networks: [ swiftdrop ]
+
+  assistant:
+    build:
+      context: ./services/assistant
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: ${ASSISTANT_SPRING_PROFILES:-dev}
+      IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://host.docker.internal:8081/.well-known/jwks.json}
+      DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev-only-hmac-secret-change-me-0123456789}
+      PRICING_SERVICE_URL: ${PRICING_SERVICE_URL:-http://pricing:8080}
+      # track_parcel uses Member 8's Tracking service (public lookup, no token). Blank = labelled sample data.
+      TRACKING_SERVICE_URL: ${ASSISTANT_TRACKING_URL:-http://tracking:8080}
+      # get_history stays on labelled sample data until the Parcel service (Member 4) exists.
+      PARCEL_SERVICE_URL: ${ASSISTANT_PARCEL_URL:-}
+      # Set these in your local .env (never committed). Without both, chat answers 503 and the MCP tools still work.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${ASSISTANT_PORT:-8093}:8080"
+    networks: [ swiftdrop ]
+
+  admin-console:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.admin-console
+      args:
+        # "development" keeps the dev sign-in button (role ADMIN token from the merchant dev endpoint).
+        NG_CONFIGURATION: ${ADMIN_CONSOLE_CONFIGURATION:-development}
+    restart: unless-stopped
+    depends_on:
+      - gateway
+    environment:
+      API_UPSTREAM: ${ADMIN_CONSOLE_API_UPSTREAM:-http://gateway:8080}
+    ports:
+      - "4202:8080"
+    networks: [ swiftdrop ]
+
   merchant-portal:
     build:
       context: ./frontend
@@ -132,6 +377,7 @@ services:
       - merchant
     environment:
       API_UPSTREAM: ${MERCHANT_PORTAL_API_UPSTREAM:-http://merchant:8080}
+      TRACKING_UPSTREAM: ${MERCHANT_PORTAL_TRACKING_UPSTREAM:-http://tracking:8080}
     ports:
       - "4201:8080"
     networks: [ swiftdrop ]
@@ -161,6 +407,84 @@ services:
       - "3001:3000"
     depends_on:
       - prometheus
+    networks: [ swiftdrop ]
+
+  gateway:
+    build:
+      context: ./services/gateway
+    restart: unless-stopped
+    stop_grace_period: 40s
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-dev_redis_pw}
+      # Services inside the compose network listen on 8080. Services that are not built yet
+      # simply answer 503 through the gateway until they exist.
+      IDENTITY_URI: http://identity:8080
+      MERCHANT_URI: http://merchant:8080
+      PARCEL_URI: http://parcel:8080
+      PRICING_URI: http://pricing:8080
+      DISPATCH_URI: http://dispatch:8080
+      COURIER_URI: http://courier:8080
+      TRACKING_URI: http://tracking:8080
+      NOTIFICATION_URI: http://notification:8080
+      WEBHOOK_URI: http://webhook:8080
+      REPORTING_URI: http://reporting:8080
+      AUDIT_URI: http://audit:8080
+      DOCUMENT_URI: http://document:8080
+      ASSISTANT_URI: http://assistant:8080
+      CORS_ALLOWED_ORIGINS: ${GATEWAY_CORS_ALLOWED_ORIGINS:-http://localhost:4201,http://localhost:4200}
+      DEV_JWT_HMAC_SECRET: ${DEV_JWT_HMAC_SECRET:-dev-only-hmac-secret-change-me-0123456789}
+      GATEWAY_DEV_ROUTES: ${GATEWAY_DEV_ROUTES:-true}
+    ports:
+      - "8080:8080"
+    networks: [ swiftdrop ]
+
+  audit:
+    build:
+      context: ./services/audit
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/audit_db
+      SPRING_DATASOURCE_USERNAME: audit_svc
+      SPRING_DATASOURCE_PASSWORD: ${SERVICE_DB_PASSWORD:-dev_service_pw}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-swiftdrop}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev_rabbit_pw}
+      IDENTITY_JWKS_URI: http://identity:8080/.well-known/jwks.json
+      JWT_ISSUER: swiftdrop-identity
+    ports:
+      - "8091:8080"
+    networks: [ swiftdrop ]
+
+  reporting:
+    build:
+      context: ./services/reporting
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/reporting_db
+      SPRING_DATASOURCE_USERNAME: reporting_svc
+      SPRING_DATASOURCE_PASSWORD: ${SERVICE_DB_PASSWORD:-dev_service_pw}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-swiftdrop}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev_rabbit_pw}
+      IDENTITY_JWKS_URI: http://identity:8080/.well-known/jwks.json
+    ports:
+      - "8090:8080"
     networks: [ swiftdrop ]
 
 networks:

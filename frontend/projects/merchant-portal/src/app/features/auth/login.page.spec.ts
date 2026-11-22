@@ -6,7 +6,7 @@ import { authInterceptor } from '../../core/auth/auth.interceptor';
 import { AuthService } from '../../core/auth/auth.service';
 import { APP_CONFIG } from '../../core/config/app-config';
 import { errorInterceptor } from '../../core/http/error.interceptor';
-import { buttonByText, element, inputByLabel, type } from '../../core/testing/dom';
+import { buttonByText, element, inputByLabel, query, type } from '../../core/testing/dom';
 import { aSession } from '../../core/testing/test-data';
 import { LoginPage } from './login.page';
 
@@ -182,6 +182,28 @@ describe('LoginPage', () => {
     const fixture = create({ error: 'csrf_detected' });
 
     expect(element(fixture).textContent).toContain('Security verification failed');
+  });
+
+  it('opens the public tracking page for a quick track number', () => {
+    const fixture = create();
+    const navigate = router.navigate as jasmine.Spy;
+    const trackInput = query<HTMLInputElement>(fixture, '#quickTrackInputLogin');
+    trackInput.value = ' sd-9999-1234 ';
+    buttonByText(fixture, 'Go').click();
+    fixture.detectChanges();
+
+    expect(navigate).toHaveBeenCalledWith(['/track', 'SD-9999-1234']);
+  });
+
+  it('asks for a real tracking number in quick track', () => {
+    const fixture = create();
+    const navigate = router.navigate as jasmine.Spy;
+    query<HTMLInputElement>(fixture, '#quickTrackInputLogin').value = 'hello';
+    buttonByText(fixture, 'Go').click();
+    fixture.detectChanges();
+
+    expect(navigate).not.toHaveBeenCalled();
+    expect(element(fixture).textContent).toContain('Enter a tracking number such as SD-2641-7788.');
   });
 });
 

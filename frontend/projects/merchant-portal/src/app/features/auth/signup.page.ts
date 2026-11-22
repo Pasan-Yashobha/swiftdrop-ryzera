@@ -21,10 +21,8 @@ import {
   phoneNumber,
   sameAsSibling,
 } from '../../shared/forms/validators';
-import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
-import { FieldControl, FormField } from '../../shared/ui/form-field/form-field';
-import { PasswordField } from '../../shared/ui/password-field/password-field';
 import { normalizePhone } from '../../shared/util/phone';
+import { openTrackingPage } from '../../core/tracking/quick-track';
 
 const EMAIL_TAKEN = new AppError(
   409,
@@ -34,7 +32,7 @@ const EMAIL_TAKEN = new AppError(
 
 @Component({
   selector: 'app-signup-page',
-  imports: [ReactiveFormsModule, RouterLink, FormField, FieldControl, PasswordField, ErrorAlert],
+  imports: [ReactiveFormsModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   templateUrl: './signup.page.html',
@@ -69,14 +67,33 @@ export class SignupPage {
       nonNullable: true,
       validators: [Validators.required, sameAsSibling('password')],
     }),
+    agreeTerms: new FormControl(true, { nonNullable: true }),
   });
 
+  protected readonly showPassword = signal(false);
+  protected readonly showConfirmPassword = signal(false);
   protected readonly busy = signal(false);
   protected readonly error = signal<AppError | null>(null);
+  protected readonly quickTrackStatus = signal<string | null>(null);
+
+  protected quickTrack(code: string): void {
+    // Opens the public tracking page (Member 8); only an impossible number leaves a hint here.
+    this.quickTrackStatus.set(openTrackingPage(this.router, code));
+  }
 
   private readonly password = toSignal(this.form.controls.password.valueChanges, {
     initialValue: '',
   });
+  private readonly selectedRole = toSignal(this.form.controls.role.valueChanges, {
+    initialValue: this.form.controls.role.value,
+  });
+
+  /** Dynamic Google OAuth signup URL containing the selected account type. */
+  protected readonly googleSignupUrl = computed(() => {
+    const role = this.selectedRole();
+    return `/api/v1/auth/google?role=${encodeURIComponent(role)}`;
+  });
+
   /** The password rules with whether the current input satisfies each, shown as a live checklist. */
   protected readonly rules = computed(() =>
     PASSWORD_RULES.map((rule) => ({ label: rule.label, met: rule.test(this.password()) })),

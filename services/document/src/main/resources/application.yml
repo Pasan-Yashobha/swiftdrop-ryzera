@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: document-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  rabbitmq:
+    # Broker settings are bound from SPRING_RABBITMQ_*. Publisher confirms let the relay know the broker has the event.
+    publisher-confirm-type: correlated
+
+server:
+  port: ${SERVER_PORT:8092}
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+document:
+  security:
+    internal-token: ${INTERNAL_API_TOKEN:}
+  downstream:
+    # Blank = never ask Parcel; the delivered event must then carry everything the receipt needs.
+    parcel-url: ${DOCUMENT_PARCEL_URL:}

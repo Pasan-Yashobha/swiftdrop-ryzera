@@ -1,0 +1,130 @@
+<section class="stack" aria-labelledby="templates-title">
+  <div class="page__header">
+    <div>
+      <h2 id="templates-title">Templates</h2>
+      <p class="muted small">
+        One template per event type and channel. Use {{ placeholderSyntax }} tokens for values
+        filled in when the message is sent.
+      </p>
+    </div>
+    <button type="button" class="btn btn-ghost btn-sm" [disabled]="loading()" (click)="load()">
+      {{ loading() ? 'Refreshing…' : 'Refresh' }}
+    </button>
+  </div>
+
+  <app-error-alert [error]="error()" [retryable]="true" (retry)="load()" />
+
+  @if (templates(); as list) {
+    @if (list.length === 0) {
+      <app-empty-state heading="No templates" message="The notification service has no templates yet." />
+    } @else {
+      <div class="table-wrap">
+        <table class="table table--stacked">
+          <caption class="visually-hidden">
+            Notification templates
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Event type</th>
+              <th scope="col">Channel</th>
+              <th scope="col">Subject</th>
+              <th scope="col">Status</th>
+              <th scope="col">Updated</th>
+              <th scope="col"><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (template of list; track template.id) {
+              <tr [attr.data-id]="template.id">
+                <td data-label="Event type" class="mono">{{ template.eventType }}</td>
+                <td data-label="Channel">{{ template.channel }}</td>
+                <td data-label="Subject">{{ template.subject ?? '—' }}</td>
+                <td data-label="Status">
+                  <app-status-badge [status]="template.active ? 'ACTIVE' : 'INACTIVE'" />
+                </td>
+                <td data-label="Updated">
+                  <time [attr.datetime]="template.updatedAt">{{
+                    template.updatedAt | date: 'medium'
+                  }}</time>
+                </td>
+                <td data-label="Actions">
+                  <button
+                    #editButton
+                    type="button"
+                    class="btn btn-sm"
+                    (click)="edit(template, editButton)"
+                  >
+                    Edit
+                    <span class="visually-hidden"
+                      >template {{ template.eventType }} {{ template.channel }}</span
+                    >
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  } @else if (loading()) {
+    <app-spinner label="Loading templates" />
+  }
+</section>
+
+<dialog
+  #dialog
+  class="dialog dialog--wide"
+  aria-labelledby="template-dialog-title"
+  (close)="onClosed()"
+>
+  @if (editing(); as template) {
+    <h2 id="template-dialog-title">Edit template</h2>
+    <p class="dialog__message">
+      <span class="mono">{{ template.eventType }}</span> &middot; {{ template.channel }}
+    </p>
+
+    <app-error-alert [error]="saveError()" />
+
+    <form class="stack" [formGroup]="form" (ngSubmit)="save()" novalidate>
+      @if (hasSubject(template)) {
+        <div class="field">
+          <label for="template-subject">Subject</label>
+          <input id="template-subject" type="text" formControlName="subject" autocomplete="off" />
+        </div>
+      }
+      <div class="field">
+        <label for="template-body">Body (plain text)</label>
+        <textarea
+          id="template-body"
+          formControlName="body"
+          rows="8"
+          spellcheck="false"
+          aria-describedby="template-body-help template-body-error"
+          [attr.aria-invalid]="form.controls.body.touched && form.controls.body.invalid"
+        ></textarea>
+        <p id="template-body-help" class="muted small">
+          @if (placeholders().length > 0) {
+            Placeholders used: <span class="mono">{{ placeholders().join(', ') }}</span>
+          } @else {
+            No placeholders used.
+          }
+        </p>
+        <p id="template-body-error" class="field__error" aria-live="polite">
+          @if (form.controls.body.touched && form.controls.body.errors?.['required']) {
+            The body is required.
+          }
+        </p>
+      </div>
+      <label class="checkbox">
+        <input type="checkbox" formControlName="active" />
+        <span>Active (inactive templates are skipped when sending)</span>
+      </label>
+      <div class="dialog__actions">
+        <button type="button" class="btn btn-ghost" (click)="cancel()">Cancel</button>
+        <button type="submit" class="btn btn-primary" [disabled]="saving()">
+          {{ saving() ? 'Saving…' : 'Save template' }}
+        </button>
+      </div>
+    </form>
+  }
+</dialog>

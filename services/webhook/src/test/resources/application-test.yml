@@ -1,0 +1,43 @@
+# Test profile: H2 in PostgreSQL mode running the real Flyway migration; no broker, no schedulers.
+# All secrets below are dummy values that exist only for the test run.
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:webhook-${random.uuid};MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: false
+      direct:
+        auto-startup: false
+
+management:
+  health:
+    rabbit:
+      enabled: false
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+swiftdrop:
+  scheduling:
+    enabled: false
+  security:
+    dev-hmac-secret: test-only-hmac-secret-0123456789abcdef
+    internal-token: test-internal-token
+  events:
+    confirm-timeout-ms: 300
+  merchant:
+    # replaced by the fake merchant service of the integration tests
+    base-url: http://127.0.0.1:1
+    timeout-ms: 2000
+  delivery:
+    timeout-ms: 2000

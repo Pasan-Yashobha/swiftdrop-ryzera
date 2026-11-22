@@ -6,6 +6,7 @@ import {
   registeredMerchantGuard,
   statusPageGuard,
 } from './core/guards/merchant-status.guard';
+import { roleGuard } from './core/guards/role.guard';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
@@ -23,13 +24,86 @@ export const routes: Routes = [
     canActivate: [guestGuard],
     loadComponent: () => import('./features/auth/signup.page').then((m) => m.SignupPage),
   },
+  {
+    path: 'forgot-password',
+    title: 'Forgot password',
+    canActivate: [guestGuard],
+    loadComponent: () =>
+      import('./features/auth/forgot-password.page').then((m) => m.ForgotPasswordPage),
+  },
+  {
+    path: 'reset-password',
+    title: 'Reset password',
+    canActivate: [guestGuard],
+    loadComponent: () =>
+      import('./features/auth/reset-password.page').then((m) => m.ResetPasswordPage),
+  },
 
-  // Dedicated landing hub for non-merchant roles (Customer, Courier, Admin)
+  // Dedicated landing hub for non-merchant roles (Customer, Courier, Admin, Dispatcher)
   {
     path: 'welcome',
     title: 'Welcome to SwiftDrop',
     canActivate: [userAuthGuard],
     loadComponent: () => import('./features/welcome/welcome.page').then((m) => m.WelcomePage),
+  },
+
+  // Dispatcher Console (Member 6)
+  {
+    path: 'admin/dispatch',
+    title: 'Dispatcher Console',
+    loadComponent: () =>
+      import('./features/dispatch/dispatch-console.page').then((m) => m.DispatchConsolePage),
+  },
+  {
+    path: 'dispatch',
+    redirectTo: 'admin/dispatch',
+    pathMatch: 'full',
+  },
+
+  // Fee estimate, receipts and invoices (Member 5). Admin pricing and documents are in the admin console.
+  {
+    path: 'estimate',
+    title: 'Fee estimate',
+    canActivate: [roleGuard('CUSTOMER', 'MERCHANT')],
+    loadComponent: () => import('./features/pricing/estimate.page').then((m) => m.EstimatePage),
+  },
+  {
+    path: 'receipts',
+    title: 'Receipts',
+    canActivate: [roleGuard('CUSTOMER')],
+    loadComponent: () => import('./features/documents/receipts.page').then((m) => m.ReceiptsPage),
+  },
+  {
+    path: 'invoices',
+    title: 'Invoices',
+    canActivate: [roleGuard('MERCHANT')],
+    loadComponent: () => import('./features/documents/invoices.page').then((m) => m.InvoicesPage),
+  },
+
+  // Public parcel tracking (Member 8): anyone with a tracking number, no sign-in, full-screen layout.
+  {
+    path: 'track',
+    title: 'Track a parcel',
+    loadComponent: () => import('./features/tracking/track.page').then((m) => m.TrackPage),
+  },
+  {
+    path: 'track/:trackingNo',
+    title: 'Track a parcel',
+    loadComponent: () => import('./features/tracking/track.page').then((m) => m.TrackPage),
+  },
+
+  // Courier PWA (Member 7): Mobile-first Route Board for couriers on duty
+  {
+    path: 'courier',
+    title: 'Courier Route Board',
+    canActivate: [roleGuard('COURIER', 'ADMIN')],
+    loadComponent: () =>
+      import('./features/courier/courier-pwa.page').then((m) => m.CourierPwaPage),
+  },
+  {
+    path: 'courier-pwa',
+    redirectTo: 'courier',
+    pathMatch: 'full',
   },
 
   // Everything below needs a signed-in merchant user. authGuard runs before any child guard.

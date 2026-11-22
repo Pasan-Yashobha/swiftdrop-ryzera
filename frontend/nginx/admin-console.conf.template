@@ -1,0 +1,76 @@
+# Admin console: serves the Angular build and proxies /api/ to the gateway.
+#
+# The official nginx image runs envsubst over /etc/nginx/templates/*.template at start-up and writes the
+# result to /etc/nginx/conf.d/. NGINX_ENVSUBST_FILTER (set in the Dockerfile) limits substitution to the two
+# variables below, so nginx's own $variables are left alone.
+#   API_UPSTREAM  base URL of the API, without a path or trailing slash, e.g. http://gateway:8080. Only then does
+#                 proxy_pass (which uses a variable) forward the request URI unchanged:
+#                 /api/v1/admin/notifications reaches the gateway as /api/v1/admin/notifications.
+#   DNS_RESOLVER  DNS server nginx uses to look the upstream up at request time (Docker's is 127.0.0.11)
+
+server {
+    listen 8080;
+    server_name _;
+    server_tokens off;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # The console only sends small JSON bodies (template edits).
+    client_max_body_size 1m;
+
+    gzip on;
+    gzip_comp_level 5;
+    gzip_min_length 1024;
+    gzip_vary on;
+    # Recent nginx versions map .js to text/javascript, older ones to application/javascript; list both.
+    gzip_types text/plain text/css text/javascript application/javascript application/json image/svg+xml;
+
+    # Security headers. Set at server level only: an add_header inside a location would drop these.
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+    # Admin pages must never be indexed.
+    add_header X-Robots-Tag "noindex, nofollow" always;
+
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    # The API. The upstream is resolved per request (not once at start-up) so the console can start before it.
+    location ^~ /api/ {
+        resolver ${DNS_RESOLVER} valid=10s ipv6=off;
+        set $api_upstream "${API_UPSTREAM}";
+        proxy_pass $api_upstream;
+
+        proxy_http_version 1.1;
+        # $http_host keeps the port the browser used, so that Origin and Host agree.
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 30s;
+    }
+
+    # Build output with a content hash in its name never changes: cache it for a year.
+    location ~* "^/.+-[A-Za-z0-9]{8,}\.(js|css|woff2?)$" {
+        expires 1y;
+        try_files $uri =404;
+    }
+
+    # The shell must always be revalidated so a new release is picked up.
+    location = /index.html {
+        expires -1;
+    }
+
+    # Single-page app: unknown paths are client-side routes.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

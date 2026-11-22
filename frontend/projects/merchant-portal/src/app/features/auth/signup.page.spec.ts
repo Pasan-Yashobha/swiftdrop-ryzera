@@ -156,4 +156,39 @@ describe('SignupPage', () => {
 
     expect(element(fixture).textContent).toContain('is not allowed');
   });
+
+  it('updates the Google signup link when the selected account type changes', () => {
+    const googleLink = query<HTMLAnchorElement>(fixture, 'a.btn-google');
+    expect(googleLink.getAttribute('href')).toBe('/api/v1/auth/google?role=MERCHANT');
+
+    fixture.componentInstance['form'].controls.role.setValue('COURIER');
+    fixture.detectChanges();
+
+    expect(googleLink.getAttribute('href')).toBe('/api/v1/auth/google?role=COURIER');
+
+    fixture.componentInstance['form'].controls.role.setValue('CUSTOMER');
+    fixture.detectChanges();
+
+    expect(googleLink.getAttribute('href')).toBe('/api/v1/auth/google?role=CUSTOMER');
+  });
+
+  it('opens the public tracking page for a quick track number', () => {
+    const navigate = spyOn(router, 'navigate').and.resolveTo(true);
+    const trackInput = query<HTMLInputElement>(fixture, '#quickTrackInputSignup');
+    trackInput.value = ' sd-8888-5678 ';
+    buttonByText(fixture, 'Go').click();
+    fixture.detectChanges();
+
+    expect(navigate).toHaveBeenCalledWith(['/track', 'SD-8888-5678']);
+  });
+
+  it('asks for a real tracking number in quick track', () => {
+    const navigate = spyOn(router, 'navigate');
+    query<HTMLInputElement>(fixture, '#quickTrackInputSignup').value = 'hello';
+    buttonByText(fixture, 'Go').click();
+    fixture.detectChanges();
+
+    expect(navigate).not.toHaveBeenCalled();
+    expect(element(fixture).textContent).toContain('Enter a tracking number such as SD-2641-7788.');
+  });
 });

@@ -1,0 +1,11 @@
+.row-link {
+  cursor: pointer;
+}
+
+.row-link:hover {
+  background: var(--color-surface-alt);
+}
+
+.cell-url {
+  max-width: 18rem;
+}

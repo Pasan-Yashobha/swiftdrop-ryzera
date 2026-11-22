@@ -1,0 +1,84 @@
+<dialog
+  #dialog
+  class="dialog dialog--wide"
+  aria-labelledby="audit-dialog-title"
+  (close)="onClosed()"
+>
+  @if (entry(); as e) {
+    <div class="detail__head">
+      <h2 id="audit-dialog-title">Audit record #{{ e.seq }}</h2>
+      <button type="button" class="btn btn-ghost btn-sm" (click)="close()">
+        Close <span class="visually-hidden">audit record details</span>
+      </button>
+    </div>
+
+    <dl class="details">
+      <dt>Action</dt>
+      <dd class="mono">{{ e.action }}</dd>
+      <dt>Happened</dt>
+      <dd>{{ e.occurredAt | date: 'medium' }}</dd>
+      <dt>Recorded</dt>
+      <dd>{{ e.recordedAt | date: 'medium' }}</dd>
+      <dt>Actor</dt>
+      <dd class="mono">
+        {{ e.actorId ?? '—' }}
+        @if (e.actorRole) {
+          <span class="muted small">({{ e.actorRole }})</span>
+        }
+      </dd>
+      <dt>Entity</dt>
+      <dd class="mono">{{ e.entityType ?? '—' }} {{ e.entityId ?? '' }}</dd>
+      <dt>IP address</dt>
+      <dd class="mono">{{ e.ipAddress ?? '—' }}</dd>
+      <dt>Producer</dt>
+      <dd class="mono">{{ e.producer ?? '—' }}</dd>
+      <dt>Correlation id</dt>
+      <dd class="mono">{{ e.correlationId ?? '—' }}</dd>
+      <dt>Event id</dt>
+      <dd class="mono">{{ e.eventId }}</dd>
+    </dl>
+
+    <section class="stack detail__section" aria-labelledby="audit-details-title">
+      <h3 id="audit-details-title">Details</h3>
+      @if (details().length > 0) {
+        <div class="table-wrap">
+          <table class="table">
+            <caption class="visually-hidden">
+              Facts stored with the record (secrets and personal data are never stored)
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of details(); track item[0]) {
+                <tr>
+                  <th scope="row" class="mono">{{ item[0] }}</th>
+                  <td class="mono">{{ item[1] }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <p class="muted">No extra details were recorded.</p>
+      }
+    </section>
+
+    <section class="stack detail__section" aria-labelledby="audit-hash-title">
+      <h3 id="audit-hash-title">Hash chain</h3>
+      <p class="muted small">
+        Each record's hash covers the previous record's hash, so changing or removing any record breaks the
+        chain after it.
+      </p>
+      <dl class="details">
+        <dt>Previous hash</dt>
+        <dd class="mono hash">{{ e.prevHash }}</dd>
+        <dt>This record's hash</dt>
+        <dd class="mono hash">{{ e.rowHash }}</dd>
+      </dl>
+    </section>
+  }
+</dialog>

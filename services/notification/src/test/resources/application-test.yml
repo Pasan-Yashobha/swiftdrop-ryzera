@@ -1,0 +1,44 @@
+# Test profile: H2 in PostgreSQL mode running the real Flyway migration; no broker, no schedulers.
+# All secrets below are dummy values that exist only for the test run.
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:notification-${random.uuid};MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    clean-disabled: false
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: false
+      direct:
+        auto-startup: false
+  mail:
+    host: localhost
+    port: 2525
+
+management:
+  health:
+    rabbit:
+      enabled: false
+
+swiftdrop:
+  scheduling:
+    enabled: false
+  public-tracking-url: https://swiftdrop.test/track
+  security:
+    dev-hmac-secret: test-only-hmac-secret-0123456789abcdef
+    internal-token: test-internal-token
+  clients:
+    identity-url: http://localhost:1
+    merchant-url: http://localhost:1
+    document-url: http://localhost:1
+  sms:
+    api-url: http://localhost:1/mock-sms/messages
+    api-key: test-sms-key
+    mock-provider-enabled: true

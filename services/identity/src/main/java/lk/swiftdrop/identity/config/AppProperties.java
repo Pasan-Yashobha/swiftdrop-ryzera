@@ -14,7 +14,8 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties("swiftdrop")
 public record AppProperties(
         @Valid @NotNull @DefaultValue Security security,
-        @Valid @NotNull @DefaultValue GoogleOAuth google) {
+        @Valid @NotNull @DefaultValue GoogleOAuth google,
+        @Valid @NotNull @DefaultValue Recovery recovery) {
 
     public record Security(
             @DefaultValue("swiftdrop-identity") String jwtIssuer,
@@ -34,6 +35,11 @@ public record AppProperties(
             @DefaultValue("") String clientId,
             @DefaultValue("") String clientSecret,
             @DefaultValue("http://localhost:8080/api/v1/auth/google/callback") String redirectUri,
+            @DefaultValue("http://localhost:4200") String frontendUrl) {
+    }
+
+    public record Recovery(
+            @DefaultValue("15") @Min(1) @Max(1440) int tokenTtlMinutes,
             @DefaultValue("http://localhost:4200") String frontendUrl) {
     }
 }
